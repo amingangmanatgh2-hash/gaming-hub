@@ -1,0 +1,13 @@
+# Copy to .dev.vars for local development. NEVER commit real secrets.
+# For production use: npx wrangler secret put <NAME>
+
+# Required in production: 32+ byte random hex used to hash sessions/codes/state.
+APP_SECRET=dev-only-insecure-secret-change-me
+
+# Optional: Google OAuth (OIDC)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Optional: email delivery (Resend-compatible HTTP API)
+EMAIL_API_KEY=
+EMAIL_FROM=AMIN AI ULTRA <no-reply@example.com>

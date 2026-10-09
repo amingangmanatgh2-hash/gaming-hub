@@ -1,0 +1,54 @@
+# ============================================================
+# AMIN AI ULTRA — Cloudflare Workers configuration
+# ============================================================
+name = "amin-ai-ultra"
+main = "src/worker/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Static frontend (built by Vite into ./dist) + single-page-app fallback
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+# ---------- D1 database ----------
+# For a real deployment run:
+#   npx wrangler d1 create amin-ai-ultra
+# and paste the returned database_id here.
+[[d1_databases]]
+binding = "DB"
+database_name = "amin-ai-ultra"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# ---------- R2 bucket (uploads + generated assets) ----------
+#   npx wrangler r2 bucket create amin-ai-ultra-assets
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "amin-ai-ultra-assets"
+
+# ---------- Durable Objects ----------
+[[durable_objects.bindings]]
+name = "QUOTA"
+class_name = "QuotaCoordinator"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["QuotaCoordinator", "RateLimiter"]
+
+# ---------- Non-secret vars ----------
+# Secrets (APP_SECRET, GOOGLE_CLIENT_SECRET, ...) must be set with:
+#   npx wrangler secret put APP_SECRET
+[vars]
+ENVIRONMENT = "production"
+APP_NAME = "AMIN AI ULTRA"
+
+[dev]
+port = 8787
+ip = "0.0.0.0"
