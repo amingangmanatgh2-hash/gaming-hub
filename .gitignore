@@ -1,0 +1,19 @@
+# وابستگی‌ها و خروجی‌های ساخت
+node_modules/
+dist/
+out/
+*.log
+.DS_Store
+
+# خروجی‌های بومی اندروید
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/www/
+
+# آیکون‌های میانی (تولیدشده با ImageMagick)
+# (مipmap-ها در مخزن می‌مانند چون خروجی نهایی‌اند)
+
+# ابزارهای تست موقت
+tools/.tmp/

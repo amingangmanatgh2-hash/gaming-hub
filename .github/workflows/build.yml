@@ -1,0 +1,85 @@
+name: Build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: آزمون هدلس
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: اجرای آزمون هدلس (بدون مرورگر)
+        run: node tools/headless-test.js
+
+  android:
+    name: ساخت APK اندروید
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: ساخت APK (امضاشده با کلید debug)
+        run: |
+          cd android
+          gradle :app:assembleDebug :app:assembleRelease --no-daemon
+      - name: آماده‌سازی خروجی‌ها
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/KafkhabRacing-android.apk || true
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk out/KafkhabRacing-android-unsigned.apk || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/*.apk
+
+  windows:
+    name: ساخت EXE ویندوز
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: نصب وابستگی‌ها
+        run: npm install
+      - name: ساخت EXE
+        run: npm run build:win
+      - name: فشرده‌سازی
+        shell: pwsh
+        run: |
+          $dir = Get-ChildItem dist -Directory | Select-Object -First 1
+          Compress-Archive -Path $dir.FullName -DestinationPath KafkhabRacing-win-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: KafkhabRacing-win-x64.zip
+
+  release:
+    name: انتشار نسخه
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+      - name: ساخت ریلیز GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            assets/**/*.apk
+            assets/**/*.zip
+          generate_release_notes: true

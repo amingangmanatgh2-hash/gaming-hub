@@ -1,0 +1,58 @@
+// build.gradle ماژول app — نسخه‌ی اندروید «کف‌خواب ریسینگ»
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.kafkhab.racing'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.kafkhab.racing"
+        minSdk 21            // پوشش ~۹۸٪ دستگاه‌ها (WebGL از ۱۶ به بالا هست)
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false   // بازی خودش minify شده؛ نگه‌داشتن خوانا برای ویرایش
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            // برای تست روی دستگاه/شبیه‌ساز
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        abortOnError false
+    }
+
+    // فایل‌های بازی (index.html, css, js) از ریشه‌ی مخزن کپی می‌شوند
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/**']
+        }
+    }
+}
+
+// ------------------------------------------------------------- کپی فایل وب
+def webRoot = file("${rootDir}/..")
+tasks.register('copyWebAssets', Copy) {
+    from(webRoot) { include 'index.html' }
+    from("${webRoot}/css") { into 'css' }
+    from("${webRoot}/js") { into 'js' }
+    into "${projectDir}/src/main/assets/www"
+    // هر بار تازه کپی شود تا نسخه‌ی قدیمی نماند
+    outputs.upToDateWhen { false }
+}
+preBuild.dependsOn copyWebAssets
+
+dependencies {
+    // بدون هیچ وابستگی — WebView خود اندروید همه‌چیز را اجرا می‌کند
+}
