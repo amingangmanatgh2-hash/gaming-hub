@@ -1,0 +1,20 @@
+{
+  "name": "امین‌ای‌آی الترا | AMIN AI ULTRA",
+  "short_name": "امین‌ای‌آی",
+  "description": "پلتفرم هوش مصنوعی فارسی‌زبان — گفتگو و تولید ویدیو",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/app/chat",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#040806",
+  "theme_color": "#06110c",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
