@@ -1,8 +1,8 @@
 {
-  "name": "kafkhab-racing",
-  "productName": "Kafkhab Racing",
+  "name": "takavar-racing",
+  "productName": "Takavar Racing",
   "version": "1.0.0",
-  "description": "کف‌خواب ریسینگ — بازی ماشین‌سواری سه‌بعدی با ۲۰ پیست ایرانی، ۱۶ خودرو و مسابقه‌ی دونفره‌ی محلی",
+  "description": "تکاور ریسینگ — بازی ماشین‌سواری سه‌بعدی با ۲۲ پیست، ۲۲ خودرو، داستان، خودران و مسابقه‌ی دونفره‌ی محلی",
   "main": "desktop/main.js",
   "author": "Kafkhab Studio",
   "license": "MIT",

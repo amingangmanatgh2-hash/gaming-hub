@@ -328,7 +328,51 @@
 
     this.stats = { calls: 0, tris: 0 };
     this.quality = 1;
+
+    /* سطح گرافیک: 0=خودکار 1=سبک 2=متوسط 3=زیبا 4=اولترا */
+    this.level = 2;
+    this.auto = false;
+    this.autoMax = 3;
+    this.setQuality(2, false);
   }
+
+  /* ------------------------------------------------------- کیفیت گرافیک */
+  Renderer.prototype.detectBaseLevel = function () {
+    var cores = (root.navigator && root.navigator.hardwareConcurrency) || 4;
+    var mob = root.navigator && /Android|iPhone|iPad|Mobile/i.test(root.navigator.userAgent || '');
+    var dpr = root.devicePixelRatio || 1;
+    if (mob) return dpr > 2.5 ? 2 : (cores >= 8 ? 2 : 1);
+    return cores >= 8 ? 3 : 2;
+  };
+
+  Renderer.prototype.setQuality = function (level, auto) {
+    this.auto = !!auto;
+    if (auto) { this.autoMax = level === 0 ? this.detectBaseLevel() : level; this.level = this.autoMax; }
+    else this.level = level;
+    this.applyQuality();
+  };
+
+  Renderer.prototype.applyQuality = function () {
+    var L = this.level;
+    this.dprCap = [1, 0.75, 1, 1.5, 2][L] || 1;
+    this.partScale = [0.5, 0.5, 0.8, 1, 1.5][L] || 1;
+    this.weatherScale = [0.4, 0.4, 0.7, 1, 1.4][L] || 1;
+    this.enableShadow = L >= 2;
+    this.enableSkid = L >= 1;
+    this.enableHeadlight = L >= 2;
+    this.resize();
+  };
+
+  /** تطبیق خودکار کیفیت با نرخ فریم (فقط در حالت خودکار) */
+  Renderer.prototype.adaptive = function (fps) {
+    if (!this.auto) return;
+    this._acc = (this._acc === undefined ? 60 : this._acc) * 0.9 + fps * 0.1;
+    this._t = (this._t || 0) + 1;
+    if (this._t % 100 === 0) {
+      if (this._acc < 42 && this.level > 1) { this.level--; this.applyQuality(); }
+      else if (this._acc > 57 && this.level < this.autoMax) { this.level++; this.applyQuality(); }
+    }
+  };
 
   Renderer.prototype.makeDecalTexture = function () {
     var gl = this.gl;
@@ -409,7 +453,8 @@
 
   Renderer.prototype.resize = function () {
     var c = this.canvas;
-    var dpr = Math.min(root.devicePixelRatio || 1, this.quality > 0.7 ? 2 : 1.25);
+    var cap = this.dprCap || 1.5;
+    var dpr = Math.min(root.devicePixelRatio || 1, cap);
     var w = Math.max(1, Math.floor(c.clientWidth * dpr));
     var h = Math.max(1, Math.floor(c.clientHeight * dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }

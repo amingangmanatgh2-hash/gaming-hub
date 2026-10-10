@@ -17,7 +17,7 @@ function createWindow() {
     height: 860,
     minWidth: 900,
     minHeight: 540,
-    title: 'کف‌خواب ریسینگ — KAFKHAB RACING',
+    title: 'تکاور ریسینگ — TAKAVAR RACING',
     backgroundColor: '#05070d',
     autoHideMenuBar: true,
     fullscreen: !isDev && process.platform !== 'darwin',

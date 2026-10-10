@@ -19,9 +19,15 @@
       tracks: ['tehran', 'kish'],
       best: {},
       selected: 'tandar',
-      settings: { quality: 1, master: 80, sfx: 90, music: 35, camMode: 'chase', splitDir: 'vertical', showFps: false }
+      story: {},
+      settings: {
+        quality: 0, master: 80, sfx: 90, music: 35, camMode: 'chase',
+        splitDir: 'vertical', showFps: false, lang: 'fa',
+        autopilot: false, damage: true
+      }
     };
   }
+  var GIFT_CODE = 'amgiftc$%=un';
   function loadProfile() {
     try {
       var raw = root.localStorage.getItem(SAVE_KEY);
@@ -42,7 +48,8 @@
   var showroom = null;
   var lastT = 0, fpsAvg = 60;
   var raceCfg = null;
-  var setup = { trackId: 'tehran', carId: 'tandar', p2CarId: null, laps: 3, ai: 7, dif: 1, mode: 'single' };
+  var setup = { trackId: 'tehran', carId: 'tandar', p2CarId: null, laps: 3, ai: 7, dif: 1, mode: 'single', story: null };
+  var currentStory = null;
 
   var $ = function (id) { return doc.getElementById(id); };
   function el(tag, cls, html) {
@@ -391,6 +398,7 @@
   }
 
   function startRace() {
+    currentStory = setup.story ? currentChapter(setup.story) : null;
     var tdef = KK.TRACKS.filter(function (t) { return t.id === setup.trackId; })[0];
     var entries = [];
     var mk = function (cid, name, player) {
@@ -464,6 +472,21 @@
     var difBonus = setup.dif * 180;
     var drift = Math.round((me.driftBank || 0) / 12);
     var reward = Math.round(base + winBonus + difBonus + drift);
+
+    // ارزیابی هدف فصل داستانی
+    var storyTitle = null, storySub = null;
+    if (currentStory) {
+      if (storyPass(currentStory, myPos, me)) {
+        P.story[currentStory.id] = true;
+        reward += currentStory.reward;
+        storyTitle = '🏆 فصل «' + currentStory.title + '» تمام شد!';
+        storySub = 'هدف انجام شد — جایزه: ◆ ' + money(currentStory.reward);
+      } else {
+        storyTitle = '❌ هدف فصل انجام نشد';
+        storySub = objText(currentStory.obj) + ' — دوباره تلاش کن';
+        reward = Math.round(reward * 0.4);
+      }
+    }
     P.coins += reward;
 
     if (me.bestLap) {
@@ -495,8 +518,9 @@
       d.appendChild(el('div', 'nm', c ? (c.isPlayer ? 'شما' : c.name) : ''));
       pod.appendChild(d);
     });
-    $('r-title').textContent = myPos === 1 ? 'برد! 🏆' : 'پایان مسابقه';
+    $('r-title').textContent = storyTitle || (myPos === 1 ? 'برد! 🏆' : 'پایان مسابقه');
     $('r-coins').textContent = money(reward);
+    if (storySub) $('r-pos').textContent = storySub;
     show('results');
     audio && audio.ui(myPos === 1 ? 'buy' : 'ok');
   }
@@ -528,12 +552,38 @@
 
   /* ============================================================ تنظیمات */
   function renderSettings() {
-    seg('set-quality', [{ v: 0, label: 'کم' }, { v: 1, label: 'متوسط' }, { v: 2, label: 'زیبا' }], P.settings.quality,
-      function (v) { P.settings.quality = v; renderer.quality = [0.5, 1, 1.5][v]; renderer.resize(); saveProfile(); renderSettings(); });
+    seg('set-quality', [
+      { v: 0, label: 'خودکار' }, { v: 1, label: 'سبک' }, { v: 2, label: 'متوسط' },
+      { v: 3, label: 'زیبا' }, { v: 4, label: 'اولترا' }
+    ], P.settings.quality, function (v) {
+      P.settings.quality = v; applyRendererQuality(); saveProfile(); renderSettings();
+      toast('کیفیت گرافیک: ' + (['خودکار', 'سبک', 'متوسط', 'زیبا', 'اولترا'][v]), 'ok');
+    });
     seg('set-split', [{ v: 'vertical', label: 'عمودی' }, { v: 'horizontal', label: 'افقی' }], P.settings.splitDir,
       function (v) { P.settings.splitDir = v; saveProfile(); renderSettings(); });
     seg('set-fps', [{ v: false, label: 'خاموش' }, { v: true, label: 'روشن' }], P.settings.showFps,
       function (v) { P.settings.showFps = v; saveProfile(); renderSettings(); });
+    seg('set-lang', [{ v: 'fa', label: 'فارسی' }, { v: 'en', label: 'EN' }], P.settings.lang,
+      function (v) { P.settings.lang = v; saveProfile(); applyLang(); renderSettings(); });
+    seg('set-auto', [{ v: false, label: 'خاموش' }, { v: true, label: 'روشن' }], P.settings.autopilot,
+      function (v) { P.settings.autopilot = v; saveProfile(); renderSettings(); });
+    seg('set-damage', [{ v: true, label: 'روشن' }, { v: false, label: 'خاموش' }], P.settings.damage,
+      function (v) { P.settings.damage = v; saveProfile(); renderSettings(); });
+    var codeBtn = $('set-codebtn');
+    if (codeBtn && !codeBtn._wired) {
+      codeBtn._wired = true;
+      codeBtn.onclick = function () {
+        var val = ($('set-code').value || '').trim();
+        if (val === GIFT_CODE) {
+          unlockAll();
+          $('set-codemsg').textContent = '✓ کد فعال شد — سکه‌ی بی‌نهایت و همه‌چیز باز.';
+          if (audio) audio.ui('buy'); toast('کد هدیه فعال شد', 'ok');
+        } else {
+          $('set-codemsg').textContent = '✗ کد اشتباه است.';
+          toast('کد اشتباه', 'bad');
+        }
+      };
+    }
     $('set-master').value = P.settings.master;
     $('set-sfx').value = P.settings.sfx;
     $('set-music').value = P.settings.music;
@@ -545,6 +595,102 @@
     audio.setMusic(P.settings.music / 100);
   }
 
+  /* ------------------------------------------------------------ زبان */
+  function applyLang() {
+    var en = P.settings.lang === 'en';
+    doc.documentElement.lang = en ? 'en' : 'fa';
+    doc.documentElement.dir = en ? 'ltr' : 'rtl';
+    var nodes = doc.querySelectorAll('[data-en]');
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.getAttribute('data-fa') === null) n.setAttribute('data-fa', n.textContent);
+      n.textContent = en ? n.getAttribute('data-en') : n.getAttribute('data-fa');
+    }
+  }
+
+  /* ------------------------------------------------------------ کیفیت */
+  function applyRendererQuality() {
+    var q = P.settings.quality;
+    if (q === 0) renderer.setQuality(0, true);   // خودکار + تطبیقی
+    else renderer.setQuality(q, false);
+  }
+
+  /* ------------------------------------------------------------ کد هدیه */
+  function unlockAll() {
+    P.coins = 999999999;
+    P.owned = KK.CARS.map(function (c) { return c.id; });
+    P.tracks = KK.TRACKS.map(function (t) { return t.id; });
+    saveProfile(); updateMenuStats();
+  }
+
+  /* ------------------------------------------------------------ داستان */
+  var storySel = 0;
+  function currentChapter(id) {
+    for (var i = 0; i < KK.STORY.length; i++) if (KK.STORY[i].id === id) return KK.STORY[i];
+    return null;
+  }
+  function objText(o) {
+    if (o.type === 'win') return 'اول شو';
+    if (o.type === 'podium') return 'روی سکو برو (۱ تا ۳)';
+    if (o.type === 'posN') return 'جایگاه ' + fa(o.n) + ' یا بهتر';
+    if (o.type === 'drift') return 'امتیاز دریفت ' + fa(o.x) + ' به بالا';
+    if (o.type === 'clean') return 'آسیب کمتر از ' + fa(o.m) + '٪';
+    return '';
+  }
+  function storyPass(ch, pos, me) {
+    var o = ch.obj;
+    if (o.type === 'win') return pos === 1;
+    if (o.type === 'podium') return pos <= 3;
+    if (o.type === 'posN') return pos <= o.n;
+    if (o.type === 'drift') return (me.driftBank || 0) >= o.x;
+    if (o.type === 'clean') return me.damage < o.m;
+    return true;
+  }
+  function renderStory() {
+    var g = $('storylist'); g.innerHTML = '';
+    var doneCount = 0;
+    KK.STORY.forEach(function (ch, idx) {
+      var done = !!P.story[ch.id];
+      var unlocked = idx === 0 || !!P.story[KK.STORY[idx - 1].id];
+      if (done) doneCount++;
+      var c = el('div', 'schap ' + (done ? 'done' : unlocked ? 'open' : 'lock'));
+      c.appendChild(el('div', 'num', fa(idx + 1)));
+      c.appendChild(el('b', null, ch.title));
+      var tdef = KK.TRACKS.filter(function (t) { return t.id === ch.track; })[0];
+      c.appendChild(el('em', null, tdef ? tdef.name + ' · ' + fa(ch.laps) + ' دور' : ''));
+      c.appendChild(el('p', null, ch.intro[0] || ''));
+      c.appendChild(el('div', 'st', done ? '✓ تمام شد' : unlocked ? objText(ch.obj) : '🔒 قفل'));
+      c.onclick = function () {
+        if (!unlocked) { toast('اول فصل قبلی را تمام کن', 'bad'); return; }
+        audio && audio.ui('move');
+        openStory(idx);
+      };
+      g.appendChild(c);
+    });
+    $('st-prog').textContent = fa(doneCount) + '/' + fa(KK.STORY.length) + ' فصل';
+  }
+  function openStory(idx) {
+    storySel = idx;
+    var ch = KK.STORY[idx];
+    $('d-chap').textContent = 'فصل ' + fa(idx + 1) + ' — ' + ch.title;
+    var dl = $('d-lines'); dl.innerHTML = '';
+    ch.intro.forEach(function (l) { dl.appendChild(el('p', null, l)); });
+    $('d-obj').textContent = '🎯 هدف: ' + objText(ch.obj) + '  ·  جایزه: ◆ ' + money(ch.reward);
+    $('story-dialog').classList.remove('hidden');
+  }
+  function startStory(idx) {
+    var ch = KK.STORY[idx];
+    if (!ch) return;
+    setup.trackId = ch.track;
+    setup.laps = ch.laps;
+    setup.ai = ch.ai;
+    setup.dif = ch.dif;
+    setup.mode = 'single';
+    setup.story = ch.id;
+    if (ch.car && P.owned.indexOf(ch.car) >= 0) setup.carId = ch.car;
+    startRace();
+  }
+
   /* ========================================================= حلقه‌ی اصلی */
   function frame(now) {
     root.requestAnimationFrame(frame);
@@ -553,6 +699,7 @@
     if (!isFinite(dt) || dt <= 0) dt = 0.016;
     dt = Math.min(dt, 0.05);
     fpsAvg = fpsAvg * 0.92 + (1 / dt) * 0.08;
+    if (renderer && renderer.adaptive) renderer.adaptive(fpsAvg);
 
     try {
       if (curScreen === null && game && game.state !== 'done') {
@@ -624,17 +771,18 @@
       quick: function () {
         var pool = P.tracks.slice();
         setup.trackId = pool[(Math.random() * pool.length) | 0];
-        setup.mode = 'single';
+        setup.mode = 'single'; setup.story = null;
         var t = KK.TRACKS.filter(function (x) { return x.id === setup.trackId; })[0];
         setup.laps = t.laps;
         setup.ai = t.ai;
         startRace();
       },
-      race: function () { setup.mode = 'single'; renderTracks(); show('tracks'); },
+      race: function () { setup.mode = 'single'; setup.story = null; renderTracks(); show('tracks'); },
+      story: function () { renderStory(); show('story'); },
       garage: function () { renderGarage(); show('garage'); },
       local: function () {
         if (ownedCars().length < 2) { toast('برای دونفره حداقل به دو خودرو نیاز داری', 'bad'); show('garage'); renderGarage(); return; }
-        setup.mode = 'split'; renderTracks(); show('tracks');
+        setup.mode = 'split'; setup.story = null; renderTracks(); show('tracks');
       },
       settings: function () { renderSettings(); show('settings'); },
       howto: function () { show('howto'); },
@@ -671,6 +819,14 @@
     $('r-again').onclick = function () { audio && audio.ui('ok'); startRace(); };
     $('r-garage').onclick = function () { updateMenuStats(); renderGarage(); show('garage'); };
     $('r-menu').onclick = function () { updateMenuStats(); show('menu'); };
+
+    // دیالوگ داستان
+    $('d-go').onclick = function () {
+      $('story-dialog').classList.add('hidden');
+      audio && audio.ui('start');
+      startStory(storySel);
+    };
+    $('d-cancel').onclick = function () { $('story-dialog').classList.add('hidden'); };
 
     $('p-resume').onclick = function () { game.paused = false; show(null); $('touch').classList.toggle('hidden', !game.touchMode); };
     $('p-restart').onclick = function () { game.paused = false; startRace(); };
@@ -735,6 +891,8 @@
       return;
     }
     renderer.quality = [0.5, 1, 1.5][P.settings.quality] || 1;
+    applyRendererQuality();
+    applyLang();
     renderer.resize();
     sizeHud();
 

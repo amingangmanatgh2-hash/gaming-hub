@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#05070d">
-<meta name="description" content="کف‌خواب ریسینگ — بازی ماشین‌سواری سه‌بعدی با ۲۰ پیست ایرانی، ۱۶ خودرو و مسابقه‌ی دو نفره‌ی محلی">
-<title>کف‌خواب ریسینگ | KAFKHAB RACING</title>
+<meta name="description" content="تکاور ریسینگ — بازی ماشین‌سواری سه‌بعدی با ۲۲ پیست، ۲۲ خودرو، حالت داستانی، خودران و مسابقه‌ی دو نفره‌ی محلی">
+<title>تکاور ریسینگ | TAKAVAR RACING</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -32,8 +32,8 @@
 <div id="screen-loading" class="screen active">
   <div class="loadbox">
     <div class="logowrap">
-      <div class="logotype">کف‌خواب</div>
-      <div class="logosub">KAFKHAB&nbsp;RACING</div>
+      <div class="logotype">تکاور</div>
+      <div class="logosub">TAKAVAR&nbsp;RACING</div>
     </div>
     <div class="bar"><i id="loadbar"></i></div>
     <div id="loadmsg" class="loadmsg">در حال گرم‌کردن موتور…</div>
@@ -44,17 +44,19 @@
 <div id="screen-menu" class="screen">
   <div class="menuwrap">
     <div class="brand">
-      <h1>کف‌خواب <span>ریسینگ</span></h1>
+      <h1>تکاور <span>ریسینگ</span></h1>
       <p class="tagline">۲۰ پیست ایرانی · ۱۶ خودرو · تک‌نفره و دونفره روی یک کیبورد</p>
     </div>
     <nav class="mainnav">
-      <button class="mbtn" data-act="quick"><b>شروع سریع</b><small>تصادفی، همین حالا</small></button>
-      <button class="mbtn" data-act="race"><b>مسابقه</b><small>انتخاب پیست و خودرو</small></button>
-      <button class="mbtn" data-act="garage"><b>گاراژ</b><small>خرید، رنگ و تقویت</small></button>
-      <button class="mbtn" data-act="local"><b>دونفره‌ی محلی</b><small>صفحه‌ی تقسیم‌شده</small></button>
-      <button class="mbtn" data-act="settings"><b>تنظیمات</b><small>گرافیک، صدا، کنترل</small></button>
-      <button class="mbtn" data-act="howto"><b>راهنما</b><small>کلیدها و قواعد</small></button>
+      <button class="mbtn" data-act="quick"><b data-en="Quick Race">شروع سریع</b><small data-en="Random, right now">تصادفی، همین حالا</small></button>
+      <button class="mbtn" data-act="story"><b data-en="Story">داستان</b><small data-en="Campaign">کمپین فصلی</small></button>
+      <button class="mbtn" data-act="race"><b data-en="Race">مسابقه</b><small data-en="Pick track & car">انتخاب پیست و خودرو</small></button>
+      <button class="mbtn" data-act="garage"><b data-en="Garage">گاراژ</b><small data-en="Buy, paint, tune">خرید، رنگ و تقویت</small></button>
+      <button class="mbtn" data-act="local"><b data-en="Local 2P">دونفره‌ی محلی</b><small data-en="Split screen">صفحه‌ی تقسیم‌شده</small></button>
+      <button class="mbtn" data-act="settings"><b data-en="Settings">تنظیمات</b><small data-en="Graphics, audio, controls">گرافیک، صدا، کنترل</small></button>
+      <button class="mbtn" data-act="howto"><b data-en="Help">راهنما</b><small data-en="Keys & rules">کلیدها و قواعد</small></button>
     </nav>
+    <p class="tagline" data-en="22 procedural tracks · 22 cars · story · autopilot · local 2-player">۲۲ پیست ایرانی · ۲۲ خودرو · داستان · خودران · دونفره روی یک کیبورد</p>
     <div class="statbar">
       <span class="coin">◆ <b id="m-coins">0</b></span>
       <span>خودروها: <b id="m-cars">0/16</b></span>
@@ -140,6 +142,15 @@
       <div class="optrow"><label>کیفیت</label><div class="seg" id="set-quality"></div></div>
       <div class="optrow"><label>جهت تقسیم صفحه</label><div class="seg" id="set-split"></div></div>
       <div class="optrow"><label>نمایش FPS</label><div class="seg" id="set-fps"></div></div>
+      <div class="optrow"><label>زبان</label><div class="seg" id="set-lang"></div></div>
+    </div>
+    <div class="card">
+      <h3>گیم‌پلی</h3>
+      <div class="optrow"><label>خودران (هوش مصنوعی براند)</label><div class="seg" id="set-auto"></div></div>
+      <div class="optrow"><label>آسیب و خرابی موتور</label><div class="seg" id="set-damage"></div></div>
+      <div class="optrow"><label>کد هدیه</label><input id="set-code" class="codein" dir="ltr" placeholder="code…"></div>
+      <button class="primary" id="set-codebtn" style="margin-top:10px">فعال‌سازی کد هدیه</button>
+      <p class="hint" id="set-codemsg"></p>
     </div>
     <div class="card">
       <h3>صدا</h3>
@@ -181,6 +192,29 @@
       <p>صفحه نصف می‌شود؛ بالا بازیکن ۲ و پایین بازیکن ۱. هر دو روی یک کیبورد. بقیه‌ی خانه‌ها را هوش مصنوعی پر می‌کند.</p></div>
     <div class="card"><h3>سکه</h3>
       <p>جایگاه بهتر = سکه‌ی بیشتر. با سکه خودرو و پیست بخر و قطعات را تقویت کن. رکورد هر پیست در گاراژ ثبت می‌شود.</p></div>
+  </div>
+</div>
+
+<!-- ============ داستان ============ -->
+<div id="screen-story" class="screen">
+  <header class="topbar">
+    <button class="ghost" data-act="back">→ بازگشت</button>
+    <h2>حالت داستانی</h2>
+    <span class="hint" id="st-prog"></span>
+  </header>
+  <div class="storylist" id="storylist"></div>
+</div>
+
+<!-- دیالوگ داستان قبل از مسابقه -->
+<div id="story-dialog" class="screen overlay hidden">
+  <div class="dialogbox">
+    <div class="dchap" id="d-chap"></div>
+    <div class="dlines" id="d-lines"></div>
+    <div class="dobj" id="d-obj"></div>
+    <div class="dbtns">
+      <button class="primary" id="d-go">بزن بریم</button>
+      <button class="ghost" id="d-cancel">انصراف</button>
+    </div>
   </div>
 </div>
 

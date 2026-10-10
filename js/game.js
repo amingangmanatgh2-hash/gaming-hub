@@ -187,7 +187,7 @@
     // بافت تابلوها
     if (this.renderer && this.renderer.buildDecalTexture) {
       this.renderer.buildDecalTexture(
-        ['کف‌خواب ریسینگ', trackDef.name, 'گاراژ تهران', 'نیترو ۱۰۰٪'],
+        ['تکاور ریسینگ', trackDef.name, 'گاراژ تهران', 'نیترو ۱۰۰٪'],
         ['#101820', '#1a1030', '#0d2430', '#2a0f18']
       );
     }
@@ -414,8 +414,10 @@
               (Math.random() - 0.5) * 7, Math.random() * 4, (Math.random() - 0.5) * 7,
               0.35 + Math.random() * 0.3, 0.06, [1, 0.75, 0.3], 0);
           }
-          a.damage = Math.min(100, a.damage + force * 6);
-          b.damage = Math.min(100, b.damage + force * 6);
+          if (this.settings.damage !== false) {
+            a.damage = Math.min(100, a.damage + force * 6);
+            b.damage = Math.min(100, b.damage + force * 6);
+          }
         }
       }
     }
@@ -444,7 +446,7 @@
           if (f2 > 0.1) {
             this.audio && this.audio.impact(f2 * 0.6);
             if (c.isPlayer) this.shakeFor(c, f2 * 0.8);
-            c.damage = Math.min(100, c.damage + f2 * 5);
+            if (this.settings.damage !== false) c.damage = Math.min(100, c.damage + f2 * 5);
             for (var q2 = 0; q2 < 5; q2++) {
               this.particles.emit(c.x, c.y + 0.7, c.z,
                 (Math.random() - 0.5) * 6, Math.random() * 3.5, (Math.random() - 0.5) * 6,
@@ -504,10 +506,11 @@
     var i;
     // دود لاستیک و جای ترمز
     var slipping = Math.abs(car.slip) > 0.18 && Math.abs(car.vf) > 6;
+    var skidsOn = this.renderer.enableSkid !== false;
     for (i = 2; i < 4; i++) {
       car.worldWheelPos(i, _cw);
       var prev = car.prevWheel[i];
-      if (slipping && car.onRoad) {
+      if (slipping && car.onRoad && skidsOn) {
         if (prev) this.renderer.addSkid(prev[0], prev[1], _cw[0], _cw[2], car.y + 0.025, car.def.ww * 0.95,
           clamp(Math.abs(car.slip) * 1.6, 0.15, 0.75));
         if (Math.random() < 0.6) {
@@ -537,17 +540,26 @@
       }
     }
     // دود اگزوز
-    if (Math.random() < 0.06 && Math.abs(car.vf) > 2) {
+    if (Math.random() < 0.06 * (this.renderer.partScale || 1) && Math.abs(car.vf) > 2) {
       var sn3 = Math.sin(car.yaw), cs3 = Math.cos(car.yaw);
       this.particles.emit(car.x - sn3 * car.def.len * 0.5, car.y + 0.3, car.z - cs3 * car.def.len * 0.5,
         (Math.random() - 0.5), 0.5, (Math.random() - 0.5), 0.5, 0.3, [0.5, 0.5, 0.52], 1);
+    }
+    // دود خرابی موتور (آسیب بالا) — سیاه از کاپوت
+    if (car.damage > 55 && Math.random() < 0.5 * (this.renderer.partScale || 1)) {
+      var sn4 = Math.sin(car.yaw), cs4 = Math.cos(car.yaw);
+      var heavy = car.damage > 80;
+      this.particles.emit(car.x + sn4 * car.def.len * 0.3, car.y + car.def.ht * 0.7, car.z + cs4 * car.def.len * 0.3,
+        (Math.random() - 0.5), 1.4 + Math.random() * 1.5, (Math.random() - 0.5),
+        0.6 + Math.random() * 0.5, heavy ? 1.2 : 0.8,
+        heavy ? [0.16, 0.16, 0.17] : [0.45, 0.45, 0.47], 1);
     }
   };
 
   Game.prototype.weatherParticles = function (cam) {
     var th = this.theme;
     if (th.weather !== 'rain' && th.weather !== 'snow' && th.weather !== 'sand' && th.weather !== 'petals' && th.weather !== 'leaves') return;
-    var n = th.weather === 'rain' ? 320 : 150;
+    var n = Math.round((th.weather === 'rain' ? 320 : 150) * (this.renderer.weatherScale || 1));
     var R = 42;
     for (var i = 0; i < n; i++) {
       var a = Math.random() * TAU, r = Math.random() * R;
@@ -596,10 +608,19 @@
     if (this.state !== 'racing' && this.state !== 'finished') return;
     this.raceTime += dt;
 
-    // ورودی‌ها
+    // ورودی‌ها (یا خودران)
     for (i = 0; i < this.players.length; i++) {
       p = this.players[i];
-      this.readInput(p, dt);
+      if (this.settings.autopilot) {
+        p.car.aiIdx = p.car.aiIdx === undefined ? 2 : p.car.aiIdx;
+        var ap = this.updateAI(p.car, dt);
+        p.input.steer = ap.steer; p.input.throttle = ap.throttle; p.input.brake = ap.brake;
+        p.input.handbrake = ap.handbrake; p.input.nitro = ap.nitro;
+        p.autopilot = true;
+      } else {
+        this.readInput(p, dt);
+        p.autopilot = false;
+      }
     }
     for (i = 0; i < this.cars.length; i++) {
       var car = this.cars[i];
@@ -775,11 +796,13 @@
 
       // سایه‌ها و نور افکن
       R.shadowN = 0;
-      for (var i = 0; i < this.cars.length; i++) {
-        var c = this.cars[i];
-        R.pushShadow(c.x, c.y + 0.035, c.z, c.yaw, c.def.wid * 1.28, c.def.len * 1.06, 0.42);
+      if (R.enableShadow !== false) {
+        for (var i = 0; i < this.cars.length; i++) {
+          var c = this.cars[i];
+          R.pushShadow(c.x, c.y + 0.035, c.z, c.yaw, c.def.wid * 1.28, c.def.len * 1.06, 0.42);
+        }
       }
-      if (this.theme.night) {
+      if (this.theme.night && R.enableHeadlight !== false) {
         for (i = 0; i < this.cars.length; i++) {
           var c2 = this.cars[i];
           R.pushHeadlight(c2.x, c2.y + 0.05, c2.z, c2.yaw, 22, 3.4, 0.16, [1, 0.93, 0.72]);
@@ -944,6 +967,18 @@
       ctx.font = 'bold ' + Math.round(34 * scale) + 'px Vazirmatn, Tahoma, sans-serif';
       ctx.fillStyle = 'rgba(255,60,60,' + (0.5 + Math.sin(this.time * 10) * 0.5) + ')';
       ctx.fillText('⟵ مسیر اشتباه ⟶', cw / 2, ch * 0.16);
+    }
+
+    /* --- نشان خودران --- */
+    if (p.autopilot) {
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = 'rgba(0,255,163,0.85)';
+      this.roundRect(ctx, 14 * scale, 12 * scale, 96 * scale, 24 * scale, 8 * scale);
+      ctx.fill();
+      ctx.fillStyle = '#03130c';
+      ctx.font = 'bold ' + Math.round(14 * scale) + 'px Vazirmatn, Tahoma, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('خودران فعال', 14 * scale + 48 * scale, 16 * scale);
     }
 
     /* --- برچسب بازیکن در حالت دو نفره --- */

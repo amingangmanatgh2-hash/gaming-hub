@@ -300,7 +300,7 @@ ALL_IDS.forEach(id => {
   const e = getEl(id);
   if (id === 'loadbar') e.style.width = '0%';
 });
-['quick', 'race', 'garage', 'local', 'settings', 'howto', 'back'].forEach(a => {
+['quick', 'story', 'race', 'garage', 'local', 'settings', 'howto', 'back'].forEach(a => {
   for (let i = 0; i < 3; i++) {
     const b = new FakeEl('button'); b.setAttribute('data-act', a); actButtons.push(b);
   }
@@ -309,6 +309,7 @@ ALL_IDS.forEach(id => {
 const doc = {
   readyState: 'complete',
   hidden: false,
+  documentElement: { lang: 'fa', dir: 'rtl' },
   getElementById: getEl,
   createElement: (t) => (t === 'canvas' ? makeCanvas('dyn') : new FakeEl(t)),
   querySelectorAll(sel) {
@@ -355,7 +356,7 @@ sandbox.removeEventListener = () => { };
 /* ======================================================================
    ۵) بارگذاری ماژول‌ها
    ====================================================================== */
-console.log('\n=== کف‌خواب ریسینگ — آزمون هدلس ===\n');
+console.log('\n=== تکاور ریسینگ — آزمون هدلس ===\n');
 ['util', 'content', 'car', 'track', 'renderer', 'audio', 'game', 'main'].forEach(f => {
   require(path.join(ROOT, 'js', f + '.js'));
 });
@@ -364,10 +365,10 @@ ok(!!KK && !!KK.app, 'همه‌ی ماژول‌ها بارگذاری شدند');
 
 /* ---- ۵٫۱) داده ---- */
 console.log('\n— محتوا —');
-ok(KK.CARS.length === 16, 'تعداد خودروها', KK.CARS.length);
+ok(KK.CARS.length === 22, 'تعداد خودروها', KK.CARS.length);
 ok(KK.TRACKS.length === 20, 'تعداد پیست‌ها', KK.TRACKS.length);
 const ids = new Set(KK.CARS.map(c => c.id));
-ok(ids.size === 16, 'شناسه‌ی خودروها یکتاست');
+ok(ids.size === 22, 'شناسه‌ی خودروها یکتاست');
 const tids = new Set(KK.TRACKS.map(t => t.id));
 ok(tids.size === 20, 'شناسه‌ی پیست‌ها یکتاست');
 ok(KK.TRACKS.every(t => KK.THEMES[t.theme]), 'همه‌ی پیست‌ها تم معتبر دارند');
@@ -491,7 +492,7 @@ function clickAct(name) {
 }
 ok(clickAct('garage'), 'باز شدن گاراژ');
 ok(getEl('g-name').textContent.length > 0, 'نام خودرو در گاراژ نوشته شد', getEl('g-name').textContent);
-ok(getEl('carlist').children.length === 16, 'فهرست ۱۶ خودرو در گاراژ', getEl('carlist').children.length);
+ok(getEl('carlist').children.length === 22, 'فهرست ۲۲ خودرو در گاراژ', getEl('carlist').children.length);
 ok(getEl('g-upgrades').children.length === KK.UPGRADES.length, 'جعبه‌های ارتقاء ساخته شدند');
 
 // خرید یک خودرو
@@ -499,6 +500,14 @@ const before = KK.app.profile.coins;
 const buyBtn = getEl('g-buy');
 if (buyBtn.onclick) buyBtn.onclick();
 ok(KK.app.profile.owned.length >= 1, 'دکمه‌ی خرید کار می‌کند');
+
+// حالت داستانی
+clickAct('story');
+ok(getEl('storylist').children.length === KK.STORY.length, 'فصل‌های داستان ساخته شدند', getEl('storylist').children.length);
+getEl('storylist').children[0].onclick();
+ok(!getEl('story-dialog').classList.contains('hidden'), 'دیالوگ فصل باز شد');
+getEl('d-cancel').onclick();
+ok(getEl('story-dialog').classList.contains('hidden'), 'انصراف از دیالوگ');
 
 clickAct('back');
 ok(clickAct('race'), 'باز شدن صفحه‌ی پیست‌ها');

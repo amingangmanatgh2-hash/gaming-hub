@@ -151,7 +151,103 @@
       power: 100, grip: 92, aero: 100, weight: 1240, brake: 94, drift: 24, offroad: 14,
       wheels: 'mesh', spoiler: 3, scoop: 3, exhaust: 4, widebody: 1, skirt: 1, wing: 2, canard: 1, diffuser: 1, underglow: 1,
       desc: 'افسانه. فقط چهار نفر در دنیا سوارش شده‌اند.'
+    },
+    {
+      id: 'volt', name: 'ولت', latin: 'VOLT', tag: 'برقی شهری', kind: 'sedan', tier: 2, price: 7200,
+      color: 0xe8f2f6, accent: 0x1b7fd6, glass: 0x12202c,
+      len: 4.60, wid: 1.86, ht: 1.44, wr: 0.33, ww: 0.22, fOffset: 0.90, rOffset: 0.84,
+      power: 70, grip: 72, aero: 60, weight: 1700, brake: 74, drift: 30, offroad: 22,
+      wheels: 'turbine', spoiler: 0, scoop: 0, exhaust: 0, widebody: 0, skirt: 1, underglow: 1,
+      desc: 'سدان برقی بی‌صدا. گشتاور آنی، بدون دنده.'
+    },
+    {
+      id: 'tokyo', name: 'توکیو', latin: 'TOKYO', tag: 'JDM ژاپنی', kind: 'coupe', tier: 1, price: 5600,
+      color: 0x18b7e8, accent: 0xf5f8fa, glass: 0x101a24,
+      len: 4.30, wid: 1.80, ht: 1.28, wr: 0.32, ww: 0.23, fOffset: 0.82, rOffset: 0.78,
+      power: 66, grip: 68, aero: 62, weight: 1250, brake: 66, drift: 68, offroad: 24,
+      wheels: 'spoke10', spoiler: 2, scoop: 1, exhaust: 2, widebody: 1, skirt: 1, wing: 1, stripe: 1,
+      desc: 'کوپه‌ی ژاپنی با قلب توربو. سلطان دریفت خیابانی.'
+    },
+    {
+      id: 'berlin', name: 'برلین', latin: 'BERLIN', tag: 'جی‌تی آلمانی', kind: 'gt', tier: 2, price: 10500,
+      color: 0x23303c, accent: 0xc9ccd2, glass: 0x0e161e,
+      len: 4.70, wid: 1.94, ht: 1.30, wr: 0.34, ww: 0.26, fOffset: 0.92, rOffset: 0.88,
+      power: 82, grip: 80, aero: 78, weight: 1500, brake: 80, drift: 30, offroad: 16,
+      wheels: 'mesh', spoiler: 1, scoop: 2, exhaust: 2, widebody: 0, skirt: 1, wing: 1, diffuser: 1,
+      desc: 'جی‌تی مهندسی‌شده؛ اتوبان را با ۲۸۰ طی می‌کند.'
+    },
+    {
+      id: 'bavaria', name: 'باواریا', latin: 'BAVARIA', tag: 'سدان پرقدرت', kind: 'muscle', tier: 2, price: 9800,
+      color: 0x20407a, accent: 0xd8dce2, glass: 0x101820,
+      len: 4.80, wid: 1.90, ht: 1.40, wr: 0.34, ww: 0.25, fOffset: 0.94, rOffset: 0.86,
+      power: 78, grip: 62, aero: 58, weight: 1680, brake: 64, drift: 60, offroad: 24,
+      wheels: 'spoke10', spoiler: 1, scoop: 2, exhaust: 4, widebody: 0, skirt: 1, stripe: 0,
+      desc: 'سدان سنگین با V8 توئین‌توربو. مستقیم و بی‌رحم.'
+    },
+    {
+      id: 'milan', name: 'میلان', latin: 'MILAN', tag: 'اگزوتیک ایتالیایی', kind: 'hyper', tier: 3, price: 26000,
+      color: 0xd8331e, accent: 0x101010, glass: 0x0d141c,
+      len: 4.66, wid: 2.02, ht: 1.12, wr: 0.34, ww: 0.28, fOffset: 0.94, rOffset: 0.92,
+      power: 94, grip: 86, aero: 94, weight: 1380, brake: 86, drift: 28, offroad: 14,
+      wheels: 'mesh', spoiler: 2, scoop: 3, exhaust: 4, widebody: 1, skirt: 1, wing: 2, canard: 1, diffuser: 1,
+      desc: 'اگزوتیک قرمز ایتالیایی. صدای V12 خیابان را می‌لرزاند.'
+    },
+    {
+      id: 'plasma', name: 'پلاسما', latin: 'PLASMA', tag: 'هایپر برقی', kind: 'hyper', tier: 3, price: 34000,
+      color: 0x0ae0c8, accent: 0x08131a, glass: 0x06121a,
+      len: 4.76, wid: 2.06, ht: 1.06, wr: 0.34, ww: 0.29, fOffset: 0.98, rOffset: 0.96,
+      power: 99, grip: 90, aero: 98, weight: 1450, brake: 92, drift: 26, offroad: 14,
+      wheels: 'turbine', spoiler: 3, scoop: 3, exhaust: 0, widebody: 1, skirt: 1, wing: 2, canard: 1, diffuser: 1, underglow: 1,
+      desc: 'چهار موتور برقی. سکوت مطلق، شتاب وحشی.'
     }
+  ];
+
+  /* ============================================================ حالت داستانی
+     هر فصل: یک مسابقه با هدف و دیالوگ‌های دارک/طنز. هدف‌ها:
+       win     : اول شو
+       podium  : روی سکو (<=3)
+       posN    : جایگاه <= n
+       drift   : امتیاز دریفت >= x
+       clean   : با آسیب < m تمام کن
+     ======================================================================== */
+  var STORY = [
+    { id: 'c1', title: 'شب اول: بوی بنزین', track: 'tehran', laps: 2, ai: 5, dif: 0, car: null,
+      obj: { type: 'posN', n: 3 }, reward: 1200,
+      intro: ['عموت گفت اگه امشب تو مسابقه‌ی تهران سوم نشی، ماشینت رو می‌فروشه.', 'عموت از سه سال پیش دنبال بهونه‌ست. بهونه بهش نده.', '— فقط گاز بده. فکر نکن. فکر که کنی می‌بازی.'] },
+    { id: 'c2', title: 'کیش و قمار', track: 'kish', laps: 3, ai: 6, dif: 1, car: null,
+      obj: { type: 'podium' }, reward: 1600,
+      intro: ['یه آقای مهندس تو ساحل کیش شرط بست تو نمی‌تونی روی سکو بری.', 'اگه ببازی، باید با لباس شنا برگردی تهران. جلوِ همه.', 'مهندس الان داره لبخند می‌زنه. لبخندش رو بشکن.'] },
+    { id: 'c3', title: 'دریفت یا مرگ', track: 'tabriz', laps: 2, ai: 6, dif: 1, car: 'rakhsh',
+      obj: { type: 'drift', x: 2600 }, reward: 2000,
+      intro: ['دایی‌ات می‌گه دریفت یعنی بی‌احترامی به لاستیک.', 'امشب باید ثابت کنی دریفت یعنی احترام به تماشاچی.', 'هدف: ۲۶۰۰ امتیاز دریفت. دایی تماشات می‌کنه.'] },
+    { id: 'c4', title: 'باران، برف، بدبختی', track: 'rasht', laps: 3, ai: 7, dif: 2, car: null,
+      obj: { type: 'clean', m: 25 }, reward: 2400,
+      intro: ['رشت بارون می‌باره. نه کم. زیاد. خیلی زیاد.', 'بیمه‌ات تموم شده. پس نگذار ماشینی بهت بخوره.', 'با آسیب کمتر از ۲۵٪ تموم کن وگرنه مادرت می‌فهمه.'] },
+    { id: 'c5', title: 'کویر و جن', track: 'lut', laps: 2, ai: 6, dif: 2, car: 'kavir',
+      obj: { type: 'win' }, reward: 3000,
+      intro: ['می‌گن تو کویر لوت، نصف‌شب صدای موتور می‌اد ولی ماشینی نیست.', 'امشب تو هم اون‌جایی. فقط تو باید اول بشی.', 'اگه صدایی شنیدی، گاز بده. نگاه نکن.'] },
+    { id: 'c6', title: 'اتوبان اتوبان', track: 'kerman', laps: 2, ai: 7, dif: 2, car: 'berlin',
+      obj: { type: 'win' }, reward: 3400,
+      intro: ['یه برلینِ آلمانی اومده و می‌گه ماشین ایرانی ترمزش دیره.', 'ترمز که هیچ؛ امشب نشون بده گازت هم دیر نمی‌افته.', 'خط مستقیمه. فقط سرعت. فقط اول.'] },
+    { id: 'c7', title: 'سنگ و ستاره', track: 'qeshm', laps: 2, ai: 6, dif: 3, car: null,
+      obj: { type: 'posN', n: 2 }, reward: 4000,
+      intro: ['دره‌ی ستاره‌ها تنگه. یه اشتباه و به دیواره می‌خوری.', 'ستاره‌ها امشب تماشات می‌کنن. خجالتشون نده.', 'دومی قابل قبوله. اولی افسانه‌ست.'] },
+    { id: 'c8', title: 'برف و غرور', track: 'damavand', laps: 3, ai: 7, dif: 3, car: null,
+      obj: { type: 'podium' }, reward: 4600,
+      intro: ['رقیبت گفته تو برف فقط بلد نیستی زنجیر چرخ ببندی.', 'امشب زنجیر نداریم. فقط لاستیک و غیرت.', 'روی سکو برو تا زنجیر رو خودش ببنده.'] },
+    { id: 'c9', title: 'نئون و تنهایی', track: 'neon', laps: 3, ai: 8, dif: 3, car: null,
+      obj: { type: 'win' }, reward: 5200,
+      intro: ['تهرانِ ۲۰۷۷. هیچ‌کس خواب نیست، هیچ‌کس زنده نیست.', 'تنها چیزی که این‌جا واقعیه، خطِ نئونِ پیسته.', 'اول بشو. شاید شهر یادت بمونه.'] },
+    { id: 'c10', title: 'سیمرغ', track: 'persepolis', laps: 3, ai: 8, dif: 3, car: 'simorgh',
+      obj: { type: 'win' }, reward: 8000,
+      intro: ['بهت می‌گن سیمرغ رو فقط کسایی سوار شدن که دیگه برنگشتن.', 'تو برمی‌گردی. با جام.', 'این آخرین فصله. بعدش فقط افسانه‌ای.'] }
+  ];
+
+  /* کانال‌های رادیوی داخل ماشین (حالت خودران/مسافرت) */
+  var RADIO = [
+    { id: 'pop', name: 'رادیو جاده — پاپ', mood: 'menu' },
+    { id: 'race', name: 'رادیو توربو — بیس', mood: 'race' },
+    { id: 'synth', name: 'رادیو نئون — سینث', mood: 'neon' }
   ];
 
   /* --------------------------------------------------------------- تم‌ها
@@ -472,8 +568,10 @@
   root.KK.DRIVERS = DRIVERS;
   root.KK.UPGRADES = UPGRADES;
   root.KK.PAINTS = PAINTS;
+  root.KK.STORY = STORY;
+  root.KK.RADIO = RADIO;
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { CARS: CARS, TRACKS: TRACKS, THEMES: THEMES, DRIVERS: DRIVERS, UPGRADES: UPGRADES, PAINTS: PAINTS };
+    module.exports = { CARS: CARS, TRACKS: TRACKS, THEMES: THEMES, DRIVERS: DRIVERS, UPGRADES: UPGRADES, PAINTS: PAINTS, STORY: STORY, RADIO: RADIO };
   }
 })(typeof window !== 'undefined' ? window : globalThis);

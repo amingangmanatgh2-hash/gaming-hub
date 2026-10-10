@@ -58,7 +58,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log('کف‌خواب ریسینگ در حال اجراست:');
+  console.log('تکاور ریسینگ در حال اجراست:');
   console.log('   http://localhost:' + PORT);
   console.log('   (Ctrl+C برای توقف)');
 });
