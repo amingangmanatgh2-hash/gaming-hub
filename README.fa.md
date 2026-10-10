@@ -92,7 +92,31 @@ npm test                          # تست‌های واحد (vitest)
 
 ## ۴) استقرار واقعی روی Cloudflare
 
-قدم‌به‌قدم (به‌فارسی؛ لازم نیست چیز اضافه‌ای نصب کنید):
+> **چرا Workers و نه Pages؟** این پروژه یک اپلیکیشن تمام‌پشته‌ است: API روی Workers + دیتابیس D1 + Durable Objects برای سهمیه‌ها و Rate-Limit. کلادفلر پیجز به‌تنهایی نمی‌تواند Durable Objects اجرا کند، اما Workers همان کار Pages را هم می‌کند (سرو فایل‌های استاتیک روی شبکه جهانی CDN) و همه‌چیز را با **یک لینک واحد** تحویل می‌دهد. اگر دنبال «دامنه جدا فرانت + بک‌اند» هستید هم با همین Worker امکان‌پذیر است، ولی نیازی نیست.
+
+### مسیر الف) استقرار خودکار با GitHub Actions — توصیه‌شده (بدون نصب هیچ ابزاری)
+
+فایل ورک‌فلو آماده است: [`.github/workflows/deploy-cloudflare.yml`](.github/workflows/deploy-cloudflare.yml).
+
+**یک‌بار انجام دهید (حدود ۵ دقیقه):**
+
+۱. در داشبورد کلادفلر یک **API Token** بسازید: [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) → مستقیم قالب **«Edit Cloudflare Workers»** (یا Custom با دسترسی‌های `Workers Scripts: Edit` و `Workers KV/D1: Edit`).
+۲. **Account ID** را از ستون راست صفحه Workers & Pages بردارید.
+۳. در داشبورد کلادفلر بخش **Storage → D1** یک دیتابیس با نام دقیق `amin-ai-ultra` بسازید و مقدار **Database ID**‌اش را کپی کنید.
+۴. در گیت‌هاب مخزن: **Settings → Secrets and variables → Actions**
+   - تب **Secrets**:
+     - `CLOUDFLARE_API_TOKEN` ← توکن مرحله ۱
+     - `CLOUDFLARE_ACCOUNT_ID` ← شناسه مرحله ۲
+     - `APP_SECRET` ← خروجی `openssl rand -hex 32` (توصیه‌شده؛ اگر نگذارید باید یک‌بار با `wrangler secret put` ست شود)
+   - تب **Variables**:
+     - `CF_D1_DATABASE_ID` ← شناسه دیتابیس مرحله ۳
+۵. این شاخه را در `Main` مرج کنید (Pull Request) — با هر push روی `Main` استقرار خودکار انجام می‌شود؛ یا از تب **Actions** دکمه «Run workflow» را دستی بزنید.
+
+ورک‌فلو خودش: وابستگی‌ها را نصب، فرانت را build، شناسه D1 را تزریق، سطل R2 را در صورت نبود می‌سازد، مایگریشن‌ها را روی دیتابیس واقعی اعمال، `APP_SECRET` را ست و Worker را deploy می‌کند.
+
+**خروجی:** آدرس عمومی شما → `https://amin-ai-ultra.<subdomain-شما>.workers.dev` — subdomain در صفحه Workers حساب‌تان نمایش داده می‌شود. سپس `/setup` را باز کنید (بخش ۵).
+
+### مسیر ب) استقرار دستی از سیستم خودتان
 
 ```bash
 # ۱) ورود به حساب Cloudflare
@@ -123,7 +147,7 @@ npm run deploy
 خروجی `wrangler deploy` یک آدرس `https://amin-ai-ultra.<your-subdomain>.workers.dev` می‌دهد — **همان لینک عمومی پروژه شماست.**
 
 ### چک‌لیست قبل از بالا رفتن
-- [ ] `database_id` واقعی در `wrangler.toml`
+- [ ] `database_id` واقعی در `wrangler.toml` (یا متغیر `CF_D1_DATABASE_ID` در گیت‌هاب)
 - [ ] `APP_SECRET` قوی (غیرپیش‌فرض)
 - [ ] کلید ارائه‌دهنده AI از پنل مدیریت یا secret (بخش ۶)
 - [ ] مرچنت زرین‌پال معتبر (بخش ۷)
