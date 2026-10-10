@@ -1,0 +1,23 @@
+{
+  "name": "kafkhab-racing",
+  "productName": "Kafkhab Racing",
+  "version": "1.0.0",
+  "description": "کف‌خواب ریسینگ — بازی ماشین‌سواری سه‌بعدی با ۲۰ پیست ایرانی، ۱۶ خودرو و مسابقه‌ی دونفره‌ی محلی",
+  "main": "desktop/main.js",
+  "author": "Kafkhab Studio",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "node tools/serve.js",
+    "test": "node tools/headless-test.js",
+    "build": "node tools/build.js",
+    "build:win": "node tools/build.js --platform=win32 --arch=x64",
+    "build:linux": "node tools/build.js --platform=linux --arch=x64",
+    "build:mac": "node tools/build.js --platform=darwin --arch=x64",
+    "build:apk": "bash tools/build-android.sh"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.5",
+    "electron": "^33.2.0"
+  }
+}

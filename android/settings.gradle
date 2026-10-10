@@ -1,0 +1,2 @@
+rootProject.name = 'kafkhab-racing'
+include ':app'

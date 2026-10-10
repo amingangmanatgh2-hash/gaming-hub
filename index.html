@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<meta name="description" content="کف‌خواب ریسینگ — بازی ماشین‌سواری سه‌بعدی با ۲۰ پیست ایرانی، ۱۶ خودرو و مسابقه‌ی دو نفره‌ی محلی">
+<title>کف‌خواب ریسینگ | KAFKHAB RACING</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============ صحنه‌ی سه‌بعدی ============ -->
+<canvas id="gl"></canvas>
+<canvas id="hud"></canvas>
+
+<!-- ============ کنترل لمسی ============ -->
+<div id="touch" class="hidden">
+  <div class="tgroup tleft">
+    <button class="tbtn" data-t="left">◀</button>
+    <button class="tbtn" data-t="right">▶</button>
+  </div>
+  <div class="tgroup tright">
+    <button class="tbtn tsmall" data-t="hb">هندبریک</button>
+    <button class="tbtn tsmall" data-t="nitro">نیترو</button>
+    <button class="tbtn" data-t="down">▼</button>
+    <button class="tbtn" data-t="up">▲</button>
+  </div>
+</div>
+
+<!-- ============ بارگذاری ============ -->
+<div id="screen-loading" class="screen active">
+  <div class="loadbox">
+    <div class="logowrap">
+      <div class="logotype">کف‌خواب</div>
+      <div class="logosub">KAFKHAB&nbsp;RACING</div>
+    </div>
+    <div class="bar"><i id="loadbar"></i></div>
+    <div id="loadmsg" class="loadmsg">در حال گرم‌کردن موتور…</div>
+  </div>
+</div>
+
+<!-- ============ منوی اصلی ============ -->
+<div id="screen-menu" class="screen">
+  <div class="menuwrap">
+    <div class="brand">
+      <h1>کف‌خواب <span>ریسینگ</span></h1>
+      <p class="tagline">۲۰ پیست ایرانی · ۱۶ خودرو · تک‌نفره و دونفره روی یک کیبورد</p>
+    </div>
+    <nav class="mainnav">
+      <button class="mbtn" data-act="quick"><b>شروع سریع</b><small>تصادفی، همین حالا</small></button>
+      <button class="mbtn" data-act="race"><b>مسابقه</b><small>انتخاب پیست و خودرو</small></button>
+      <button class="mbtn" data-act="garage"><b>گاراژ</b><small>خرید، رنگ و تقویت</small></button>
+      <button class="mbtn" data-act="local"><b>دونفره‌ی محلی</b><small>صفحه‌ی تقسیم‌شده</small></button>
+      <button class="mbtn" data-act="settings"><b>تنظیمات</b><small>گرافیک، صدا، کنترل</small></button>
+      <button class="mbtn" data-act="howto"><b>راهنما</b><small>کلیدها و قواعد</small></button>
+    </nav>
+    <div class="statbar">
+      <span class="coin">◆ <b id="m-coins">0</b></span>
+      <span>خودروها: <b id="m-cars">0/16</b></span>
+      <span>پیست‌ها: <b id="m-tracks">0/20</b></span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ گاراژ ============ -->
+<div id="screen-garage" class="screen">
+  <header class="topbar">
+    <button class="ghost" data-act="back">→ بازگشت</button>
+    <h2>گاراژ</h2>
+    <span class="coin">◆ <b id="g-coins">0</b></span>
+  </header>
+  <div class="garagegrid">
+    <aside class="carlist" id="carlist"></aside>
+    <section class="carview">
+      <div class="carname"><b id="g-name"></b><em id="g-tag"></em></div>
+      <div class="carstage" id="g-stage"></div>
+      <div class="bars" id="g-bars"></div>
+      <p class="cardesc" id="g-desc"></p>
+      <div class="caractions">
+        <button class="primary" id="g-buy">خرید</button>
+        <button class="ghost" id="g-select">انتخاب به‌عنوان خودروی فعال</button>
+      </div>
+      <div class="paints" id="g-paints"></div>
+      <div class="upgrades" id="g-upgrades"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ============ انتخاب پیست ============ -->
+<div id="screen-tracks" class="screen">
+  <header class="topbar">
+    <button class="ghost" data-act="back">→ بازگشت</button>
+    <h2>پیست‌ها</h2>
+    <span class="coin">◆ <b id="t-coins">0</b></span>
+  </header>
+  <div class="trackgrid" id="trackgrid"></div>
+</div>
+
+<!-- ============ پیش از مسابقه ============ -->
+<div id="screen-setup" class="screen">
+  <header class="topbar">
+    <button class="ghost" data-act="back">→ بازگشت</button>
+    <h2>آماده‌سازی مسابقه</h2>
+    <span id="s-trackname" class="hint"></span>
+  </header>
+  <div class="setupgrid">
+    <div class="card">
+      <h3>خودرو</h3>
+      <div class="rowlist" id="s-carlist"></div>
+    </div>
+    <div class="card">
+      <h3>گزینه‌ها</h3>
+      <div class="optrow"><label>تعداد دور</label><div class="seg" id="s-laps"></div></div>
+      <div class="optrow"><label>تعداد رقبا</label><div class="seg" id="s-ai"></div></div>
+      <div class="optrow"><label>سختی</label><div class="seg" id="s-dif"></div></div>
+      <div class="optrow"><label>دوربین</label><div class="seg" id="s-cam"></div></div>
+    </div>
+    <div class="card" id="s-p2card">
+      <h3>بازیکن دوم</h3>
+      <div class="rowlist" id="s-p2list"></div>
+      <p class="hint">کلیدهای بازیکن ۲: جهت‌نماها + <kbd>Shift راست</kbd> هندبریک + <kbd>Enter</kbd> نیترو</p>
+    </div>
+  </div>
+  <footer class="setupfoot">
+    <button class="primary big" id="s-go">شروع مسابقه</button>
+  </footer>
+</div>
+
+<!-- ============ تنظیمات ============ -->
+<div id="screen-settings" class="screen">
+  <header class="topbar">
+    <button class="ghost" data-act="back">→ بازگشت</button>
+    <h2>تنظیمات</h2>
+    <span></span>
+  </header>
+  <div class="settingswrap">
+    <div class="card">
+      <h3>گرافیک</h3>
+      <div class="optrow"><label>کیفیت</label><div class="seg" id="set-quality"></div></div>
+      <div class="optrow"><label>جهت تقسیم صفحه</label><div class="seg" id="set-split"></div></div>
+      <div class="optrow"><label>نمایش FPS</label><div class="seg" id="set-fps"></div></div>
+    </div>
+    <div class="card">
+      <h3>صدا</h3>
+      <div class="optrow"><label>بلندی کل</label><input type="range" id="set-master" min="0" max="100" value="80"></div>
+      <div class="optrow"><label>افکت‌ها</label><input type="range" id="set-sfx" min="0" max="100" value="90"></div>
+      <div class="optrow"><label>موسیقی</label><input type="range" id="set-music" min="0" max="100" value="35"></div>
+    </div>
+    <div class="card">
+      <h3>کنترل‌ها</h3>
+      <table class="keys">
+        <tr><th></th><th>بازیکن ۱</th><th>بازیکن ۲</th></tr>
+        <tr><td>گاز</td><td><kbd>W</kbd></td><td><kbd>↑</kbd></td></tr>
+        <tr><td>ترمز / عقب</td><td><kbd>S</kbd></td><td><kbd>↓</kbd></td></tr>
+        <tr><td>فرمان</td><td><kbd>A</kbd> <kbd>D</kbd></td><td><kbd>←</kbd> <kbd>→</kbd></td></tr>
+        <tr><td>هندبریک</td><td><kbd>Space</kbd></td><td><kbd>Shift راست</kbd></td></tr>
+        <tr><td>نیترو</td><td><kbd>Shift چپ</kbd></td><td><kbd>Enter</kbd></td></tr>
+        <tr><td>مکث</td><td colspan="2"><kbd>Esc</kbd> یا <kbd>P</kbd></td></tr>
+      </table>
+      <p class="hint">دسته‌ی بازی (گیم‌پد) هم پشتیبانی می‌شود: گاز/ترمز روی تریگرها، نیترو روی B.</p>
+      <button class="ghost" id="set-reset">بازنشانی پیشرفت بازی</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ راهنما ============ -->
+<div id="screen-howto" class="screen">
+  <header class="topbar">
+    <button class="ghost" data-act="back">→ بازگشت</button>
+    <h2>راهنما</h2><span></span>
+  </header>
+  <div class="howto">
+    <div class="card"><h3>رانندگی</h3>
+      <p>گاز را تا انتهای خط مستقیم نگه دار، قبل از پیچ ترمز کن و داخل پیچ گاز بده. با <kbd>Space</kbd> هندبریک بکش تا عقب ماشین رها شود و دریفت کنی؛ هرچه دریفت طولانی‌تر، سکه‌ی بیشتر.</p></div>
+    <div class="card"><h3>نیترو</h3>
+      <p>نوار نیترو خودش آرام پر می‌شود. روی پدهای سبز کف پیست هم شارژ می‌گیری. بهترین زمان استفاده، خروج از پیچ و خط مستقیم است.</p></div>
+    <div class="card"><h3>خارج از پیست</h3>
+      <p>روی چمن، شن و برف چسبندگی کم می‌شود. روی جدول‌های قرمز‑سفید ماشین می‌لغزد ولی سرعتت را حفظ می‌کند. گاردریل دشمن توست.</p></div>
+    <div class="card"><h3>دونفره</h3>
+      <p>صفحه نصف می‌شود؛ بالا بازیکن ۲ و پایین بازیکن ۱. هر دو روی یک کیبورد. بقیه‌ی خانه‌ها را هوش مصنوعی پر می‌کند.</p></div>
+    <div class="card"><h3>سکه</h3>
+      <p>جایگاه بهتر = سکه‌ی بیشتر. با سکه خودرو و پیست بخر و قطعات را تقویت کن. رکورد هر پیست در گاراژ ثبت می‌شود.</p></div>
+  </div>
+</div>
+
+<!-- ============ نتیجه ============ -->
+<div id="screen-results" class="screen">
+  <div class="resultwrap">
+    <h2 id="r-title">نتیجه‌ی مسابقه</h2>
+    <div id="r-podium" class="podium"></div>
+    <table class="restable" id="r-table"></table>
+    <div class="rcoins">جایزه: <b id="r-coins">0</b> ◆</div>
+    <div class="rbtns">
+      <button class="primary" id="r-again">مسابقه‌ی دوباره</button>
+      <button class="ghost" id="r-garage">گاراژ</button>
+      <button class="ghost" id="r-menu">منوی اصلی</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ مکث ============ -->
+<div id="screen-pause" class="screen overlay">
+  <div class="pausebox">
+    <h2>مکث</h2>
+    <button class="primary" id="p-resume">ادامه</button>
+    <button class="ghost" id="p-restart">شروع دوباره</button>
+    <button class="ghost" id="p-quit">ترک مسابقه</button>
+  </div>
+</div>
+
+<!-- ============ اعلان ============ -->
+<div id="toast"></div>
+
+<script src="js/util.js"></script>
+<script src="js/content.js"></script>
+<script src="js/car.js"></script>
+<script src="js/track.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
