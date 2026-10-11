@@ -6,80 +6,118 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
+  # ---------------------------------------------------------------- آزمون
   test:
-    name: آزمون هدلس
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+      - name: Headless test
+        run: npm test
+      - name: Build single-file web preview
+        run: node tools/build-web.js
+      - uses: actions/upload-artifact@v4
         with:
-          node-version: 20
-      - name: اجرای آزمون هدلس (بدون مرورگر)
-        run: node tools/headless-test.js
+          name: web-preview
+          path: dist/takavar-web.html
 
+  # ---------------------------------------------------------------- اندروید
   android:
-    name: ساخت APK اندروید
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
       - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
-      - uses: gradle/actions/setup-gradle@v4
-      - name: ساخت APK (امضاشده با کلید debug)
+        with: { distribution: temurin, java-version: 17 }
+
+      - name: Copy web assets into android/app/src/main/assets/www
         run: |
-          cd android
-          gradle :app:assembleDebug :app:assembleRelease --no-daemon
-      - name: آماده‌سازی خروجی‌ها
+          mkdir -p android/app/src/main/assets/www
+          cp index.html android/app/src/main/assets/www/
+          cp -r css js android/app/src/main/assets/www/
+          [ -d assets ] && cp -r assets android/app/src/main/assets/www/ || true
+
+      - name: Install Android SDK packages
+        run: |
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "SDK=$SDK"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Setup Gradle 8.7
+        run: |
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-8.7/bin" >> "$GITHUB_PATH"
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          gradle wrapper --gradle-version 8.7 --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Collect APK
         run: |
           mkdir -p out
-          cp android/app/build/outputs/apk/debug/app-debug.apk out/KafkhabRacing-android.apk || true
-          cp android/app/build/outputs/apk/release/app-release-unsigned.apk out/KafkhabRacing-android-unsigned.apk || true
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/takavar-android.apk
+          ls -la out
+
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: out/*.apk
+          path: out/takavar-android.apk
 
+  # ---------------------------------------------------------------- ویندوز
   windows:
-    name: ساخت EXE ویندوز
+    needs: test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: نصب وابستگی‌ها
-        run: npm install
-      - name: ساخت EXE
+        with: { node-version: 20 }
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+      - name: Package Windows build
         run: npm run build:win
-      - name: فشرده‌سازی
+      - name: Zip
         shell: pwsh
         run: |
-          $dir = Get-ChildItem dist -Directory | Select-Object -First 1
-          Compress-Archive -Path $dir.FullName -DestinationPath KafkhabRacing-win-x64.zip
+          Compress-Archive -Path dist/win32-x64/* -DestinationPath dist/takavar-windows.zip -Force
+          Get-Item dist/takavar-windows.zip
       - uses: actions/upload-artifact@v4
         with:
           name: windows-exe
-          path: KafkhabRacing-win-x64.zip
+          path: dist/takavar-windows.zip
 
+  # ---------------------------------------------------------------- ریلیز
   release:
-    name: انتشار نسخه
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [test, android, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          path: assets
-      - name: ساخت ریلیز GitHub
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            assets/**/*.apk
-            assets/**/*.zip
-          generate_release_notes: true
+          path: release
+      - name: List
+        run: find release -type f -printf '%p  %s bytes\n'
+      - name: Create GitHub Release (APK + EXE + HTML)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          APK=$(find release -name 'takavar-android.apk' | head -1)
+          EXE=$(find release -name 'takavar-windows.zip' | head -1)
+          WEB=$(find release -name 'takavar-web.html' | head -1)
+          gh release create "$TAG" "$APK" "$EXE" "$WEB" \
+            --title "تکاور ریسینگ $TAG" \
+            --notes "سه فایل: **takavar-android.apk** (اندروید)، **takavar-windows.zip** (ویندوز، داخلش Takavar Racing.exe)، **takavar-web.html** (پیش‌نمایش کامل بازی، تک‌فایل، مستقیم در مرورگر باز کن)."
