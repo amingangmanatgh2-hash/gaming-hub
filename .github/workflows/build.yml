@@ -93,9 +93,10 @@ jobs:
       - name: Zip
         shell: pwsh
         run: |
-          Push-Location dist/win32-x64
-          7z a -tzip ../takavar-windows.zip .
-          Pop-Location
+          $src = (Get-ChildItem dist -Directory | Where-Object { $_.Name -match 'win32-x64$' } | Select-Object -First 1).FullName
+          if (-not $src) { Write-Error "win32-x64 output not found"; exit 1 }
+          Write-Host "Zipping $src"
+          7z a -tzip dist/takavar-windows.zip "$src/*"
           Get-Item dist/takavar-windows.zip
       - uses: actions/upload-artifact@v4
         with:
