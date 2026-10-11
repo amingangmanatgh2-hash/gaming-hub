@@ -533,11 +533,21 @@
     if (car.nitroOn) {
       var sn = Math.sin(car.yaw), cs = Math.cos(car.yaw);
       var ex = car.x - sn * car.def.len * 0.5, ez = car.z - cs * car.def.len * 0.5;
-      for (i = 0; i < 2; i++) {
-        this.particles.emit(ex, car.y + 0.35, ez,
-          -sn * 6 + (Math.random() - 0.5) * 2, 0.4 + Math.random(), -cs * 6 + (Math.random() - 0.5) * 2,
-          0.22, 0.55, [0.35 + Math.random() * 0.4, 0.6, 1], 1);
+      var nf = Math.round(4 * (this.renderer.partScale || 1));
+      for (i = 0; i < nf; i++) {
+        var hot = Math.random();
+        this.particles.emit(ex + (Math.random() - 0.5) * 0.3, car.y + 0.35, ez + (Math.random() - 0.5) * 0.3,
+          -sn * (8 + Math.random() * 5) + (Math.random() - 0.5) * 2, 0.4 + Math.random(), -cs * (8 + Math.random() * 5) + (Math.random() - 0.5) * 2,
+          0.26, 0.5, hot > 0.5 ? [1, 0.85, 0.5] : [0.4, 0.7, 1], 0);
       }
+    }
+    // جرقه‌ی دریفت (درخشش نارنجی هنگام لغزش)
+    if (Math.abs(car.slip) > 0.3 && Math.abs(car.vf) > 10 && car.onRoad && Math.random() < 0.7 * (this.renderer.partScale || 1)) {
+      var sn5 = Math.sin(car.yaw), cs5 = Math.cos(car.yaw);
+      var wx = car.x - sn5 * car.def.len * 0.35, wz = car.z - cs5 * car.def.len * 0.35;
+      this.particles.emit(wx, car.y + 0.15, wz,
+        (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4,
+        0.12, 0.25, [1, 0.6 + Math.random() * 0.3, 0.2], 0);
     }
     // دود اگزوز
     if (Math.random() < 0.06 * (this.renderer.partScale || 1) && Math.abs(car.vf) > 2) {
@@ -829,6 +839,33 @@
     var cv = this.hudCanvas;
     var W = cv.width, H = cv.height;
     ctx.clearRect(0, 0, W, H);
+
+    /* --- افکت‌های سینمایی (وینیت، خطوط سرعت، درخشش نیترو، فلاش آسیب) --- */
+    var pc = this.players[0] && this.players[0].car;
+    if (pc && this.state !== 'finished') {
+      var spd = Math.abs(pc.vf);
+      var vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.32, W / 2, H / 2, H * 0.9);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      if (spd > 22) {
+        var al = Math.min(0.45, (spd - 22) / 45);
+        ctx.save(); ctx.globalAlpha = al; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
+        for (var s = 0; s < 12; s++) {
+          var ang = Math.random() * 6.283, r0 = H * 0.28 + Math.random() * H * 0.2, len = 30 + Math.random() * 70;
+          ctx.beginPath();
+          ctx.moveTo(W / 2 + Math.cos(ang) * r0, H / 2 + Math.sin(ang) * r0);
+          ctx.lineTo(W / 2 + Math.cos(ang) * (r0 + len), H / 2 + Math.sin(ang) * (r0 + len));
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      if (pc.nitroOn) { ctx.save(); ctx.globalAlpha = 0.16; ctx.fillStyle = '#3aa0ff'; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+      if (pc.damage > 60) {
+        ctx.save(); ctx.globalAlpha = 0.1 + 0.08 * Math.sin((this.time || 0) * 8); ctx.fillStyle = '#ff2b4a';
+        ctx.fillRect(0, 0, W, H); ctx.restore();
+      }
+    }
+
     var dpr = W / Math.max(1, cv.clientWidth);
     var n = this.players.length;
     for (var i = 0; i < n; i++) {

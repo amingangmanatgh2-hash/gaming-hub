@@ -878,6 +878,14 @@
       toast('پیشرفت بازی پاک شد');
       updateMenuStats(); renderSettings();
     };
+    $('set-demo').onclick = function () {
+      // دموی گرافیک: خودران روی یک پیست خوش‌منظره
+      P.settings.autopilot = true; P.settings.damage = false; saveProfile();
+      setup.mode = 'single'; setup.story = null;
+      setup.trackId = 'damavand'; setup.laps = 2; setup.ai = 5; setup.dif = 1;
+      if (audio) audio.ui('start');
+      startRace();
+    };
 
     doc.addEventListener('keydown', function (e) {
       if (game) game.keys[e.code] = true;
