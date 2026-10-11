@@ -122,6 +122,35 @@ Cloudflare Builds خودش منتشر می‌کند.
 
 ---
 
+## خطاهای رایج و رفع آن‌ها
+
+### ۱) `Could not detect a directory containing static files (e.g. html, css and js) for the project`
+یعنی `npx wrangler deploy` در پوشه‌ای اجرا شده که **نه فایل تنظیمات (wrangler.toml) دارد و نه پوشهٔ `public/`**.
+این تقریباً همیشه به این معناست که مخزن/شاخهٔ مبنای ساخت، **خالی یا قدیمی** است (مثلاً دکمهٔ Deploy قبل از
+انتقال کد به شاخهٔ پیش‌فرض زده شده، یا مخزنی در اکانت‌تان ساخته شده که فقط README دارد).
+
+**راه‌حل:** کد باید روی شاخهٔ پیش‌فرض مخزنی که Cloudflare می‌سازد باشد؛ سپس یکی از این دو:
+* دوباره روی دکمهٔ **Deploy to Cloudflare** بزنید (نسخهٔ تازهٔ مخزن کپی می‌شود)، یا
+* در داشبورد: پروژهٔ Worker → **Deployments → Build History → Retry build**.
+* اگر مخزن ساخته‌شده خالی است، در پروژه → **Settings → Builds**، مخزن/شاخهٔ درست را وصل کنید
+  (پیش از تغییر مخزن باید Builds را غیرفعال و دوباره وصل کنید).
+
+بررسی سریع درستی مخزن مبدأ: فایل `wrangler.toml` و پوشهٔ `worker/` و `public/` باید در ریشهٔ همان شاخه باشند.
+
+### ۲) `The name in your Wrangler configuration file must match the name of your Worker`
+نام Worker در داشبورد باید با `name` در `wrangler.toml` یکی باشد. در Wrangler نسخهٔ ۳ به بعد،
+Workers Builds این را خودش با متغیر `WRANGLER_CI_OVERRIDE_NAME` هم‌سان می‌کند و اگر نام فرق کند
+ممکن است کلودفلر یک Pull Request برای اصلاح `name` باز کند — آن را Merge کنید.
+(یا خودتان `name = "..."` را در `wrangler.toml` برابر نام پروژهٔ داشبورد بگذارید.)
+
+### ۳) سایت بالا می‌آید ولی چت/ورود به اتاق کار نمی‌کند
+بایندینگ Durable Object (`ROOMS → Room`) ست نشده است؛ بخش مسیر ۳ را ببینید.
+
+### ۴) صدا ردوبدل نمی‌شود ولی تصویر می‌آید (یا برعکس)
+احتمالاً کاربر پشت NAT سخت/CGNAT است؛ TURN رایگان را فعال کنید (بخش بالا).
+
+---
+
 ## چک‌لیست بعد از انتشار ✅
 
 - [ ] `https://<آدرس-شما>/api/health` مقدار `"ok": true` می‌دهد
