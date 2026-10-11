@@ -300,7 +300,7 @@ ALL_IDS.forEach(id => {
   const e = getEl(id);
   if (id === 'loadbar') e.style.width = '0%';
 });
-['quick', 'story', 'race', 'garage', 'local', 'settings', 'howto', 'back'].forEach(a => {
+['quick','story','race','garage','cars','customize','upgrade','start','local','settings','howto','back'].forEach(a => {
   for (let i = 0; i < 3; i++) {
     const b = new FakeEl('button'); b.setAttribute('data-act', a); actButtons.push(b);
   }
@@ -508,6 +508,16 @@ getEl('storylist').children[0].onclick();
 ok(!getEl('story-dialog').classList.contains('hidden'), 'دیالوگ فصل باز شد');
 getEl('d-cancel').onclick();
 ok(getEl('story-dialog').classList.contains('hidden'), 'انصراف از دیالوگ');
+
+// هاب: چهار دکمه و تب‌های گاراژ
+clickAct('cars');
+ok(getEl('screen-garage').className.indexOf('tab-cars') >= 0, 'دکمه‌ی ماشین → تب ماشین');
+clickAct('customize');
+ok(getEl('screen-garage').className.indexOf('tab-paint') >= 0, 'دکمه‌ی شخصی‌سازی → تب رنگ');
+clickAct('upgrade');
+ok(getEl('screen-garage').className.indexOf('tab-upgrade') >= 0, 'دکمه‌ی ارتقا → تب ارتقا');
+clickAct('start');
+ok(!getEl('screen-tracks').classList.contains('hidden'), 'دکمه‌ی شروع → انتخاب پیست');
 
 clickAct('back');
 ok(clickAct('race'), 'باز شدن صفحه‌ی پیست‌ها');

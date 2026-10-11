@@ -41,27 +41,32 @@
 </div>
 
 <!-- ============ منوی اصلی ============ -->
-<div id="screen-menu" class="screen">
-  <div class="menuwrap">
-    <div class="brand">
-      <h1>تکاور <span>ریسینگ</span></h1>
-      <p class="tagline">۲۰ پیست ایرانی · ۱۶ خودرو · تک‌نفره و دونفره روی یک کیبورد</p>
-    </div>
-    <nav class="mainnav">
-      <button class="mbtn" data-act="quick"><b data-en="Quick Race">شروع سریع</b><small data-en="Random, right now">تصادفی، همین حالا</small></button>
-      <button class="mbtn" data-act="story"><b data-en="Story">داستان</b><small data-en="Campaign">کمپین فصلی</small></button>
-      <button class="mbtn" data-act="race"><b data-en="Race">مسابقه</b><small data-en="Pick track & car">انتخاب پیست و خودرو</small></button>
-      <button class="mbtn" data-act="garage"><b data-en="Garage">گاراژ</b><small data-en="Buy, paint, tune">خرید، رنگ و تقویت</small></button>
-      <button class="mbtn" data-act="local"><b data-en="Local 2P">دونفره‌ی محلی</b><small data-en="Split screen">صفحه‌ی تقسیم‌شده</small></button>
-      <button class="mbtn" data-act="settings"><b data-en="Settings">تنظیمات</b><small data-en="Graphics, audio, controls">گرافیک، صدا، کنترل</small></button>
-      <button class="mbtn" data-act="howto"><b data-en="Help">راهنما</b><small data-en="Keys & rules">کلیدها و قواعد</small></button>
-    </nav>
-    <p class="tagline" data-en="22 procedural tracks · 22 cars · story · autopilot · local 2-player">۲۲ پیست ایرانی · ۲۲ خودرو · داستان · خودران · دونفره روی یک کیبورد</p>
-    <div class="statbar">
+<div id="screen-menu" class="screen hub">
+  <div class="hubbar">
+    <div class="brand"><span class="logotype">تکاور</span><span class="logosub">TAKAVAR&nbsp;RACING</span></div>
+    <div class="hubright">
       <span class="coin">◆ <b id="m-coins">0</b></span>
-      <span>خودروها: <b id="m-cars">0/16</b></span>
-      <span>پیست‌ها: <b id="m-tracks">0/20</b></span>
+      <button class="iconbtn" data-act="settings" title="تنظیمات">⚙</button>
+      <button class="iconbtn" data-act="howto" title="راهنما">؟</button>
     </div>
+  </div>
+
+  <div class="hubcar" id="hubcar">
+    <h2 id="h-carname">—</h2>
+    <div class="hubstats" id="h-carstats"></div>
+  </div>
+
+  <div class="hubactions">
+    <button class="hbtn" data-act="customize"><span class="ic">🎨</span><b>شخصی‌سازی</b><small>رنگ و بدنه</small></button>
+    <button class="hbtn" data-act="cars"><span class="ic">🏎</span><b>ماشین</b><small>انتخاب خودرو</small></button>
+    <button class="hbtn" data-act="upgrade"><span class="ic">🔧</span><b>ارتقا</b><small>تقویت قطعات</small></button>
+    <button class="hbtn start" data-act="start"><span class="ic">🏁</span><b>شروع</b><small>برو به مسابقه</small></button>
+  </div>
+
+  <div class="hubmore">
+    <button data-act="story">داستان</button>
+    <button data-act="local">دونفره‌ی محلی</button>
+    <span class="hint">۲۲ پیست · ۲۲ خودرو · خودران · سطح ۱/۴</span>
   </div>
 </div>
 
@@ -72,6 +77,11 @@
     <h2>گاراژ</h2>
     <span class="coin">◆ <b id="g-coins">0</b></span>
   </header>
+  <div class="gtabs">
+    <button data-tab="cars" class="on">ماشین</button>
+    <button data-tab="paint">شخصی‌سازی</button>
+    <button data-tab="upgrade">ارتقا</button>
+  </div>
   <div class="garagegrid">
     <aside class="carlist" id="carlist"></aside>
     <section class="carview">

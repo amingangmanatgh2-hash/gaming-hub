@@ -93,6 +93,16 @@
 
   /* =============================================================== گاراژ */
   var garageSel = 'tandar';
+  var garageTab = 'cars';
+  function setGarageTab(tab) {
+    garageTab = tab;
+    var scr = $('screen-garage');
+    if (scr) scr.className = 'screen tab-' + tab;
+    var btns = doc.querySelectorAll('.gtabs button');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('on', btns[i].getAttribute('data-tab') === tab);
+    }
+  }
   function ownedCars() {
     return KK.CARS.filter(function (c) { return P.owned.indexOf(c.id) >= 0; });
   }
@@ -778,8 +788,12 @@
         startRace();
       },
       race: function () { setup.mode = 'single'; setup.story = null; renderTracks(); show('tracks'); },
+      start: function () { setup.mode = 'single'; setup.story = null; renderTracks(); show('tracks'); },
       story: function () { renderStory(); show('story'); },
       garage: function () { renderGarage(); show('garage'); },
+      cars: function () { setGarageTab('cars'); renderGarage(); show('garage'); },
+      customize: function () { setGarageTab('paint'); renderGarage(); show('garage'); },
+      upgrade: function () { setGarageTab('upgrade'); renderGarage(); show('garage'); },
       local: function () {
         if (ownedCars().length < 2) { toast('برای دونفره حداقل به دو خودرو نیاز داری', 'bad'); show('garage'); renderGarage(); return; }
         setup.mode = 'split'; setup.story = null; renderTracks(); show('tracks');
@@ -876,9 +890,20 @@
   }
 
   function updateMenuStats() {
-    $('m-coins').textContent = money(P.coins);
-    $('m-cars').textContent = fa(P.owned.length) + '/' + fa(KK.CARS.length);
-    $('m-tracks').textContent = fa(P.tracks.length) + '/' + fa(KK.TRACKS.length);
+    var c = $('m-coins'); if (c) c.textContent = money(P.coins);
+    var gc = $('g-coins'); if (gc) gc.textContent = money(P.coins);
+    // هاب: نام و آمار خودروی فعال
+    var def = carDefById(P.selected);
+    var nm = $('h-carname'); if (nm) nm.textContent = def ? def.name : '—';
+    var st = $('h-carstats');
+    if (st) {
+      st.innerHTML = '';
+      if (def) {
+        [['قدرت', def.power], ['سرعت', def.topSpeed], ['چسبندگی', def.grip]].forEach(function (p) {
+          var s = el('span'); s.textContent = p[0] + ': ' + fa(Math.round(p[1])); st.appendChild(s);
+        });
+      }
+    }
   }
 
   function boot() {
@@ -913,6 +938,10 @@
     $('loadmsg').textContent = 'آماده‌ای؟';
     updateMenuStats();
 
+    // هاب: خودروی فعال را برای پیش‌نمایش سه‌بعدی آماده کن
+    garageSel = P.selected;
+    try { rebuildShowroom(); buildStage(); } catch (e) {}
+    updateMenuStats();
     setTimeout(function () { show('menu'); lastT = performance.now(); root.requestAnimationFrame(frame); }, 550);
   }
 
