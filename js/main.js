@@ -98,11 +98,16 @@
   var garageCat = 'all';
   var CAR_CAT = {
     volt: 'برقی', plasma: 'برقی',
-    tandar: 'شهری', rakhsh: 'شهری', kaftar: 'شهری', sahand: 'شهری', arash: 'شهری', ghasedak: 'شهری',
+    tandar: 'شهری', rakhsh: 'شهری', sahand: 'شهری', arash: 'شهری', ghasedak: 'شهری', saba: 'شهری',
     palang: 'اسپرت', shahab: 'اسپرت', oghab: 'اسپرت', kavir: 'اسپرت', tokyo: 'اسپرت', bavaria: 'اسپرت', berlin: 'اسپرت',
-    alborz: 'هایپر', damavand: 'هایپر', azarakhsh: 'هایپر', nahang: 'هایپر', tufan: 'هایپر', simorgh: 'هایپر', milan: 'هایپر'
+    amir: 'اسپرت', giti: 'اسپرت', nova: 'اسپرت', darya: 'اسپرت', sayyad: 'اسپرت',
+    zarb: 'عضلانی', raad: 'عضلانی', onyx: 'عضلانی',
+    kaftar: 'آفرود', faraz: 'آفرود', titan: 'آفرود', nimbus: 'آفرود',
+    soroush: 'دریفت', zephyr: 'دریفت',
+    alborz: 'هایپر', damavand: 'هایپر', azarakhsh: 'هایپر', nahang: 'هایپر', tufan: 'هایپر', simorgh: 'هایپر', milan: 'هایپر',
+    vega: 'هایپر', almas: 'هایپر', falcon: 'هایپر', orion: 'هایپر'
   };
-  var CATS = ['all', 'برقی', 'شهری', 'اسپرت', 'هایپر'];
+  var CATS = ['all', 'برقی', 'شهری', 'اسپرت', 'عضلانی', 'آفرود', 'دریفت', 'هایپر'];
   function renderCatFilter() {
     var host = $('catfilter'); if (!host) return;
     host.innerHTML = '';

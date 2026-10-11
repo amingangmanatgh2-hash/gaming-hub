@@ -365,10 +365,17 @@ ok(!!KK && !!KK.app, 'همه‌ی ماژول‌ها بارگذاری شدند');
 
 /* ---- ۵٫۱) داده ---- */
 console.log('\n— محتوا —');
-ok(KK.CARS.length === 22, 'تعداد خودروها', KK.CARS.length);
+ok(KK.CARS.length === 40, 'تعداد خودروها', KK.CARS.length);
 ok(KK.TRACKS.length === 20, 'تعداد پیست‌ها', KK.TRACKS.length);
 const ids = new Set(KK.CARS.map(c => c.id));
-ok(ids.size === 22, 'شناسه‌ی خودروها یکتاست');
+ok(ids.size === 40, 'شناسه‌ی خودروها یکتاست');
+// ساخت همه‌ی خودروها (گونه/چرخ/افزونه‌های جدید خطا ندهند)
+let carBuildFails = 0;
+KK.CARS.forEach(function (c) {
+  try { new KK.carModule.Car(JSON.parse(JSON.stringify(c)), { upgrades: {} }); }
+  catch (e) { carBuildFails++; console.log('  ✗ ساخت خودروی ' + c.id + ': ' + e.message); }
+});
+ok(carBuildFails === 0, 'همه‌ی ۴۰ خودرو بدون خطا ساخته شدند', carBuildFails);
 const tids = new Set(KK.TRACKS.map(t => t.id));
 ok(tids.size === 20, 'شناسه‌ی پیست‌ها یکتاست');
 ok(KK.TRACKS.every(t => KK.THEMES[t.theme]), 'همه‌ی پیست‌ها تم معتبر دارند');
@@ -492,7 +499,7 @@ function clickAct(name) {
 }
 ok(clickAct('garage'), 'باز شدن گاراژ');
 ok(getEl('g-name').textContent.length > 0, 'نام خودرو در گاراژ نوشته شد', getEl('g-name').textContent);
-ok(getEl('carlist').children.length === 22, 'فهرست ۲۲ خودرو در گاراژ', getEl('carlist').children.length);
+ok(getEl('carlist').children.length === 40, 'فهرست ۴۰ خودرو در گاراژ', getEl('carlist').children.length);
 ok(getEl('g-upgrades').children.length === KK.UPGRADES.length, 'جعبه‌های ارتقاء ساخته شدند');
 
 // خرید یک خودرو
@@ -512,11 +519,11 @@ ok(getEl('story-dialog').classList.contains('hidden'), 'انصراف از دیا
 // هاب: چهار دکمه و تب‌های گاراژ
 clickAct('cars');
 ok(getEl('screen-garage').className.indexOf('tab-cars') >= 0, 'دکمه‌ی ماشین → تب ماشین');
-ok(getEl('catfilter').children.length === 5, 'فیلتر دسته‌بندی ساخته شد', getEl('catfilter').children.length);
+ok(getEl('catfilter').children.length === 8, 'فیلتر دسته‌بندی ساخته شد', getEl('catfilter').children.length);
 getEl('catfilter').children[1].onclick();
 ok(getEl('carlist').children.length === 2, 'دسته‌ی برقی → ۲ خودرو', getEl('carlist').children.length);
 getEl('catfilter').children[0].onclick();
-ok(getEl('carlist').children.length === 22, 'دسته‌ی همه → ۲۲ خودرو', getEl('carlist').children.length);
+ok(getEl('carlist').children.length === 40, 'دسته‌ی همه → ۴۰ خودرو', getEl('carlist').children.length);
 clickAct('customize');
 ok(getEl('screen-garage').className.indexOf('tab-paint') >= 0, 'دکمه‌ی شخصی‌سازی → تب رنگ');
 clickAct('upgrade');
