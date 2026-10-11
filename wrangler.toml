@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────
+#  هم‌کلام | Hamkalam — Cloudflare Workers + Durable Objects
+#  استقرار یک‌کلیکی:   npm run deploy   (یا دکمه Deploy to Cloudflare)
+#  این فایل همان اپی را بالا می‌آورد که روی Cloudflare Pages هم اجرا می‌شود،
+#  با این تفاوت که اینجا سرور سیگنالینگ (Durable Object) هم داخل خودش است.
+# ─────────────────────────────────────────────────────────────
+name = "hamkalam"
+main = "worker/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+# ── فایل‌های استاتیک (همان پوشه‌ای که به Pages هم می‌دهید) ──
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# مسیرهای API و صفحهٔ اتاق (/r/CODE) را خود Worker مدیریت می‌کند
+run_worker_first = ["/api/*", "/r", "/r/*"]
+
+# ── اتاق‌ها: هر اتاق یک Durable Object با WebSocket Hibernation ──
+# (هاداینیت یعنی وقتی کسی حرف نمی‌زند، سرور هزینه‌ای مصرف نمی‌کند؛
+#  پس یک اتاق ۸ ساعته تقریباً رایگان تمام می‌شود.)
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[vars]
+# پیش‌فرض‌ها (قابل تغییر از داشبورد Cloudflare → Settings → Variables)
+ROOM_TTL_HOURS = "8"        # حداکثر عمر اتاق (ساعت) — پیش‌فرض ۸ ساعت
+EMPTY_GRACE_SECONDS = "90"  # چند ثانیه بعد از خالی‌شدن، اتاق پاک شود
+MAX_PARTICIPANTS = "12"     # سقف اعضا در هر اتاق
+
+# ── اختیاری: TURN رایگان کلودفلر (۱ ترابایت در ماه) ──
+# برای کاربرانی که پشت NAT سخت / CGNAT هستند (اکثر اینترنت‌های موبایل ایران)
+# از داشبورد Cloudflare → Realtime → TURN Keys بسازید و این دو مقدار را ست کنید:
+#   wrangler secret put TURN_KEY_ID
+#   wrangler secret put TURN_KEY_API_TOKEN
+
+[observability]
+enabled = true
+head_sampling_rate = 1

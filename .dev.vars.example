@@ -1,0 +1,11 @@
+# نمونهٔ سکرت‌های محلی برای  npm run dev:worker
+# این فایل را با نام .dev.vars کپی کنید (در .gitignore هست) و مقادیر واقعی را بگذارید.
+#
+# TURN رایگان کلودفلر — از داشبورد: Realtime → TURN Server → Create TURN key
+TURN_KEY_ID=
+TURN_KEY_API_TOKEN=
+
+# تنظیمات اتاق (اختیاری — پیش‌فرض‌ها در wrangler.toml هم هستند)
+ROOM_TTL_HOURS=8
+EMPTY_GRACE_SECONDS=90
+MAX_PARTICIPANTS=12

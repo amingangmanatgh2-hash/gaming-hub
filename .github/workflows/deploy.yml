@@ -1,0 +1,37 @@
+# این گردش‌کار همان چیزی است که دکمهٔ «Deploy to Cloudflare» اجرا می‌کند.
+# فقط روی repository_dispatch (از سمت دکمهٔ کلودفلر) و اجرای دستی راه می‌افتد
+# تا با هر push روی Main بدون کلیدها خطا ندهد.
+name: Deploy to Cloudflare
+
+on:
+  repository_dispatch:
+    types: [deploy, "*"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: نصب وابستگی‌ها
+        run: npm install --no-audit --no-fund
+
+      - name: ساخت بستهٔ نهایی
+        run: npm run build
+
+      - name: انتشار روی Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: نشانی نهایی
+        run: echo "اپ روی workers.dev / دامنهٔ شما منتشر شد ✅"
