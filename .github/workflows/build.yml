@@ -62,8 +62,10 @@ jobs:
       - name: Build debug APK
         working-directory: android
         run: |
-          gradle wrapper --gradle-version 8.7 --no-daemon
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          gradle assembleDebug --no-daemon --stacktrace
+          echo "--- APK ---"
+          find app/build/outputs -name '*.apk' -printf '%p %s bytes\n'
 
       - name: Collect APK
         run: |
@@ -91,7 +93,9 @@ jobs:
       - name: Zip
         shell: pwsh
         run: |
-          Compress-Archive -Path dist/win32-x64/* -DestinationPath dist/takavar-windows.zip -Force
+          Push-Location dist/win32-x64
+          7z a -tzip ../takavar-windows.zip .
+          Pop-Location
           Get-Item dist/takavar-windows.zip
       - uses: actions/upload-artifact@v4
         with:
