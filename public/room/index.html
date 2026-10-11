@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>اتاق هم‌کلام</title>
+<meta name="theme-color" content="#0b1020" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="room">
+<a class="skip" href="#stage">پرش به ویدیوها</a>
+
+<div id="gate" class="gate">
+  <div class="card gate-card">
+    <div class="brand small">
+      <svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><rect x="3" y="5" width="42" height="38" rx="12" fill="url(#lg)"/><circle cx="31" cy="24" r="6.5" fill="#fff"/></svg>
+      <div><b>ورود به اتاق</b><small id="gateCode">—</small></div>
+    </div>
+    <input id="gateName" placeholder="نام شما" maxlength="32" />
+    <div class="gate-pw" id="gatePinWrap" hidden>
+      <input id="gatePin" placeholder="رمز اتاق" maxlength="12" inputmode="numeric" />
+    </div>
+    <div class="gate-preview">
+      <video id="gateVideo" playsinline muted autoplay></video>
+      <div class="gate-avatar" id="gateAvatar">👤</div>
+      <button class="gate-cam" id="gateCamBtn" title="دوربین">🎥</button>
+      <button class="gate-mic" id="gateMicBtn" title="میکروفن">🎙️</button>
+    </div>
+    <div class="meter big"><i id="gateBar"></i></div>
+    <div class="row">
+      <button class="btn" id="gateCam">دوربین</button>
+      <button class="btn" id="gateMic">میکروفن</button>
+      <select id="gateCamSel" class="sel"></select>
+      <select id="gateMicSel" class="sel"></select>
+    </div>
+    <label class="check"><input type="checkbox" id="gateRemember" checked /> نامم را به‌خاطر بسپار</label>
+    <button class="btn primary big" id="gateJoin">ورود به اتاق</button>
+    <p class="fine" id="gateHint">ورود = پذیرش این که صدا/تصویر شما فقط بین اعضای همین اتاق ردوبدل می‌شود.</p>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="room-top">
+    <div class="rt-right">
+      <button class="ic" id="btnPanel" title="پنل کنار (Ctrl+B)">☰</button>
+      <div class="room-title">
+        <b id="roomName">اتاق</b>
+        <span class="code" id="roomCode" title="کپی کد اتاق">—</span>
+        <span class="badge" id="roomBadge">۰ نفر</span>
+      </div>
+    </div>
+    <div class="rt-mid">
+      <span class="net" id="netPill" title="کیفیت شبکه">🟢 —</span>
+      <span class="badge ghost" id="ttlPill" title="عمر باقی‌مانده">⏱ —</span>
+      <span class="badge ghost" id="hostPill" hidden>👑 میزبان</span>
+      <span class="badge ghost warn" id="recPill" hidden>⏺ در حال ضبط</span>
+    </div>
+    <div class="rt-left">
+      <button class="ic" id="btnLayout" title="چیدمان (Ctrl+G)">▦</button>
+      <button class="ic" id="btnSettings" title="تنظیمات">⚙️</button>
+      <button class="ic" id="btnInvite" title="دعوت">🔗</button>
+      <button class="ic" id="btnHelp" title="قابلیت‌ها و میان‌بر‌ها (؟)">❓</button>
+      <button class="ic danger" id="btnLeave" title="خروج">🚪</button>
+    </div>
+  </header>
+
+  <main class="room-body">
+    <section class="stage-wrap">
+      <div id="stage" class="stage" data-layout="auto" data-count="1" data-pins=""></div>
+      <div class="stage-extra">
+        <div id="boardPane" class="pane" hidden>
+          <div class="pane-head">
+            <b>🎨 تخته سفید مشترک</b>
+            <span class="grow"></span>
+            <button class="btn xs" data-wb="pen">✏️ قلم</button>
+            <button class="btn xs" data-wb="line">📏 خط</button>
+            <button class="btn xs" data-wb="rect">▭ مستطیل</button>
+            <button class="btn xs" data-wb="circle">◯ دایره</button>
+            <button class="btn xs" data-wb="arrow">↗ فلش</button>
+            <button class="btn xs" data-wb="text">🅰 متن</button>
+            <button class="btn xs" data-wb="eraser">🧽 پاک‌کن</button>
+            <input type="color" id="wbColor" value="#ffd166" title="رنگ" />
+            <input type="range" id="wbSize" min="1" max="40" value="5" title="ضخامت" />
+            <button class="btn xs" data-wb="undo">↶</button>
+            <button class="btn xs" data-wb="redo">↷</button>
+            <button class="btn xs ghost" data-wb="save">💾 PNG</button>
+            <button class="btn xs danger" data-wb="clear">🗑 پاک‌کردن</button>
+            <button class="btn xs ghost" id="wbClose">بستن</button>
+          </div>
+          <canvas id="board" width="1600" height="900"></canvas>
+        </div>
+        <div id="sharePane" class="pane" hidden>
+          <div class="pane-head">
+            <b>🖥️ اشتراک صفحه</b>
+            <span class="grow"></span>
+            <button class="btn xs" id="shareStop">پایان اشتراک</button>
+            <button class="btn xs" id="shareQuality">کیفیت: بالا</button>
+            <button class="btn xs" id="shareAudio">🔊 صدای سیستم</button>
+            <button class="btn xs ghost" id="shareFull">⛶ تمام‌صفحه</button>
+          </div>
+          <video id="shareVideo" playsinline autoplay></video>
+          <div class="fine">اگر تصویر دیر می‌آید، «کیفیت: پایین» را بزنید (مناسب اینترنت محدود).</div>
+        </div>
+      </div>
+    </section>
+
+    <aside id="side" class="side">
+      <div class="side-head">
+        <button class="tab" data-tab="chat" title="چت">💬<i id="unread" hidden></i></button>
+        <button class="tab" data-tab="people" title="اعضا">👥</button>
+        <button class="tab" data-tab="files" title="فایل‌ها">📁</button>
+        <button class="tab" data-tab="notes">📝</button>
+        <button class="tab" data-tab="poll">📊</button>
+        <button class="tab" data-tab="capsule">⏳</button>
+        <button class="tab" data-tab="tools">🧰</button>
+        <button class="tab close" id="sideClose" title="بستن پنل (Ctrl+B)">✕</button>
+      </div>
+
+      <div class="side-body">
+        <!-- CHAT -->
+        <div class="tabpane" data-pane="chat">
+          <div class="chat-tools">
+            <button class="chip" id="chipAll" data-filter="all">همه</button>
+            <button class="chip" id="chipUnread">خوانده‌نشده</button>
+            <input id="chatSearch" placeholder="جست‌وجو در چت…" />
+            <button class="chip" id="chatExport">⬇ خروجی JSON</button>
+          </div>
+          <div id="pinned" class="pinned" hidden></div>
+          <div id="chatList" class="chat-list"></div>
+          <div id="typing" class="typing" hidden></div>
+          <form id="chatForm" class="chat-form">
+            <div class="resp" id="replyBar" hidden><span id="replyText"></span><button type="button" id="replyX">✕</button></div>
+            <div class="compose">
+              <button type="button" class="ic" id="emojiBtn" title="ایموجی">😀</button>
+              <button type="button" class="ic" id="fileBtn" title="ارسال فایل/عکس">📎</button>
+              <button type="button" class="ic" id="shotBtn" title="پیام صوتی (ویس)">🎤</button>
+              <textarea id="chatInput" rows="1" placeholder="پیام… (Enter = ارسال، Shift+Enter = خط جدید)"></textarea>
+              <button class="btn primary" id="sendBtn" type="submit">➤</button>
+            </div>
+            <div class="compose2">
+              <label class="check xs"><input type="checkbox" id="compressImg" checked /> فشرده‌سازی عکس</label>
+              <label class="check xs"><input type="checkbox" id="slomoHide" /> حالت شرمنده (پیش‌نمایش را دیدم)</label>
+              <span class="fine" id="fileProg"></span>
+            </div>
+          </form>
+          <div id="emojiPicker" class="emoji-picker" hidden></div>
+        </div>
+
+        <!-- PEOPLE -->
+        <div class="tabpane" data-pane="people" hidden>
+          <div class="people-tools">
+            <button class="btn xs" id="hostMuteAll" hidden>🔇 بستن همه میکروفن‌ها</button>
+            <button class="btn xs" id="hostCamOff" hidden>📷 بستن دوربین‌ها</button>
+            <button class="btn xs" id="hostWaiting" hidden>🚪 اتاق انتظار</button>
+          </div>
+          <div id="knockList" class="knock" hidden></div>
+          <div id="peopleList" class="people"></div>
+          <div class="side-note">💡 روی نام هر نفر بزنید تا گزینه‌های میزبان (سنجاق، میوت، اخراج، انتقال میزبانی) باز شود.</div>
+        </div>
+
+        <!-- FILES -->
+        <div class="tabpane" data-pane="files" hidden>
+          <div class="drop" id="drop">
+            <input type="file" id="fileInput" multiple hidden />
+            <input type="file" id="imgInput" accept="image/*" multiple hidden />
+            <b>فایل را بکشید و رها کنید</b>
+            <span class="fine">عکس‌ها خودکار فشرده می‌شوند؛ فایل تا ۱۵ مگابایت (تقسیم قطعه‌ای) پشتیبانی می‌شود.</span>
+            <div class="row">
+              <button class="btn sm" id="pickFile">📎 فایل</button>
+              <button class="btn sm" id="pickImg">🖼️ عکس</button>
+              <button class="btn sm" id="pickCam">📷 دوربین</button>
+            </div>
+          </div>
+          <div id="fileList" class="files"></div>
+        </div>
+
+        <!-- NOTES -->
+        <div class="tabpane" data-pane="notes" hidden>
+          <div class="pane-head small">
+            <b>یادداشت مشترک</b><span class="grow"></span>
+            <button class="btn xs" id="notesCopy">کپی</button>
+            <button class="btn xs" id="notesMd">⬇ Markdown</button>
+            <button class="btn xs ghost" id="notesClear">پاک‌کردن</button>
+          </div>
+          <textarea id="notes" class="notes" placeholder="صورت‌جلسه، جمع‌بندی، تصمیم‌ها… (همه هم‌زمان می‌بینند)"></textarea>
+          <div class="fine" id="notesStat">—</div>
+        </div>
+
+        <!-- POLL -->
+        <div class="tabpane" data-pane="poll" hidden>
+          <div id="pollWrap"></div>
+          <form id="pollForm" class="poll-form" hidden>
+            <input id="pollQ" placeholder="سؤال نظرسنجی" maxlength="160" />
+            <input id="pollOpts" placeholder="گزینه‌ها با کاما: بله، خیر، شاید" />
+            <label class="check xs"><input type="checkbox" id="pollMulti" /> چند انتخابی</label>
+            <button class="btn sm primary">ساخت نظرسنجی</button>
+          </form>
+        </div>
+
+        <!-- CAPSULE -->
+        <div class="tabpane" data-pane="capsule" hidden>
+          <div class="capsule">
+            <h4>⏳ پیام به آینده</h4>
+            <textarea id="capText" placeholder="چیزی بنویس که بعداً برای همه باز شود…"></textarea>
+            <div class="row">
+              <select id="capWhen">
+                <option value="5">۵ دقیقهٔ دیگر</option>
+                <option value="15">۱۵ دقیقه</option>
+                <option value="60">۱ ساعت</option>
+                <option value="tomorrow">فردا</option>
+                <option value="manual">دستی (دکمه بزن)</option>
+              </select>
+              <input id="capTo" placeholder="برای همه / نام فرد" />
+              <button class="btn sm" id="capAdd">ثبت</button>
+            </div>
+            <div id="capList" class="caps-list"></div>
+          </div>
+        </div>
+
+        <!-- TOOLS -->
+        <div class="tabpane" data-pane="tools" hidden>
+          <div class="tools-grid">
+            <button class="tool" id="tMic">🎙️ میکروفن</button>
+            <button class="tool" id="tCam">🎥 دوربین</button>
+            <button class="tool" id="tScreen">🖥️ اشتراک صفحه</button>
+            <button class="tool" id="tBoard">🎨 تخته سفید</button>
+            <button class="tool" id="tRec">⏺ ضبط جلسه</button>
+            <button class="tool" id="tSnap">📸 عکس از تماس</button>
+            <button class="tool" id="tShot">📷 عکس با دوربین</button>
+            <button class="tool" id="tAudio">🎵 پخش صدا از سیستم</button>
+            <button class="tool" id="tBlur">🫥 محو پس‌زمینه</button>
+            <button class="tool" id="tVbg">🌌 پس‌زمینه مجازی</button>
+            <button class="tool" id="tCc">💬 زیرنویس خودکار</button>
+            <button class="tool" id="tTts">🔊 خواندن پیام‌های چت</button>
+            <button class="tool" id="tTrans">🌐 ترجمهٔ پیام آخر</button>
+            <button class="tool" id="tNoise">🤫 حذف نویز</button>
+            <button class="tool" id="tTimer">⏲ تایمر جلسه</button>
+            <button class="tool" id="tPomo">🍅 پومودورو</button>
+            <button class="tool" id="tQuiz">❓ کوییز سریع</button>
+            <button class="tool" id="tRooms">🧑‍🤝‍🧑 اتاق‌های موازی</button>
+            <button class="tool" id="tRaise">✋ Raise hand</button>
+            <button class="tool" id="tReact">🎉 واکنش</button>
+            <button class="tool" id="tWake">⏰ بیدارباش اتاق</button>
+            <button class="tool" id="tLow">🪫 داده‌کم (بتا)</button>
+            <button class="tool" id="tPip">📺 تصویر در تصویر</button>
+            <button class="tool" id="tFull">⛶ تمام‌صفحه</button>
+          </div>
+          <div class="side-note" id="toolsHint">هر ابزار را در تنظیمات هم می‌توانید ببینید. اگر مرورگرتان از چیزی پشتیبانی نکند، با پیام فارسی خبر می‌دهیم.</div>
+        </div>
+      </div>
+
+      <div class="transcript" id="transcriptWrap" hidden>
+        <div class="pane-head small"><b>📝 زیرنویس / صورت‌مذاکرهٔ خودکار</b><span class="grow"></span><button class="btn xs" id="ccCopy">کپی</button><button class="btn xs" id="ccClear">پاک‌کردن</button></div>
+        <div id="transcript" class="transcript-list"></div>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="room-bar">
+    <div class="bar-right">
+      <button class="ctl" id="barMic" title="میکروفن (M)"><span>🎙️</span><i id="micState">روشن</i></button>
+      <button class="ctl" id="barCam" title="دوربین (V)"><span>🎥</span><i id="camState">روشن</i></button>
+      <button class="ctl" id="barScreen" title="اشتراک صفحه (S)"><span>🖥️</span><i>اشتراک</i></button>
+      <button class="ctl" id="barHand" title="دست بلند (H)"><span>✋</span><i>دست</i></button>
+      <button class="ctl" id="barReact" title="واکنش (R)"><span>🎉</span><i>واکنش</i></button>
+      <button class="ctl" id="barMore" title="ابزارهای بیشتر"><span>🧰</span><i>ابزارها</i></button>
+    </div>
+    <div class="bar-left">
+      <button class="ctl danger" id="barEnd" title="پایان برای همه (میزبان)">⛔</button>
+      <button class="ctl danger" id="barLeave" title="خروج">🚪<i>خروج</i></button>
+    </div>
+  </footer>
+</div>
+
+<div id="reactions" class="reactions"></div>
+<div id="overlay" class="overlay" hidden></div>
+<div id="modal" class="modal" hidden></div>
+<div id="toast" class="toasts"></div>
+<div id="pipHost" class="pip-host"></div>
+
+<script type="module" src="/build/room.js"></script>
+</body>
+</html>

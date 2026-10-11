@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>هم‌کلام — اتاق گفتگوی تصویری رایگان، سبک و بی‌فیلتر برای اینترنت ایران</title>
+<meta name="description" content="هم‌کلام: جلسات تصویری، صوتی، چت، ارسال فایل، تخته سفید، اشتراک صفحه و بیش از ۱۲۰ قابلیت کاربردی. کاملاً رایگان روی Cloudflare، فوق‌سبک و بهینه برای اینترنت کم‌سرعت ایران. اتاق تا وقتی همه خارج نشده‌اند زنده می‌ماند." />
+<meta name="theme-color" content="#0b1020" />
+<meta name="color-scheme" content="dark light" />
+<meta property="og:title" content="هم‌کلام — اتاق گفتگوی تصویری رایگان" />
+<meta property="og:description" content="اتاق تصویری/صوتی، چت، فایل، تصویر، میکروفن، تخته سفید — بیش از ۱۲۰ قابلیت، کاملاً رایگان و سبک." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta property="og:image" content="/og-image.png" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="home">
+<a class="skip" href="#main">پرش به محتوا</a>
+
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00e0c6"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><rect x="3" y="5" width="42" height="38" rx="12" fill="url(#lg)"/><path d="M10 21c3-5 8-7 13-6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M10 28c3 5 8 7 13 6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="31" cy="24" r="6.5" fill="#fff"/><circle cx="31" cy="24" r="3" fill="#5a3ff5"/></svg>
+      <div>
+        <b>هم‌کلام</b>
+        <small>اتاق گفتگوی رایگان — سبک مثل متن، قوی مثل جلسهٔ کاری</small>
+      </div>
+    </div>
+    <nav class="top-nav">
+      <a href="#features">قابلیت‌ها</a>
+      <a href="#deploy">استقرار</a>
+      <a href="#faq">پرسش‌ها</a>
+      <button class="btn ghost sm" id="themeBtn" title="تغییر روشن/تیره">🌗</button>
+      <a class="btn ghost sm" href="/r/" id="navRoom">اتاق جدید</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero wrap">
+    <div class="hero-copy">
+      <h1>یه اتاق بساز، لینکش رو بفرست، <span class="grad">همون‌جا حرف بزن</span></h1>
+      <p class="lead">
+        تصویر، صدا، چت، ارسال فایل و عکس، میکروفن، اشتراک صفحه، تخته سفید، نظرسنجی، ضبط، زیرنویس و
+        <b>بیش از ۱۲۰ قابلیت کاربردی</b>. بدون ثبت‌نام، بدون تبلیغ، <b>کاملاً رایگان</b>، روی لبهٔ شبکهٔ
+        Cloudflare — بهینه برای اینترنت کم‌سرعت و پرنوسان ایران. اتاق تازه <b>تا وقتی همه خارج نشدن</b> خودکار پاک نمی‌شود.
+      </p>
+      <div class="pills">
+        <span class="pill">⚡ سبک‌تر از ۱۰۰ کیلوبایت</span>
+        <span class="pill">🇮🇷 سازگار با اینترنت ایران</span>
+        <span class="pill">🔒 رمز اتاق + اتاق انتظار</span>
+        <span class="pill">⏱ هر اتاق تا ۸ ساعت زنده</span>
+        <span class="pill">💸 بدون هزینهٔ سرور</span>
+      </div>
+    </div>
+
+    <div class="card create" id="createCard">
+      <h2>ساخت اتاق</h2>
+      <form id="createForm" autocomplete="off">
+        <label>نام اتاق
+          <input name="name" placeholder="مثلاً: جلسهٔ تیم / کلاس ریاضی" maxlength="60" />
+        </label>
+        <div class="row">
+          <label>رمز اتاق (اختیاری)
+            <input name="pin" placeholder="۴ رقمی" inputmode="numeric" maxlength="12" />
+          </label>
+          <label>عمر اتاق
+            <select name="ttlHours">
+              <option value="1">۱ ساعت</option>
+              <option value="2">۲ ساعت</option>
+              <option value="4">۴ ساعت</option>
+              <option value="8" selected>۸ ساعت (پیشنهادی)</option>
+              <option value="12">۱۲ ساعت</option>
+              <option value="24">۲۴ ساعت</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>حداکثر نفرات
+            <select name="maxP">
+              <option>4</option><option>6</option><option selected>8</option><option>12</option><option>16</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="waitingRoom" /> اتاق انتظار (میزبان اجازه بدهد)</label>
+        </div>
+        <button class="btn primary big" type="submit">🚀 ساخت اتاق و ورود</button>
+        <p class="fine">اتاق روی لبهٔ کلودفلر ساخته می‌شود؛ لینک را برای دیگران بفرستید. تا وقتی یک نفر داخل باشد، اتاق حذف نمی‌شود.</p>
+      </form>
+
+      <div class="sep"><span>یا</span></div>
+
+      <form id="joinForm" class="join">
+        <input name="code" placeholder="کد اتاق، مثلاً 7KQ2M9X" maxlength="24" />
+        <input name="pin" placeholder="رمز (اگر دارد)" maxlength="12" class="pin" />
+        <button class="btn" type="submit">ورود</button>
+      </form>
+      <div class="recent" id="recent"></div>
+    </div>
+  </section>
+
+  <section class="wrap grid3" id="quick">
+    <div class="card">
+      <h3>🎥 امتحان دوربین و میکروفن</h3>
+      <video id="testVideo" playsinline muted autoplay></video>
+      <div class="meter"><i id="testBar"></i></div>
+      <div class="row">
+        <button class="btn sm" id="testStart">روشن کن</button>
+        <button class="btn sm ghost" id="testStop">خاموش</button>
+        <span class="fine" id="testMsg"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>🌐 چند میلی‌ثانیه تأخیر دارید؟</h3>
+      <p class="fine">تأخیر شبکه به نزدیک‌ترین لبهٔ کلودفلر — مبنای کیفیت تماس شما.</p>
+      <div class="stat" id="netStat">—</div>
+      <button class="btn sm" id="pingBtn">اندازه‌گیری</button>
+      <hr />
+      <h3>🧩 وضعیت سرور</h3>
+      <div class="stat small" id="healthStat">در حال بررسی…</div>
+    </div>
+    <div class="card">
+      <h3>✨ چرا هم‌کلام؟</h3>
+      <ul class="ticks">
+        <li>پیام‌ها و فایل‌های سبک، بدون عبور از سرورهای گران</li>
+        <li>حالت کم‌مصرف (150p/12kbps) برای اینترنت ضعیف</li>
+        <li>اتاق خصوصی با رمز، قفل، اتاق انتظار و اخراج/مسدودی</li>
+        <li>بدون ثبت‌نام، بدون شماره تلفن، بدون تبلیغ</li>
+        <li>کد کامل روی GitHub؛ خودتان روی اکانت رایگان کلودفلر بالا بیاورید</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="wrap" id="features">
+    <div class="sec-head">
+      <h2>۱۲۴ قابلیت، همه در یک اتاق</h2>
+      <div class="filters">
+        <input id="featSearch" placeholder="جست‌وجو در قابلیت‌ها…" />
+        <select id="featCat"><option value="">همهٔ دسته‌ها</option></select>
+        <span class="fine" id="featCount"></span>
+      </div>
+    </div>
+    <div class="feat-grid" id="featGrid"></div>
+  </section>
+
+  <section class="wrap" id="deploy">
+    <h2>در ۹۰ ثانیه خودتان بالا بیاورید (کاملاً رایگان)</h2>
+    <div class="grid3">
+      <div class="card">
+        <h3>۱) یک‌کلیکی</h3>
+        <p class="fine">با دکمهٔ زیر، کلودفلر یک نسخه از همین مخزن را در اکانت گیت‌هاب شما می‌سازد و روی اکانت رایگان خودتان منتشر می‌کند.</p>
+        <a class="btn primary big" id="deployBtn" target="_blank" rel="noreferrer">☁️ Deploy to Cloudflare</a>
+      </div>
+      <div class="card">
+        <h3>۲) با دستور (Workers — پیشنهادی)</h3>
+        <pre><code>git clone YOUR_REPO_URL hamkalam
+cd hamkalam
+npm install
+npx wrangler login
+npm run deploy</code></pre>
+        <p class="fine">همین یک دستور، هم سایت استاتیک و هم سرور سیگنالینگ (Durable Objects) را منتشر می‌کند.</p>
+      </div>
+      <div class="card">
+        <h3>۳) اگر Pages می‌خواهید</h3>
+        <pre><code># روی داشبورد: Workers &amp; Pages → Create → Pages → Connect to Git
+# Build command:      npm run build
+# Build output dir:   public
+# سپس Bindings → Durable Objects → ROOMS → Room</code></pre>
+        <p class="fine">هر دو روش یک اپ می‌دهند؛ تفاوت فقط در محل بایند کردن Durable Object است.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" id="faq">
+    <h2>پرسش‌های پرتکرار</h2>
+    <div class="faq" id="faqList"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <div>ساخته‌شده با ❤️ برای اینترنت ایران — هم‌کلام نسخهٔ <span id="ver">1.0.0</span> · مجوز MIT</div>
+  <div class="fine">
+    حریم خصوصی: صدا/تصویر مستقیماً بین مرورگرها ردوبدل می‌شود و از سرور ما عبور نمی‌کند؛ چت و فایل‌ها داخل اتاق ذخیره می‌شوند و با خالی‌شدن اتاق پاک می‌شوند.
+  </div>
+</footer>
+
+<div id="toast" class="toasts"></div>
+<script type="module" src="/build/home.js"></script>
+</body>
+</html>

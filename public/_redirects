@@ -1,0 +1,5 @@
+# صفحهٔ اصلی
+/home  /index.html  200
+
+# مسیر اتاق: /r/CODE → صفحهٔ اتاق (برای Cloudflare Pages؛ در Workers خودِ Worker این کار را می‌کند)
+/r/:code  /room/index.html  200
