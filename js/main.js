@@ -46,6 +46,7 @@
   var P, renderer, audio, game = null;
   var curScreen = 'loading';
   var showroom = null;
+  var hubSpin = 0;
   var lastT = 0, fpsAvg = 60;
   var raceCfg = null;
   var setup = { trackId: 'tehran', carId: 'tandar', p2CarId: null, laps: 3, ai: 7, dif: 1, mode: 'single', story: null };
@@ -759,7 +760,7 @@
       _menuDraws = [{ meshes: showroom.platform, model: ident }];
     }
     if (_menuDraws && showroom && showroom.car) {
-      showroom.car.yaw = _menuT * 0.4;
+      showroom.car.yaw = _menuT * 0.4 + hubSpin;
       showroom.car.updateMatrices();
       var d = _menuDraws.slice();
       d.push({ meshes: showroom.body, model: showroom.car.model });
@@ -842,6 +843,24 @@
     };
     $('d-cancel').onclick = function () { $('story-dialog').classList.add('hidden'); };
 
+    // چرخش تعاملی ماشین در هاب با درگ
+    (function () {
+      var hubEl = $('screen-menu');
+      var drag = null;
+      if (!hubEl) return;
+      hubEl.addEventListener('pointerdown', function (e) {
+        if (e.target && e.target.closest && e.target.closest('button')) return;
+        drag = e.clientX;
+      });
+      hubEl.addEventListener('pointermove', function (e) {
+        if (drag === null) return;
+        hubSpin += (e.clientX - drag) * 0.012;
+        drag = e.clientX;
+      });
+      root.addEventListener('pointerup', function () { drag = null; });
+      root.addEventListener('pointercancel', function () { drag = null; });
+    })();
+
     $('p-resume').onclick = function () { game.paused = false; show(null); $('touch').classList.toggle('hidden', !game.touchMode); };
     $('p-restart').onclick = function () { game.paused = false; startRace(); };
     $('p-quit').onclick = function () {
@@ -904,6 +923,8 @@
         });
       }
     }
+    var ow = $('h-owned');
+    if (ow) ow.textContent = fa(P.owned.length) + ' از ' + fa(KK.CARS.length) + ' خودرو · ' + fa(P.tracks.length) + ' پیست';
   }
 
   function boot() {
