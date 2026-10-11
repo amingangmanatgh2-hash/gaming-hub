@@ -1,0 +1,128 @@
+name: Build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------- آزمون
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+      - name: Headless test
+        run: npm test
+      - name: Build single-file web preview
+        run: node tools/build-web.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-preview
+          path: dist/takavar-web.html
+
+  # ---------------------------------------------------------------- اندروید
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+
+      - name: Copy web assets into android/app/src/main/assets/www
+        run: |
+          mkdir -p android/app/src/main/assets/www
+          cp index.html android/app/src/main/assets/www/
+          cp -r css js android/app/src/main/assets/www/
+          [ -d assets ] && cp -r assets android/app/src/main/assets/www/ || true
+
+      - name: Install Android SDK packages
+        run: |
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "SDK=$SDK"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Setup Gradle 8.7
+        run: |
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-8.7/bin" >> "$GITHUB_PATH"
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          gradle assembleDebug --no-daemon --stacktrace
+          echo "--- APK ---"
+          find app/build/outputs -name '*.apk' -printf '%p %s bytes\n'
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/takavar-android.apk
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/takavar-android.apk
+
+  # ---------------------------------------------------------------- ویندوز
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+      - name: Package Windows build
+        run: npm run build:win
+      - name: Zip
+        shell: pwsh
+        run: |
+          $src = (Get-ChildItem dist -Directory | Where-Object { $_.Name -match 'win32-x64$' } | Select-Object -First 1).FullName
+          if (-not $src) { Write-Error "win32-x64 output not found"; exit 1 }
+          Write-Host "Zipping $src"
+          7z a -tzip dist/takavar-windows.zip "$src/*"
+          Get-Item dist/takavar-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/takavar-windows.zip
+
+  # ---------------------------------------------------------------- ریلیز
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+      - name: List
+        run: find release -type f -printf '%p  %s bytes\n'
+      - name: Create GitHub Release (APK + EXE + HTML)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          APK=$(find release -name 'takavar-android.apk' | head -1)
+          EXE=$(find release -name 'takavar-windows.zip' | head -1)
+          WEB=$(find release -name 'takavar-web.html' | head -1)
+          gh release create "$TAG" "$APK" "$EXE" "$WEB" \
+            --title "تکاور ریسینگ $TAG" \
+            --notes "سه فایل: **takavar-android.apk** (اندروید)، **takavar-windows.zip** (ویندوز، داخلش Takavar Racing.exe)، **takavar-web.html** (پیش‌نمایش کامل بازی، تک‌فایل، مستقیم در مرورگر باز کن)."
