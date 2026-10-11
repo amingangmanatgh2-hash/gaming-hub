@@ -23,7 +23,7 @@
       settings: {
         quality: 0, master: 80, sfx: 90, music: 35, camMode: 'chase',
         splitDir: 'vertical', showFps: false, lang: 'fa',
-        autopilot: false, damage: true
+        autopilot: false, damage: true, perfMode: false
       }
     };
   }
@@ -95,6 +95,23 @@
   /* =============================================================== گاراژ */
   var garageSel = 'tandar';
   var garageTab = 'cars';
+  var garageCat = 'all';
+  var CAR_CAT = {
+    volt: 'برقی', plasma: 'برقی',
+    tandar: 'شهری', rakhsh: 'شهری', kaftar: 'شهری', sahand: 'شهری', arash: 'شهری', ghasedak: 'شهری',
+    palang: 'اسپرت', shahab: 'اسپرت', oghab: 'اسپرت', kavir: 'اسپرت', tokyo: 'اسپرت', bavaria: 'اسپرت', berlin: 'اسپرت',
+    alborz: 'هایپر', damavand: 'هایپر', azarakhsh: 'هایپر', nahang: 'هایپر', tufan: 'هایپر', simorgh: 'هایپر', milan: 'هایپر'
+  };
+  var CATS = ['all', 'برقی', 'شهری', 'اسپرت', 'هایپر'];
+  function renderCatFilter() {
+    var host = $('catfilter'); if (!host) return;
+    host.innerHTML = '';
+    CATS.forEach(function (c) {
+      var b = el('button', 'chip' + (garageCat === c ? ' on' : ''), c === 'all' ? 'همه' : c);
+      b.onclick = function () { garageCat = c; renderCatFilter(); renderGarage(); };
+      host.appendChild(b);
+    });
+  }
   function setGarageTab(tab) {
     garageTab = tab;
     var scr = $('screen-garage');
@@ -116,7 +133,8 @@
   function renderGarageList() {
     var list = $('carlist');
     list.innerHTML = '';
-    KK.CARS.forEach(function (c) {
+    KK.CARS.filter(function (c) { return garageCat === 'all' || CAR_CAT[c.id] === garageCat; })
+    .forEach(function (c) {
       var has = P.owned.indexOf(c.id) >= 0;
       var it = el('div', 'citem' + (c.id === garageSel ? ' sel' : ''));
       var sw = el('span', 'sw'); sw.style.background = hexCss(has ? paintOf(c.id) : 0x555a63);
@@ -141,6 +159,7 @@
   function renderGarage() {
     var c = KK.CARS.filter(function (x) { return x.id === garageSel; })[0];
     if (!c) return;
+    renderCatFilter();
     var has = P.owned.indexOf(c.id) >= 0;
     $('g-coins').textContent = money(P.coins);
     $('g-name').textContent = c.name;
@@ -531,7 +550,7 @@
     });
     $('r-title').textContent = storyTitle || (myPos === 1 ? 'برد! 🏆' : 'پایان مسابقه');
     $('r-coins').textContent = money(reward);
-    if (storySub) $('r-pos').textContent = storySub;
+    if (storySub) { var rp = $('r-pos'); if (rp) rp.textContent = storySub; }
     show('results');
     audio && audio.ui(myPos === 1 ? 'buy' : 'ok');
   }
@@ -580,6 +599,8 @@
       function (v) { P.settings.autopilot = v; saveProfile(); renderSettings(); });
     seg('set-damage', [{ v: true, label: 'روشن' }, { v: false, label: 'خاموش' }], P.settings.damage,
       function (v) { P.settings.damage = v; saveProfile(); renderSettings(); });
+    seg('set-perf', [{ v: false, label: 'خاموش' }, { v: true, label: 'روشن' }], P.settings.perfMode,
+      function (v) { P.settings.perfMode = v; saveProfile(); renderSettings(); toast('حالت بهینه: ' + (v ? 'روشن' : 'خاموش')); });
     var codeBtn = $('set-codebtn');
     if (codeBtn && !codeBtn._wired) {
       codeBtn._wired = true;
@@ -937,6 +958,8 @@
 
   function boot() {
     P = loadProfile();
+    // گوشی‌های ضعیف: حالت بهینه به‌صورت پیش‌فرض
+    if (P.settings.perfMode === undefined) P.settings.perfMode = isTouch();
     var cv = $('gl');
     try {
       renderer = new KK.rendererModule.Renderer(cv);

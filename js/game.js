@@ -129,7 +129,7 @@
     this.paused = false;
     this.finishedAll = false;
     this.resultRows = [];
-    this.particles = new Particles(1400);
+    this.particles = new Particles((cfg.settings && cfg.settings.perfMode) ? 480 : 1400);
     this.draws = [];
     this.cameras = [];
     this.viewports = [];

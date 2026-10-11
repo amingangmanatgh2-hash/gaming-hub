@@ -512,6 +512,11 @@ ok(getEl('story-dialog').classList.contains('hidden'), 'انصراف از دیا
 // هاب: چهار دکمه و تب‌های گاراژ
 clickAct('cars');
 ok(getEl('screen-garage').className.indexOf('tab-cars') >= 0, 'دکمه‌ی ماشین → تب ماشین');
+ok(getEl('catfilter').children.length === 5, 'فیلتر دسته‌بندی ساخته شد', getEl('catfilter').children.length);
+getEl('catfilter').children[1].onclick();
+ok(getEl('carlist').children.length === 2, 'دسته‌ی برقی → ۲ خودرو', getEl('carlist').children.length);
+getEl('catfilter').children[0].onclick();
+ok(getEl('carlist').children.length === 22, 'دسته‌ی همه → ۲۲ خودرو', getEl('carlist').children.length);
 clickAct('customize');
 ok(getEl('screen-garage').className.indexOf('tab-paint') >= 0, 'دکمه‌ی شخصی‌سازی → تب رنگ');
 clickAct('upgrade');
