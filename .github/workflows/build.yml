@@ -90,18 +90,24 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Package Windows build
         run: npm run build:win
-      - name: Zip
+      - name: Prepare app dir for installer
         shell: pwsh
         run: |
           $src = (Get-ChildItem dist -Directory | Where-Object { $_.Name -match 'win32-x64$' } | Select-Object -First 1).FullName
           if (-not $src) { Write-Error "win32-x64 output not found"; exit 1 }
-          Write-Host "Zipping $src"
-          7z a -tzip dist/takavar-windows.zip "$src/*"
-          Get-Item dist/takavar-windows.zip
+          Rename-Item $src (Join-Path (Split-Path $src) 'app')
+          Write-Host "app dir ready"
+      - name: Build Windows installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "desktop\installer.iss"
+          Get-Item dist\takavar-setup.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-exe
-          path: dist/takavar-windows.zip
+          name: windows-setup
+          path: dist/takavar-setup.exe
 
   # ---------------------------------------------------------------- ریلیز
   release:
@@ -121,8 +127,8 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           APK=$(find release -name 'takavar-android.apk' | head -1)
-          EXE=$(find release -name 'takavar-windows.zip' | head -1)
+          EXE=$(find release -name 'takavar-setup.exe' | head -1)
           WEB=$(find release -name 'takavar-web.html' | head -1)
           gh release create "$TAG" "$APK" "$EXE" "$WEB" \
             --title "تکاور ریسینگ $TAG" \
-            --notes "سه فایل: **takavar-android.apk** (اندروید)، **takavar-windows.zip** (ویندوز، داخلش Takavar Racing.exe)، **takavar-web.html** (پیش‌نمایش کامل بازی، تک‌فایل، مستقیم در مرورگر باز کن)."
+            --notes "سه فایل: **takavar-android.apk** (اندروید)، **takavar-setup.exe** (اینستالر ویندوز — نصب کامل با میان‌بر استارت و دسکتاپ)، **takavar-web.html** (پیش‌نمایش کامل بازی، تک‌فایل، مستقیم در مرورگر باز کن)."
