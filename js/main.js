@@ -1010,6 +1010,7 @@
     get profile() { return P; },
     get game() { return game; },
     get renderer() { return renderer; },
+    get setup() { return setup; },
     startRace: startRace
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -613,6 +613,35 @@ function pump(ms) {
   ok(getEl('r-table').children.length > 1 || getEl('r-coins').textContent !== '',
     'جدول نتیجه پر شد');
 
+  /* ---- مسابقه‌ی دوم: دونفره + پیست بارانی + خودران + حالت بهینه + خودروهای جدید ---- */
+  console.log('\n— مسابقه‌ی دوم (دونفره/باران/خودران/بهینه) —');
+  const prof = KK.app.profile;
+  prof.settings.autopilot = true;
+  prof.settings.perfMode = true;
+  prof.settings.damage = true;
+  prof.settings.splitDir = 'horizontal';
+  const st = KK.app.setup;
+  st.mode = 'split'; st.trackId = 'rasht'; st.laps = 2; st.ai = 5; st.dif = 2;
+  st.carId = 'falcon'; st.p2CarId = 'zarb'; st.story = null;
+  KK.app.startRace();
+  await pump(1600);
+  const g2 = KK.app.game;
+  ok(!!g2, 'مسابقه‌ی دوم ساخته شد');
+  if (g2) {
+    ok(g2.players.length === 2, 'حالت دونفره: دو بازیکن حاضرند', g2.players.length);
+    let err2 = 0, lap2 = false;
+    for (let s = 0; s < 60 * 320; s += 2) {
+      vnow += 1000 / 60 * 2;
+      if (rafCb) { const cb = rafCb; rafCb = null; try { cb(vnow); } catch (e) { err2++; if (err2 < 3) console.log('    [frame2] ' + e.message); } }
+      if (g2.cars.some(c => c.lap >= 1)) lap2 = true;
+      if (g2.state === 'done' || curScreenName() === 'results') break;
+    }
+    ok(err2 === 0, 'مسابقه‌ی دوم بدون خطای رندر', err2 + ' خطا');
+    ok(lap2, 'مسابقه‌ی دوم: حداقل یک دور');
+    ok((gl.stats.nanUniform || 0) === 0, 'مسابقه‌ی دوم: uniform نان نرفت', gl.stats.nanUniform || 0);
+    ok(gl.stats.indexOverflow === undefined, 'مسابقه‌ی دوم: ایندکس سرریز نکرد');
+  }
+
   finish();
 })();
 
