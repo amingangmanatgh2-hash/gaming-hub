@@ -609,6 +609,14 @@
   /** یک گام فیزیکی. dt ثابت (پیشنهاد 1/120) */
   Car.prototype.step = function (dt, track, input) {
     var def = this.def;
+    // sanitize ورودی: اگر مقدار فیزیک از قبل خراب بود، قبل از هر محاسبه اصلاح کن
+    if (!isFinite(this.x)) this.x = 0;
+    if (!isFinite(this.z)) this.z = 0;
+    if (!isFinite(this.y)) this.y = 0;
+    if (!isFinite(this.vf)) this.vf = 0;
+    if (!isFinite(this.vl)) this.vl = 0;
+    if (!isFinite(this.yaw)) this.yaw = 0;
+    if (!isFinite(dt) || dt <= 0) dt = 1 / 60;
     var steerIn = input ? input.steer : 0;
     var thr = input ? input.throttle : 0;
     var brk = input ? input.brake : 0;
@@ -762,6 +770,20 @@
     this.susp[3] = KK.approach(this.susp[3], susp, 9 * dt);
 
     if (!this.finished) this.totalTime += dt;
+
+    // ---- محافظ پایداری: اگر هر مقدار فیزیک خراب شد (NaN/بی‌نهایت)، بازیابی کن ----
+    // این از کرش یا نامرئی‌شدن خودرو جلوگیری می‌کند (فقط در حالت خراب فعال می‌شود).
+    if (!isFinite(this.vf)) this.vf = 0;
+    if (!isFinite(this.vl)) this.vl = 0;
+    if (!isFinite(this.yawRate)) this.yawRate = 0;
+    if (!isFinite(this.vy)) this.vy = 0;
+    if (!isFinite(this.yaw)) this.yaw = 0;
+    if (!isFinite(this.x)) this.x = 0;
+    if (!isFinite(this.z)) this.z = 0;
+    if (!isFinite(this.y)) this.y = (track ? track.heightAt(this.x, this.z) : 0) || 0;
+    if (!isFinite(this.rpm)) this.rpm = 950;
+    if (!isFinite(this.susp[0])) { this.susp[0] = 0; this.susp[1] = 0; this.susp[2] = 0; this.susp[3] = 0; }
+
     return { ax: Fx / this.mass, drifting: drifting };
   };
 

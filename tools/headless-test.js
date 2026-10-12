@@ -430,6 +430,13 @@ let pose = tr1.startPose(0);
 car1.reset(pose.x, pose.y + 0.1, pose.z, pose.yaw);
 car1.aiSample = tr1.nearest(car1.x, car1.z);
 const dt = 1 / 60;
+// محافظ پایداری: مقادیر NaN باید در step بازیابی شوند
+car1.vf = NaN; car1.x = NaN; car1.yaw = NaN; car1.susp[0] = NaN;
+car1.step(dt, tr1, { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false });
+ok(isFinite(car1.vf) && isFinite(car1.x) && isFinite(car1.yaw) && isFinite(car1.susp[0]),
+  'محافظ پایداری: مقادیر NaN بازیابی شدند');
+car1.reset(pose.x, pose.y + 0.1, pose.z, pose.yaw);
+car1.aiSample = tr1.nearest(car1.x, car1.z);
 let nan = false, maxSpd = 0;
 for (let i = 0; i < 60 * 8; i++) {
   car1.step(dt, tr1, { throttle: 1, brake: 0, steer: 0, handbrake: false, nitro: false });
