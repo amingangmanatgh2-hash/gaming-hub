@@ -65,7 +65,7 @@ npm test
 - `Madar-Android-debug-APK` → `app-debug.apk` (امضای debug برای آزمایش؛ برای انتشار رسمی نیاز به keystore و امضای release دارید)
 - `Madar-Windows-Setup` → `Madar-Setup-0.1.0-x64.exe` (NSIS، بدون امضای کد؛ Windows SmartScreen ممکن است هشدار دهد)
 
-از صفحهٔ اجرای موفق Actions، بخش **Artifacts** را باز و فایل‌ها را دانلود کنید. هر دو برنامه در اولین اجرا آدرس HTTPS Worker شما را می‌پرسند. وب‌اپ `/app` بدون فایل بومی هم نصب‌پذیر است. نصب این برنامه‌ها، خودبه‌خود VPN سراسری ایجاد نمی‌کند. برای توسعهٔ Android: JDK 17، Android SDK 35 و Gradle 8.9؛ در `clients/android` دستور `gradle :app:assembleDebug`. برای ویندوز: در `clients/desktop` دستور `npm ci && npm run dist` روی Windows.
+از صفحهٔ اجرای موفق Actions، بخش **Artifacts** را باز و فایل‌ها را دانلود کنید (artifactها ۱۴ روز پس از ساخت منقضی می‌شوند). هر دو برنامه در اولین اجرا آدرس HTTPS Worker شما را می‌پرسند. وب‌اپ `/app` بدون فایل بومی هم نصب‌پذیر است. نصب این برنامه‌ها، خودبه‌خود VPN سراسری ایجاد نمی‌کند. برای توسعهٔ Android: JDK 17، Android SDK 35 و Gradle 8.9؛ در `clients/android` دستور `gradle :app:assembleDebug`. برای ویندوز: در `clients/desktop` دستور `npm ci && npm run dist` روی Windows.
 
 ## نکات امنیت و عملیات
 
