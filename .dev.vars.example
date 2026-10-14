@@ -1,11 +1,12 @@
-# نمونهٔ سکرت‌های محلی برای  npm run dev:worker
-# این فایل را با نام .dev.vars کپی کنید (در .gitignore هست) و مقادیر واقعی را بگذارید.
-#
-# TURN رایگان کلودفلر — از داشبورد: Realtime → TURN Server → Create TURN key
+# فقط برای npm run dev / wrangler dev محلی؛ هرگز این مقادیر نمونه را در Cloudflare واقعی استفاده نکنید.
+# SETUP_KEY باید حداقل ۲۴ نویسه و نزد شما محفوظ بماند؛ آن را در /setup هم وارد می‌کنید.
+SETUP_KEY=replace-this-with-a-random-local-setup-key
+# APP_SECRET حداقل ۳۲ نویسه، کلید رمزنگاری توکن ربات است.
+APP_SECRET=replace-this-with-another-random-32-character-key
+
+# تنظیمات اختیاری سرویس گفت‌وگوی قبلی در /meet:
 TURN_KEY_ID=
 TURN_KEY_API_TOKEN=
-
-# تنظیمات اتاق (اختیاری — پیش‌فرض‌ها در wrangler.toml هم هستند)
 ROOM_TTL_HOURS=8
 EMPTY_GRACE_SECONDS=90
 MAX_PARTICIPANTS=12

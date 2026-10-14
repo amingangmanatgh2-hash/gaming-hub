@@ -154,6 +154,7 @@ const server = createServer(async (req, res) => {
 
   /* فایل‌های استاتیک */
   if (path === '/' || path === '') path = '/index.html';
+  if (['/meet', '/panel', '/setup', '/app'].includes(path)) path += '/index.html';
   if (path === '/r' || path.startsWith('/r/')) path = '/room/index.html';
   const safe = normalize(path).replace(/^(\.\.[/\\])+/, '');
   let file = join(ROOT, safe);

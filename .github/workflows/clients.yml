@@ -1,0 +1,62 @@
+name: Build companion apps (APK and Windows setup)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['arena/9ca26ff9-gaming-hub']
+    paths:
+      - 'clients/**'
+      - '.github/workflows/clients.yml'
+      - 'public/icon-192.png'
+      - 'public/icon-512.png'
+
+jobs:
+  android:
+    name: Android installable debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK platform
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Build installable debug APK
+        working-directory: clients/android
+        run: gradle :app:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Madar-Android-debug-APK
+          path: clients/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Windows NSIS setup.exe
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: clients/desktop/package-lock.json
+      - name: Install desktop dependencies
+        working-directory: clients/desktop
+        run: npm ci --no-audit --no-fund
+      - name: Build Windows installer
+        working-directory: clients/desktop
+        run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Madar-Windows-Setup
+          path: clients/desktop/release/Madar-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14

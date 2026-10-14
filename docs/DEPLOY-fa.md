@@ -1,161 +1,101 @@
-# راهنمای گام‌به‌گام انتشار «هم‌کلام» (فارسی)
+# استقرار مدار روی Cloudflare — راهنمای اجرایی
 
-سه مسیر دارید. هر سه رایگان‌اند. اگر تازه‌کار هستید، **مسیر ۱** را بروید (۵ دقیقه).
+> **این راهنما مربوط به مدار در شاخهٔ `arena/9ca26ff9-gaming-hub` است.** راهنمای سرویس قدیمی در [DEPLOY-LEGACY-fa.md](DEPLOY-LEGACY-fa.md) قرار دارد.
 
----
+## پیش‌نیازها
 
-## مسیر ۱ — دکمهٔ یک‌کلیکی Cloudflare (ساده‌ترین)
+- حساب Cloudflare با دسترسی Workers، Durable Objects و در صورت تمایل Workers AI؛ دامنهٔ HTTPS عمومی برای webhook تلگرام.
+- حساب GitHub برای سورس و Actions (خروجی APK و Setup).
+- Node.js 20+ و npm روی دستگاهی که استقرار را انجام می‌دهید.
+- شرایط استفاده، محدودیت ترافیک و هزینه‌های حساب Cloudflare خود را بررسی کنید. تونل این نسخه TCP-only است و حتی در شبکهٔ محدود همیشه کار نمی‌کند.
 
-1. این لینک را باز کنید:
-   **https://deploy.workers.cloudflare.com/?url=https://github.com/amingangmanatgh2-hash/gaming-hub**
-2. «Connect GitHub» را بزنید و اجازه دهید (اگر اکانت کلودفلر ندارید، همان‌جا رایگان بسازید).
-3. کلودفلر:
-   * یک فورک از مخزن در اکانت گیت‌هاب شما می‌سازد،
-   * وابستگی‌ها را نصب و بسته را می‌سازد،
-   * Worker را منتشر می‌کند و همهٔ منابع لازم (Durable Object، Assets) را خودش می‌سازد.
-4. در پایان آدرسی مثل `https://hamkalam.<username>.workers.dev` می‌گیرید — همین آدرس اپ شماست.
-   هر `push` روی شاخهٔ اصلی، خودکار دوباره منتشر می‌شود (CI/CD آماده است).
+## مسیر توصیه‌شده: یک Worker برای سایت + API + تونل
 
-> اگر دکمه کار نکرد: مخزن باید **عمومی** باشد و فایل `.github/workflows/deploy.yml` وجود داشته باشد (هست ✅).
+1. **شاخهٔ درست** را بگیرید (تا قبل از merge روی `Main` نسخهٔ قدیمی است):
 
----
-
-## مسیر ۲ — با ترمینال (توصیه‌شده برای توسعه)
-
-```bash
-# ۱. گرفتن کد
-git clone https://github.com/amingangmanatgh2-hash/gaming-hub hamkalam
-cd hamkalam
-
-# ۲. نصب
-npm install
-
-# ۳. ورود به کلودفلر (یک‌بار؛ مرورگر باز می‌شود)
-npx wrangler login
-
-# ۴. آزمایش محلی (لوکال، بدون هیچ اکانتی)
-npm run dev:worker        # http://localhost:8787
-
-# ۵. انتشار
-npm run deploy
-```
-
-خروجی `npm run deploy` چیزی شبیه این است:
-
-```
-Total Upload: 35.29 KiB / gzip: 9.65 KiB
-Uploaded hamkalam (3.4 sec)
-Deployed hamkalam triggers (0.5 sec)
-  https://hamkalam.<username>.workers.dev
-```
-
-### چه چیزهایی ساخته می‌شود؟
-* **Assets** → همان پوشهٔ `public` (سایت، CSS، آیکون‌ها، Service Worker)
-* **Worker** → `worker/index.js` (API + مسیر `/r/CODE` + سیگنالینگ)
-* **Durable Object** با نام کلاس `Room` و بایندینگ `ROOMS` (با migration `v1`، SQLite-backed)
-
-### تنظیم پیش‌فرض‌ها (اختیاری)
-در `wrangler.toml` → بخش `[vars]`:
-
-| متغیر | پیش‌فرض | توضیح |
-|---|---|---|
-| `ROOM_TTL_HOURS` | `8` | عمر پیش‌فرض هر اتاق (ساعت) — کاربر می‌تواند کمتر/بیشتر کند (تا ۲۴) |
-| `EMPTY_GRACE_SECONDS` | `90` | چند ثانیه بعد از خالی‌شدن، اتاق پاک شود |
-| `MAX_PARTICIPANTS` | `12` | سقف نفرات هر اتاق (سخت‌گیرانه‌ترین حالت ۱۶) |
-
----
-
-## مسیر ۳ — Cloudflare Pages (اگر حتماً Pages می‌خواهید)
-
-1. داشبورد کلودفلر → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** → مخزن را انتخاب کنید.
-2. تنظیمات ساخت:
-   * **Build command**: `npm run build`
-   * **Build output directory**: `public`
-3. بعد از اولین دیپلوی → **Settings → Functions → Durable Object bindings → Add binding**
-   * **Variable name**: `ROOMS`
-   * **Durable Object class**: `Room`
-   * (نام فضای‌نام/Namespace را همان پیش‌فرض رها کنید یا مطابق `wrangler.toml` تنظیم کنید)
-4. دوباره Deploy کنید.
-
-> اگر این بایندینگ را اضافه نکنید، سایت باز می‌شود ولی سرور اتاق (چت/سیگنالینگ) کار نمی‌کند.
-
----
-
-## افزودن TURN رایگان (برای کاربران پشت NAT سخت / اینترنت موبایل)
-
-بدون TURN، تماس‌ها مستقیم (P2P) است و در بیشتر موارد کار می‌کند. اگر کاربری از اپراتور
-موبایل با CGNAT وصل می‌شود و صدایی ردوبدل نمی‌شود، این را انجام دهید:
-
-1. داشبورد کلودفلر → **Realtime** → **TURN Server** → **Create TURN key**.
-   (نام ناحیهٔ کاربری‌ای که ساختی را یادداشت کن، مثلاً `Realtime > TURN` — نه Calls/SFU)
-2. مقادیر را ست کنید:
    ```bash
-   npx wrangler secret put TURN_KEY_ID
-   npx wrangler secret put TURN_KEY_API_TOKEN
-   npx wrangler deploy
+   git clone --branch arena/9ca26ff9-gaming-hub https://github.com/amingangmanatgh2-hash/gaming-hub.git madar
+   cd madar
+   npm ci
+   npm test
    ```
-   در Pages: **Settings → Environment variables → Add** (به‌صورت Secret).
-3. تمام. اپ خودش `/api/ice` را با اعتبار کوتاه‌عمر TURN پر می‌کند و
-   کلید اصلی هرگز به مرورگر نمی‌رود. سهمیهٔ رایگان: **۱ ترابایت در ماه**.
 
-پس از فعال‌سازی، در صفحهٔ اصلی «TURN رایگان فعال است» را می‌بینید.
+2. حساب Cloudflare خودتان را متصل و استقرار را اجرا کنید:
 
----
+   ```bash
+   npx wrangler login
+   npm run deploy
+   ```
 
-## دامنهٔ اختصاصی خودتان
+   دستور `deploy` فایل‌های `public/`، کلاس `MarketState` و کلاس `Room` قدیمی را منتشر می‌کند. آدرس واقعی `workers.dev` در خروجی خود Wrangler است؛ تا این مرحله **هیچ رمز مدیر** وجود ندارد و ثبت سفارش/فعال‌سازی رایگان قفل است.
 
-1. دامنه را به کلودفلر اضافه کنید (Nameserverها یا CNAME).
-2. Workers/Pages → پروژهٔ خود → **Settings → Domains & Routes → Add → Custom Domain**.
-3. آدرس دلخواه (مثلاً `meet.example.com`) را وارد کنید — گواهی HTTPS خودکار ساخته می‌شود.
+3. دو Secret تولید کنید و **در password manager نگه دارید** (نمونه‌های این راهنما را استفاده نکنید):
 
----
+   ```bash
+   openssl rand -hex 24          # ۴۸ نویسه؛ این خروجی را نزد خود نگه دارید
+   npx wrangler secret put SETUP_KEY   # همان رشتهٔ ۴۸ نویسه‌ای را وارد کنید
+   openssl rand -hex 32          # خروجی متفاوت ۶۴ نویسه؛ برای پشتیبان نگه دارید
+   npx wrangler secret put APP_SECRET  # رشتهٔ دوم را وارد کنید
+   ```
 
-## به‌روزرسانی نسخه
+   هیچ‌کدام را در `wrangler.toml`، `.env` پابلیک یا GitHub Issue نگذارید. `APP_SECRET` کلید رمزگشایی توکن ربات در Durable Object است؛ گم‌شدن/تعویض آن مستلزم ثبت دوبارهٔ توکن است.
 
-```bash
-git pull
-npm install
-npm run deploy
+4. آدرس `https://<خروجی-واقعی>/setup` را باز کنید. **گام اول**: `SETUP_KEY`، رمز پنل حداقل ۸ نویسه و در صورت تمایل توکن BotFather. **گام دوم**: نام فروشگاه و نرخ هر دلار به **تومان**. پس از تأیید به `/panel` می‌روید. رمز پنل همان رمز انتخابی شماست؛ از پیش رمز پیش‌فرضی وجود ندارد.
+
+5. در `/panel` طرح‌ها، فعال‌بودن رایگان/پولی، نرخ، سفارش‌ها و متن سایت را تنظیم کنید. سفارش پولی به‌صورت pending ثبت می‌شود؛ قبل از فشردن «تأیید» باید پرداخت را **خارج از این سایت** بررسی کرده باشید. می‌توانید دسترسی تأییدشده را لغو کنید.
+
+6. سلامت: `https://<آدرس>/api/v1/health` باید `ok:true` بدهد. `/api/v1/ping` کد لبه را برای سنجش کاربر برمی‌گرداند. یک حساب آزمایشی رایگان و یک سفارش را در `/app` بررسی کنید. اتصال واقعی را با کلاینت VLESS سازگار روی شبکهٔ خودتان امتحان کنید؛ این تست‌ها جای آزمون شبکهٔ مقصد و سیاست Cloudflare را نمی‌گیرند.
+
+### ربات Telegram
+
+توکن را در گام اول نصب یا بخش ربات پنل وارد کنید. Worker پس از ذخیرهٔ رمزنگاری‌شده، `setWebhook` را با `secret_token` تصادفی روی `https://<دامنه>/api/v1/telegram/webhook` صدا می‌زند. وضعیت ثبت در پنل نشان داده می‌شود. اگر نصب را روی `localhost` انجام دهید، Telegram نمی‌تواند آن را صدا بزند؛ پس از استقرار، توکن را مجدداً در پنل ثبت کنید. دستورات: `/start`، `/plans`، `/help`. ربات پرداخت یا ساخت سرور جداگانه انجام نمی‌دهد.
+
+### نرخ دلار خودکار (اختیاری)
+
+در `wrangler.toml` مقدار `FX_RATE_URL` را به آدرس HTTPS **مطمئن و متعلق به خودتان/ارائه‌دهندهٔ معتبر** تغییر دهید و دوباره deploy کنید. پاسخ باید JSON کوتاه و دقیقاً به شکل زیر باشد:
+
+```json
+{"usdToToman": 93000}
 ```
-اگر با دکمهٔ یک‌کلیکی نصب کرده‌اید، فقط در مخزن فورک‌شده `git pull` + push کنید؛
-Cloudflare Builds خودش منتشر می‌کند.
 
----
+Cron هر ساعت آن را واکشی می‌کند. خطا یا مقدار نامعتبر نرخ فعلی را حفظ می‌کند. واحد **تومان** است؛ اگر سرویس‌تان ریال می‌دهد، قبل از ارائه باید آن را تبدیل کنید. بدون این منبع، مدیر نرخ را دستی در پنل تغییر می‌دهد و تمام قیمت‌های نمایشی همان لحظه محاسبهٔ مجدد می‌شوند؛ مبلغ سفارش‌های ثبت‌شده ثابت است.
 
-## خطاهای رایج و رفع آن‌ها
+### Workers AI (اختیاری)
 
-### ۱) `Could not detect a directory containing static files (e.g. html, css and js) for the project`
-یعنی `npx wrangler deploy` در پوشه‌ای اجرا شده که **نه فایل تنظیمات (wrangler.toml) دارد و نه پوشهٔ `public/`**.
-این تقریباً همیشه به این معناست که مخزن/شاخهٔ مبنای ساخت، **خالی یا قدیمی** است (مثلاً دکمهٔ Deploy قبل از
-انتقال کد به شاخهٔ پیش‌فرض زده شده، یا مخزنی در اکانت‌تان ساخته شده که فقط README دارد).
+برای دستیار واقعی، ابتدا دسترسی/هزینهٔ Workers AI را در حساب خود بررسی کنید. این دو خط را به `wrangler.toml` اضافه و مجدداً `npm run deploy` کنید:
 
-**راه‌حل:** کد باید روی شاخهٔ پیش‌فرض مخزنی که Cloudflare می‌سازد باشد؛ سپس یکی از این دو:
-* دوباره روی دکمهٔ **Deploy to Cloudflare** بزنید (نسخهٔ تازهٔ مخزن کپی می‌شود)، یا
-* در داشبورد: پروژهٔ Worker → **Deployments → Build History → Retry build**.
-* اگر مخزن ساخته‌شده خالی است، در پروژه → **Settings → Builds**، مخزن/شاخهٔ درست را وصل کنید
-  (پیش از تغییر مخزن باید Builds را غیرفعال و دوباره وصل کنید).
+```toml
+[ai]
+binding = "AI"
+```
 
-بررسی سریع درستی مخزن مبدأ: فایل `wrangler.toml` و پوشهٔ `worker/` و `public/` باید در ریشهٔ همان شاخه باشند.
+در توسعهٔ محلی، فعال‌بودن این binding ممکن است Wrangler را به اتصال ریموت و توکن Cloudflare نیازمند کند؛ بنابراین به‌طور پیش‌فرض فعال نیست. بدون binding، پنل شفاف می‌گوید AI غیرفعال است و تنظیم دستی کار می‌کند. مدل در کد `@cf/meta/llama-3.1-8b-instruct` است؛ پیام‌ها تا سه مورد آخر در DO نگه داشته می‌شوند و فقط پیشنهاد معتبرِ allowlist پس از تأیید مدیر اعمال می‌شود.
 
-### ۲) `The name in your Wrangler configuration file must match the name of your Worker`
-نام Worker در داشبورد باید با `name` در `wrangler.toml` یکی باشد. در Wrangler نسخهٔ ۳ به بعد،
-Workers Builds این را خودش با متغیر `WRANGLER_CI_OVERRIDE_NAME` هم‌سان می‌کند و اگر نام فرق کند
-ممکن است کلودفلر یک Pull Request برای اصلاح `name` باز کند — آن را Merge کنید.
-(یا خودتان `name = "..."` را در `wrangler.toml` برابر نام پروژهٔ داشبورد بگذارید.)
+## اگر Pages هم می‌خواهید
 
-### ۳) سایت بالا می‌آید ولی چت/ورود به اتاق کار نمی‌کند
-بایندینگ Durable Object (`ROOMS → Room`) ست نشده است؛ بخش مسیر ۳ را ببینید.
+**Pages به‌تنهایی Backend نیست.** نخست Worker بالا را deploy کنید؛ کلاس DO در Worker تعریف/منتشر می‌شود. سپس یک پروژهٔ Pages از همین شاخه بسازید:
 
-### ۴) صدا ردوبدل نمی‌شود ولی تصویر می‌آید (یا برعکس)
-احتمالاً کاربر پشت NAT سخت/CGNAT است؛ TURN رایگان را فعال کنید (بخش بالا).
+- Build command: `npm run build`
+- Build output directory: `public`
+- Root directory: ریشهٔ همین مخزن
+- در Pages → Settings → Functions → Service bindings، نام **`CORE`** را به Worker **`madar-connect`** وصل کنید و Pages را دوباره منتشر کنید.
+- توابع `functions/api/[[path]].js` درخواست‌های `/api/*` و `functions/edge.js` درخواست‌های `/edge` را به Worker می‌دهند. کوکی/CSRF روی دامنهٔ Pages باقی می‌ماند. بسته به سیاست/قابلیت حساب، مسیر WebSocket از service binding Pages را جداگانه تست کنید؛ برای ورودی مطمئن‌تر کانفیگ، `EDGE_HOST` را روی hostname واقعی Worker (بدون `https://`) تنظیم کنید.
+- `npm run deploy:pages` بعد از ساخت پروژهٔ Pages هم قابل استفاده است. بدون CORE، API عمداً 503 می‌دهد؛ سایت استاتیک به‌تنهایی فروشگاه عملیاتی نیست.
 
----
+## دو اپ همراه
 
-## چک‌لیست بعد از انتشار ✅
+[Workflow ساخت](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/clients.yml) در push این شاخه یا از دکمهٔ **Run workflow**، فایل‌های artifact را می‌سازد. خروجی Android یک **debug APK** نصب‌پذیر است (برای انتشار عمومی امضای release لازم است). خروجی Windows یک **NSIS setup.exe** بدون امضای کد است (ممکن است هشدار SmartScreen بگیرید). فایل‌های artifact پس از ۱۴ روز منقضی می‌شوند. هر دو در اولین اجرا آدرس Worker شما را می‌خواهند، کانفیگ را مدیریت می‌کنند و **VPN سراسری نیستند**. برای اتصال، کلاینت مستقل VLESS/TLS/WS روی دستگاه نصب کنید.
 
-- [ ] `https://<آدرس-شما>/api/health` مقدار `"ok": true` می‌دهد
-- [ ] در صفحهٔ اصلی دکمهٔ «اندازه‌گیری» یک تأخیر منطقی نشان می‌دهد
-- [ ] یک اتاق می‌سازید و لینک را در گوشی دوم باز می‌کنید → دو نفر هم‌دیگر را می‌بینند
-- [ ] چت و ارسال عکس کار می‌کند
-- [ ] تخته سفید و اشتراک صفحه کار می‌کنند
-- [ ] اگر لازم بود، TURN را فعال کردید (بالا) و دوباره تست کردید
+## محدودیت‌ها و رفع اشکال
+
+| نشانه | بررسی |
+|---|---|
+| `/setup` خطای 503 | `SETUP_KEY` حداقل ۲۴ نویسه در Secret Worker ثبت نشده؛ اگر توکن وارد کرده‌اید `APP_SECRET` حداقل ۳۲ نویسه هم لازم است |
+| Pages 503 | Service binding `CORE` به Worker وجود ندارد؛ Pages را redeploy کنید |
+| ربات کار نمی‌کند | وضعیت bot در پنل، آدرس HTTPS عمومی، توکن صحیح و دسترسی API تلگرام از Cloudflare را بررسی کنید |
+| کانفیگ باز می‌شود ولی ترافیک عبور نمی‌کند | فقط TCP و مقصد دامنه با پورت ۸۰/۴۴۳ مجاز است؛ UDP و IP مستقیم پشتیبانی نمی‌شوند؛ صحت دسترسی Cloudflare/TLS/WS را تست کنید |
+| شبکهٔ ملی/قطعی بین‌الملل | اگر Worker دسترس‌پذیر نباشد این معماری نمی‌تواند مسیر ایجاد کند؛ حالت تضمینی یا ۲۰۰۰ سرور واقعی وجود ندارد |
+| AI خطای 503 | binding `AI` یا دسترسی Workers AI آماده نیست؛ تنظیمات دستی همچنان کار می‌کند |
+| `workers.dev` آدرس مورد نظر نیست | نام Worker در `wrangler.toml` و نام پروژهٔ حساب شما باید یکی باشد؛ آدرس صحیح فقط پس از deploy موفق تعیین می‌شود |
+
+**لینک راه‌اندازی Cloudflare:** [داشبورد رسمی Cloudflare](https://dash.cloudflare.com/). دکمهٔ [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/amingangmanatgh2-hash/gaming-hub) تنها **بعد از merge این شاخه در شاخهٔ پیش‌فرض** همین نسخه را می‌گیرد. این مخزن از طرف ما در حساب Cloudflare شما به‌صورت خودکار منتشر نشده است.

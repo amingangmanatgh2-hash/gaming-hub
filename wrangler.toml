@@ -7,7 +7,7 @@
 # نام Worker. اگر در داشبورد کلودفلر پروژه را چیز دیگری نام گذاشته‌اید (مثلاً voicechat)،
 # همین مقدار را همان بگذارید. Workers Builds در Wrangler ۳+ نام را خودش هم‌سان می‌کند
 # (WRANGLER_CI_OVERRIDE_NAME) و در صورت تفاوت ممکن است یک Pull Request اصلاحی باز کند.
-name = "hamkalam"
+name = "madar-connect"
 main = "worker/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
@@ -18,7 +18,7 @@ directory = "./public"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 # مسیرهای API و صفحهٔ اتاق (/r/CODE) را خود Worker مدیریت می‌کند
-run_worker_first = ["/api/*", "/r", "/r/*"]
+run_worker_first = ["/api/*", "/edge", "/r", "/r/*", "/panel", "/app", "/setup", "/meet"]
 
 # ── اتاق‌ها: هر اتاق یک Durable Object با WebSocket Hibernation ──
 # (هاداینیت یعنی وقتی کسی حرف نمی‌زند، سرور هزینه‌ای مصرف نمی‌کند؛
@@ -27,15 +27,34 @@ run_worker_first = ["/api/*", "/r", "/r/*"]
 name = "ROOMS"
 class_name = "Room"
 
+[[durable_objects.bindings]]
+name = "MARKET"
+class_name = "MarketState"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2-market"
+new_sqlite_classes = ["MarketState"]
+
+# Workers AI is opt-in. After connecting a Cloudflare account, add [ai] and
+# binding = "AI" (see docs/DEPLOY-fa.md). Default local dev needs no remote login.
+
+[triggers]
+crons = ["0 * * * *"]
 
 [vars]
 # پیش‌فرض‌ها (قابل تغییر از داشبورد Cloudflare → Settings → Variables)
 ROOM_TTL_HOURS = "8"        # حداکثر عمر اتاق (ساعت) — پیش‌فرض ۸ ساعت
 EMPTY_GRACE_SECONDS = "90"  # چند ثانیه بعد از خالی‌شدن، اتاق پاک شود
 MAX_PARTICIPANTS = "12"     # سقف اعضا در هر اتاق
+# Optional HTTPS endpoint returning {"usdToToman": 93000}. Empty = manually set in /panel.
+FX_RATE_URL = ""
+# For Pages frontends, set this to the real Worker hostname that serves /edge.
+EDGE_HOST = ""
+# SETUP_KEY (>=24 chars) and APP_SECRET (>=32 chars) MUST be wrangler secrets, never [vars].
 
 # ── اختیاری: TURN رایگان کلودفلر (۱ ترابایت در ماه) ──
 # برای کاربرانی که پشت NAT سخت / CGNAT هستند (اکثر اینترنت‌های موبایل ایران)

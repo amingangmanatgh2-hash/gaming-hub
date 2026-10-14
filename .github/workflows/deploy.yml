@@ -1,7 +1,6 @@
-# این گردش‌کار همان چیزی است که دکمهٔ «Deploy to Cloudflare» اجرا می‌کند.
-# فقط روی repository_dispatch (از سمت دکمهٔ کلودفلر) و اجرای دستی راه می‌افتد
-# تا با هر push روی Main بدون کلیدها خطا ندهد.
-name: Deploy to Cloudflare
+# Manual/Deploy-button deployment. Only works after Cloudflare secrets are configured
+# in GitHub and this code is present on the branch dispatched by the button.
+name: Deploy Madar Worker
 
 on:
   repository_dispatch:
@@ -14,24 +13,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
-      - name: نصب وابستگی‌ها
-        run: npm install --no-audit --no-fund
-
-      - name: ساخت بستهٔ نهایی
-        run: npm run build
-
-      - name: انتشار روی Cloudflare Workers
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Deploy site, API and Durable Objects
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
-
-      - name: نشانی نهایی
-        run: echo "اپ روی workers.dev / دامنهٔ شما منتشر شد ✅"
+      - name: Finish one-time setup in your Cloudflare account
+        run: echo "After deploy, add SETUP_KEY and APP_SECRET as Worker secrets, then open /setup on the actual workers.dev URL."
