@@ -161,7 +161,7 @@ export function vlessLinks({ uuid, hostname, siteName = 'Madar' }) {
   const host = String(hostname || '').toLowerCase();
   if (!/^[a-z0-9.-]+$/.test(host) || host.length > 253) throw new InputError('نام میزبان معتبر نیست.');
   return PROFILES.map((profile) => {
-    const qs = new URLSearchParams({ encryption: 'none', security: 'tls', type: 'ws', host, path: `/edge?profile=${profile.id}` });
+    const qs = new URLSearchParams({ encryption: 'none', security: 'tls', sni: host, type: 'ws', host, path: `/edge?profile=${profile.id}` });
     return `vless://${uuid}@${host}:443?${qs}#${encodeURIComponent(`${siteName} · ${profile.name}`)}`;
   });
 }

@@ -33,6 +33,7 @@ tests/             تست‌های واحد، بازار end-to-end با DO مح
 ## اجرای محلی (بدون حساب Cloudflare)
 
 ```bash
+# Node.js 22 یا جدیدتر لازم است.
 npm ci
 cp .dev.vars.example .dev.vars
 # در .dev.vars کلیدهای محلی SETUP_KEY و APP_SECRET را با رشته‌های منحصر‌به‌فرد عوض کنید.

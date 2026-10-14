@@ -1,6 +1,7 @@
 import { $, api, fa, dateFa, copy, toast, registerPwa, setBrand } from '/common.js';
 
 let catalog = null;
+let quotedPrice = null;
 let receiptText = '';
 const grid = $('#planGrid');
 function elem(tag, className, text) {
@@ -42,6 +43,7 @@ function openOrder(plan) {
   $('#orderForm').reset();
   $('#orderForm').elements.productId.value = plan.id;
   $('#orderTitle').textContent = plan.name;
+  quotedPrice = plan.priceToman;
   $('#orderSummary').textContent = `${fa(plan.priceToman)} تومان · ${fa(plan.durationDays)} روز · قیمت ثابت در زمان ثبت سفارش`;
   $('#orderFeedback').textContent = '';
   $('#orderDialog').showModal();
@@ -83,6 +85,15 @@ $('#orderForm').addEventListener('submit', async (event) => {
   $('#orderFeedback').textContent = '';
   try {
     const data = Object.fromEntries(new FormData(form));
+    const latest = await api('/public');
+    const live = latest.products.find((p) => p.id === data.productId && p.tier === 'paid');
+    if (!live) throw new Error('این طرح دیگر برای سفارش در دسترس نیست.');
+    if (live.priceToman !== quotedPrice) {
+      quotedPrice = live.priceToman;
+      $('#orderSummary').textContent = `${fa(live.priceToman)} تومان · ${fa(live.durationDays)} روز · نرخ به‌روز شد`;
+      throw new Error('نرخ تغییر کرده است؛ قیمت تازه را بررسی کنید و دوباره ثبت را بزنید.');
+    }
+    data.expectedPriceToman = quotedPrice;
     const order = await api('/orders', { method: 'POST', data });
     receiptText = `شناسه سفارش: ${order.id}\nکد پیگیری: ${order.receipt}\nمبلغ: ${fa(order.priceToman)} تومان`;
     $('#receiptCode').textContent = receiptText;
@@ -96,3 +107,5 @@ $('#closeOrder').addEventListener('click', () => $('#orderDialog').close());
 $('#orderDialog').addEventListener('click', (e) => { if (e.target === $('#orderDialog')) $('#orderDialog').close(); });
 $('#copyReceipt').addEventListener('click', () => copy(receiptText).then(() => toast('اطلاعات پیگیری کپی شد.')).catch((e) => toast(e.message)));
 loadCatalog(); measure(); registerPwa();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadCatalog(); });
+setInterval(() => { if (!document.hidden) loadCatalog(); }, 60_000);

@@ -233,6 +233,8 @@ export class MarketState {
       const { settings, products } = await this.config();
       const plan = publicCatalog(settings, products).find((p) => p.id === data.productId && p.tier === 'paid');
       if (!plan) return fail('طرح پولی در دسترس نیست.', 404);
+      const currentPrice = tomanPrice(plan.priceUSD, settings.usdToToman);
+      if (!Number.isSafeInteger(data.expectedPriceToman) || data.expectedPriceToman !== currentPrice) return fail('قیمت طرح تغییر کرده است؛ قیمت تازه را بررسی و دوباره ثبت کنید.', 409);
       const key = `orderLimit:${ip}`;
       const limit = (await this.storage.get(key)) || { count: 0, until: 0 };
       if (limit.until > Date.now() && limit.count >= 3) return fail('برای ثبت سفارش جدید یک ساعت صبر کنید.', 429);
@@ -240,7 +242,7 @@ export class MarketState {
       if (index.length >= 2000) return fail('ظرفیت سفارش‌های این استقرار پر است؛ با پشتیبانی تماس بگیرید.', 503);
       const id = random(9);
       const receipt = random(32);
-      const order = { id, productId: plan.id, productName: plan.name, tier: 'paid', durationDays: plan.durationDays, priceUSD: plan.priceUSD, priceToman: tomanPrice(plan.priceUSD, settings.usdToToman), exchangeRate: settings.usdToToman, name, contact, note, status: 'pending', createdAt: new Date().toISOString(), receiptHash: await digest(receipt) };
+      const order = { id, productId: plan.id, productName: plan.name, tier: 'paid', durationDays: plan.durationDays, priceUSD: plan.priceUSD, priceToman: currentPrice, exchangeRate: settings.usdToToman, name, contact, note, status: 'pending', createdAt: new Date().toISOString(), receiptHash: await digest(receipt) };
       await this.storage.put(`order:${id}`, order);
       await this.storage.put('orderIndex', [id, ...index]);
       await this.storage.put(key, { count: limit.until > Date.now() ? limit.count + 1 : 1, until: Date.now() + 3_600_000 });

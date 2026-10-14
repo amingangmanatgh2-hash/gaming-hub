@@ -17,19 +17,30 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # GitHub's Ubuntu runner already provides ANDROID_HOME and command-line tools.
+      # setup-android tried to download another SDK and failed on restricted runners.
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Install Android SDK platform
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Use preinstalled Android SDK (download only if absent)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms"
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
       - name: Build installable debug APK
         working-directory: clients/android
-        run: gradle :app:assembleDebug --no-daemon
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon 2>&1 | tee /tmp/madar-gradle.log || {
+            echo "::error::$(tail -n 25 /tmp/madar-gradle.log | tr '\n' ' ')"
+            exit 1
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: Madar-Android-debug-APK

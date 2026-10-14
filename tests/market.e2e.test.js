@@ -48,7 +48,8 @@ test('فروشگاه: نصب، امنیت، قیمت، سفارش، اشتراک
     assert.equal((await request('/setup', 'POST', { setupKey: KEY, password: 'AgainPass123' })).response.status, 409);
     assert.equal((await request('/admin/settings', 'PUT', { usdToToman: 100000 }, { 'x-csrf-token': 'wrong' })).response.status, 401);
     assert.equal((await request('/admin/settings', 'PUT', { usdToToman: 100000 }, { origin: 'https://another.example' })).response.status, 403);
-    const order = await request('/orders', 'POST', { productId: 'plus', name: 'کاربر تست', contact: '@user_test' });
+    assert.equal((await request('/orders', 'POST', { productId: 'plus', name: 'کاربر تست', contact: '@user_test', expectedPriceToman: 1 })).response.status, 409);
+    const order = await request('/orders', 'POST', { productId: 'plus', name: 'کاربر تست', contact: '@user_test', expectedPriceToman: 351000 });
     assert.equal(order.response.status, 201);
     assert.equal(order.result.priceToman, 351000);
     const changed = await request('/admin/settings', 'PUT', { usdToToman: 100000 });
