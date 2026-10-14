@@ -78,7 +78,7 @@ binding = "AI"
 - Build command: `npm run build`
 - Build output directory: `public`
 - Root directory: ریشهٔ همین مخزن
-- در Pages → Settings → Functions → Service bindings، نام **`CORE`** را به Worker **`madar-connect`** وصل کنید و Pages را دوباره منتشر کنید.
+- در Pages → Settings → Functions → Service bindings، نام **`CORE`** را به Worker **`gaming-hub`** (یا نام انتخابی شما در `wrangler.toml`) وصل کنید و Pages را دوباره منتشر کنید.
 - توابع `functions/api/[[path]].js` درخواست‌های `/api/*` و `functions/edge.js` درخواست‌های `/edge` را به Worker می‌دهند. کوکی/CSRF روی دامنهٔ Pages باقی می‌ماند. بسته به سیاست/قابلیت حساب، مسیر WebSocket از service binding Pages را جداگانه تست کنید؛ برای ورودی مطمئن‌تر کانفیگ، `EDGE_HOST` را روی hostname واقعی Worker (بدون `https://`) تنظیم کنید.
 - `npm run deploy:pages` بعد از ساخت پروژهٔ Pages هم قابل استفاده است. بدون CORE، API عمداً 503 می‌دهد؛ سایت استاتیک به‌تنهایی فروشگاه عملیاتی نیست.
 

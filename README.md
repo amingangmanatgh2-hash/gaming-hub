@@ -50,11 +50,11 @@ npm test
 
 1. کد **این شاخه** را روی GitHub داشته باشید: [مشاهدهٔ شاخهٔ مدار](https://github.com/amingangmanatgh2-hash/gaming-hub/tree/arena/9ca26ff9-gaming-hub).
 2. از [داشبورد Cloudflare](https://dash.cloudflare.com/) وارد حساب خود شوید؛ یا روی دستگاه خود `npx wrangler login` اجرا کنید.
-3. در همین ریشه: `npm ci && npm run deploy`؛ آدرس واقعی `https://madar-connect.<account>.workers.dev` فقط پس از انتشار موفق توسط Wrangler نمایش داده می‌شود.
+3. در همین ریشه: `npm ci && npm run deploy`؛ آدرس واقعی `https://gaming-hub.<account>.workers.dev` فقط پس از انتشار موفق توسط Wrangler نمایش داده می‌شود. نام Worker با سرویس ازقبل‌متصل به این مخزن یکی است؛ برای حساب تازه می‌توانید نام را در `wrangler.toml` تغییر دهید.
 4. در همان حساب، دو **Secret** با مقدارهای تصادفیِ خودتان ثبت کنید: `npx wrangler secret put SETUP_KEY` و `npx wrangler secret put APP_SECRET`. کلید نصب را نزد خود نگه دارید. سپس `https://<آدرس-واقعی>/setup` را باز کنید. سایت قبل از نصب اولیه سفارش/دسترسی صادر نمی‌کند.
 5. برای ربات، توکن را فقط در گام اول setup یا بخش ربات پنل وارد کنید؛ ثبت webhook نیازمند دامنهٔ عمومی HTTPS و دسترسی Worker به Telegram API است.
 
-**Cloudflare Pages (اختیاری):** ابتدا **Worker بالا** باید منتشر شود. Pages خروجی `public` را با build command `npm run build` سرو می‌کند؛ Pages Functions نیاز به **Service binding `CORE` به Worker `madar-connect`** دارند. برای لینک‌های کانفیگ Pages، `EDGE_HOST` را به hostname واقعی Worker تنظیم کنید. صفحات تنها و بدون Worker هیچ API یا تونل فعالی ندارند. جزئیات در راهنمای انتشار.
+**Cloudflare Pages (اختیاری):** ابتدا **Worker بالا** باید منتشر شود. Pages خروجی `public` را با build command `npm run build` سرو می‌کند؛ Pages Functions نیاز به **Service binding `CORE` به Worker `gaming-hub`** دارند. برای لینک‌های کانفیگ Pages، `EDGE_HOST` را به hostname واقعی Worker تنظیم کنید. صفحات تنها و بدون Worker هیچ API یا تونل فعالی ندارند. جزئیات در راهنمای انتشار.
 
 **لینک سریع استقرار پس از انتقال این شاخه به شاخهٔ پیش‌فرض مخزن:** [Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/?url=https://github.com/amingangmanatgh2-hash/gaming-hub). تا وقتی تغییرات این شاخه به `Main` نرسیده‌اند، این دکمه نسخهٔ قدیمی `Main` را منتشر می‌کند؛ برای نسخهٔ حاضر از دستور بالا و همین شاخه استفاده کنید. در این محیط حساب Cloudflare متصل نیست، بنابراین **آدرس زندهٔ ساختگی ارائه نمی‌شود**.
 

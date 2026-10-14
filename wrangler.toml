@@ -1,13 +1,10 @@
 # ─────────────────────────────────────────────────────────────
-#  هم‌کلام | Hamkalam — Cloudflare Workers + Durable Objects
-#  استقرار یک‌کلیکی:   npm run deploy   (یا دکمه Deploy to Cloudflare)
-#  این فایل همان اپی را بالا می‌آورد که روی Cloudflare Pages هم اجرا می‌شود،
-#  با این تفاوت که اینجا سرور سیگنالینگ (Durable Object) هم داخل خودش است.
+#  مدار + هم‌کلام | Cloudflare Workers + Durable Objects
+#  نام زیر با Worker ازقبل‌متصلِ این مخزن در Cloudflare برابر است.
+#  برای نصب تازه در حساب دیگر می‌توانید نام را تغییر دهید؛ در این حالت
+#  Service bindingِ CORE در Pages هم باید به همان نام اشاره کند.
 # ─────────────────────────────────────────────────────────────
-# نام Worker. اگر در داشبورد کلودفلر پروژه را چیز دیگری نام گذاشته‌اید (مثلاً voicechat)،
-# همین مقدار را همان بگذارید. Workers Builds در Wrangler ۳+ نام را خودش هم‌سان می‌کند
-# (WRANGLER_CI_OVERRIDE_NAME) و در صورت تفاوت ممکن است یک Pull Request اصلاحی باز کند.
-name = "madar-connect"
+name = "gaming-hub"
 main = "worker/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
