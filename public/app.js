@@ -110,13 +110,23 @@ async function measureNetwork(count = 3) {
 }
 $('#pingAgain').addEventListener('click', () => measureNetwork(3));
 $('#pingTen').addEventListener('click', () => measureNetwork(10));
-window.addEventListener('online', () => {
-  measureNetwork(3);
-  if (subscriptionUrl && !subscription) loadSubscription(subscriptionUrl).catch(() => {});
-});
+async function refreshLiveConfig() {
+  try {
+    const catalog = await api('/public');
+    initialized = catalog.initialized;
+    hasFree = initialized && catalog.products.some((p) => p.tier === 'free');
+    setBrand(catalog.settings.siteName, 'اپ همراه');
+    document.body.dataset.accent = catalog.settings.accent;
+    updateUi();
+  } catch { /* preserve the last visible settings during a transient outage */ }
+  if (subscriptionUrl) loadSubscription(subscriptionUrl).catch(() => {});
+}
+window.addEventListener('online', () => { measureNetwork(3); refreshLiveConfig(); });
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && subscriptionUrl && !subscription) loadSubscription(subscriptionUrl).catch(() => {});
+  if (!document.hidden) refreshLiveConfig();
 });
+// Refresh public settings/revocations without rebuilding or mutating the signed clients.
+setInterval(() => { if (!document.hidden) refreshLiveConfig(); }, 90_000);
 async function checkOrder(id, receipt) {
   const result = await api(`/orders/${encodeURIComponent(id)}/status`, { method: 'POST', data: { receipt } });
   const order = result.order;
@@ -139,14 +149,7 @@ $('#trackForm').addEventListener('submit', async (event) => {
 (async () => {
   updateUi();
   measureNetwork();
-  try {
-    const catalog = await api('/public');
-    initialized = catalog.initialized;
-    hasFree = initialized && catalog.products.some((p) => p.tier === 'free');
-    setBrand(catalog.settings.siteName, 'اپ همراه');
-    document.body.dataset.accent = catalog.settings.accent;
-  } catch { /* the network diagnostic already reports availability */ }
-  updateUi();
+  await refreshLiveConfig();
   const existing = savedUrl();
   if (existing) try { await loadSubscription(existing); } catch { toast('اشتراک ذخیره‌شده منقضی یا غیرفعال است.'); }
   const fragment = new URLSearchParams(location.hash.replace(/^#/, ''));
