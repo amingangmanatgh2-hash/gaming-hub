@@ -169,7 +169,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void setProgress(int pct) {
+    private void showProgress(int pct) {
         runOnUiThread(() -> progress.setProgress(Math.max(0, Math.min(100, pct))));
     }
 
@@ -278,13 +278,13 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------------ update
     private void checkForUpdates(boolean manual) throws Exception {
         log("— Checking update channel…");
-        setProgress(5);
+        showProgress(5);
         String manifestText;
         try {
             manifestText = httpGetText(BuildConfig.UPDATE_BASE_URL + "/update-manifest.json");
         } catch (Exception e) {
             log("✖ No connection (" + e.getMessage() + "). Offline-ready: v" + installedVersion() + " remains fully playable.");
-            setProgress(100);
+            showProgress(100);
             return;
         }
         Manifest manifest = Manifest.parse(manifestText);
@@ -292,7 +292,7 @@ public class MainActivity extends Activity {
         int cmp = compareVersions(manifest.version, installedVersion());
         if (cmp <= 0) {
             log(cmp == 0 ? "✔ Already up to date (v" + installedVersion() + ")." : "✔ Installed version is newer than the channel.");
-            setProgress(100);
+            showProgress(100);
             return;
         }
         log("⬇ Update " + installedVersion() + " → " + manifest.version + " (" + manifest.files.size() + " files)");
@@ -308,17 +308,17 @@ public class MainActivity extends Activity {
             if (!actual.equalsIgnoreCase(f.getValue())) {
                 deleteRecursive(staging);
                 log("✖ SHA-256 mismatch on " + f.getKey() + " — update discarded, current install untouched.");
-                setProgress(0);
+                showProgress(0);
                 return;
             }
             done++;
-            setProgress(10 + (int) (done * 80.0 / manifest.files.size()));
+            showProgress(10 + (int) (done * 80.0 / manifest.files.size()));
         }
         // write the fetched manifest into staging for future verification
         writeText(new File(staging, "update-manifest.json"), manifestText);
         swapIntoPlace(staging);
         prefs().edit().putString(KEY_VERSION, manifest.version).apply();
-        setProgress(100);
+        showProgress(100);
         refreshVersion();
         log("✔ Update v" + manifest.version + " verified & installed. Press PLAY.");
     }
@@ -357,7 +357,7 @@ public class MainActivity extends Activity {
             deleteRecursive(stagingDir());
             provisionFromAssets();
             refreshVersion();
-            setProgress(100);
+            showProgress(100);
             log("✔ Repair complete. Bundle v" + BuildConfig.BUNDLED_VERSION + " reinstalled & verified.");
         } catch (Exception e) {
             log("✖ Repair failed: " + e.getMessage());
