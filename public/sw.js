@@ -1,6 +1,6 @@
 /* Madar PWA: only public static assets. Never cache API, subscriptions, admin, setup or /edge. */
-const CACHE = 'madar-static-v1';
-const STATIC = ['/app/', '/market.css', '/console.css', '/common.js', '/app.js', '/favicon.svg', '/icon-192.png', '/manifest.webmanifest'];
+const CACHE = 'madar-static-v2';
+const STATIC = ['/app/', '/market.css', '/console.css', '/common.js', '/app.js', '/connectivity.js', '/favicon.svg', '/icon-192.png', '/manifest.webmanifest'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(STATIC).catch(() => {})).then(() => self.skipWaiting()));
 });

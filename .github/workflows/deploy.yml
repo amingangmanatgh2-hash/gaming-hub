@@ -1,6 +1,7 @@
-# Manual/Deploy-button deployment. Only works after Cloudflare secrets are configured
-# in GitHub and this code is present on the branch dispatched by the button.
-name: Deploy Madar Worker
+# Explicit deployment pipeline: publish the Worker first, then rebuild signed/debug
+# companions with Wrangler's real PUBLIC origin. Admin setup can happen later;
+# clients poll the live bootstrap endpoint rather than editing signed binaries.
+name: Deploy Madar Worker and build companions
 
 on:
   repository_dispatch:
@@ -11,19 +12,47 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      worker_origin: ${{ steps.publish.outputs.deployment-url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Check Cloudflare deployment credentials
+        env:
+          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$API_TOKEN" ] || [ -z "$ACCOUNT_ID" ]; then
+            echo '::error::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in GitHub Actions secrets first.'
+            exit 1
+          fi
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - name: Deploy site, API and Durable Objects
+        id: publish
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
-      - name: Finish one-time setup in your Cloudflare account
-        run: echo "After deploy, add SETUP_KEY and APP_SECRET as Worker secrets, then open /setup on the actual workers.dev URL."
+      - name: Verify actual deployment before embedding its public URL
+        env:
+          MADAR_WORKER_ORIGIN: ${{ steps.publish.outputs.deployment-url }}
+        run: node scripts/verify-worker-deploy.cjs
+      - name: Next step
+        env:
+          MADAR_WORKER_ORIGIN: ${{ steps.publish.outputs.deployment-url }}
+        run: |
+          echo "Worker: $MADAR_WORKER_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
+          echo "Configure SETUP_KEY and APP_SECRET as Worker secrets, then finish /setup. The companion binaries will fetch live config automatically." >> "$GITHUB_STEP_SUMMARY"
+
+  companions:
+    needs: deploy
+    # Reuse the same jobs as the standalone build; their APK/EXE contain only
+    # the public origin. If the deploy fails, no misleading build is published.
+    uses: ./.github/workflows/clients.yml
+    with:
+      worker_origin: ${{ needs.deploy.outputs.worker_origin }}

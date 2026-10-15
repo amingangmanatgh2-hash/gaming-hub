@@ -6,17 +6,27 @@ export function setBrand(name, suffix) {
   document.title = `${name} | ${suffix}`;
 }
 
-export async function api(path, { method = 'GET', data, csrf } = {}) {
-  let res;
+export async function api(path, { method = 'GET', data, csrf, timeoutMs = 8000 } = {}) {
+  let res, payload;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     res = await fetch(`/api/v1${path}`, {
-      method, credentials: 'same-origin', cache: 'no-store',
+      method, credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
       headers: { ...(data === undefined ? {} : { 'content-type': 'application/json' }), ...(csrf ? { 'x-csrf-token': csrf } : {}) },
       body: data === undefined ? undefined : JSON.stringify(data),
     });
-  } catch { throw new Error('ارتباط با سرویس برقرار نشد؛ اتصال خود را بررسی کنید.'); }
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok || !payload.ok) throw new Error(payload.error || `خطای سرویس (${res.status})`);
+    payload = await res.json().catch(() => ({}));
+  } catch {
+    const error = new Error('ارتباط با سرویس برقرار نشد؛ اتصال خود را بررسی کنید.');
+    error.status = 0; // offline/timeout is NOT an expired subscription
+    throw error;
+  } finally { clearTimeout(timer); }
+  if (!res.ok || !payload.ok) {
+    const error = new Error(payload.error || `خطای سرویس (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
   return payload;
 }
 export async function copy(text) {

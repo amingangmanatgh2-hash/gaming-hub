@@ -40,11 +40,22 @@ test('فروشگاه: نصب، امنیت، قیمت، سفارش، اشتراک
   try {
     await ready(child);
     assert.equal((await request('/setup/status')).result.initialized, false);
+    const beforeBootstrap = await request('/client/bootstrap');
+    assert.equal(beforeBootstrap.response.status, 409);
+    assert.equal(beforeBootstrap.result.code, 'setup_required');
     assert.equal((await request('/orders', 'POST', { productId: 'plus', name: 'کاربر تست', contact: '@user_test' })).response.status, 409);
     assert.equal((await request('/setup', 'POST', { setupKey: 'wrong', password: 'GoodPass123' })).response.status, 403);
     const installed = await request('/setup', 'POST', { setupKey: KEY, password: 'GoodPass123', usdToToman: 90000, siteName: 'مدار تست' });
     assert.equal(installed.response.status, 201, JSON.stringify(installed.result));
     cookie = installed.response.headers.get('set-cookie').split(';')[0]; csrf = installed.result.csrf;
+    const bootstrap = await request('/client/bootstrap');
+    assert.equal(bootstrap.response.status, 200);
+    assert.equal(bootstrap.response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(bootstrap.result, {
+      ok: true, version: 1, initialized: true, origin: `http://127.0.0.1:${PORT}`,
+      appUrl: `http://127.0.0.1:${PORT}/app`, siteName: 'مدار تست', transport: 'vless-ws-tcp',
+    });
+    assert.equal(bootstrap.response.headers.get('set-cookie'), null);
     assert.equal((await request('/setup', 'POST', { setupKey: KEY, password: 'AgainPass123' })).response.status, 409);
     assert.equal((await request('/admin/settings', 'PUT', { usdToToman: 100000 }, { 'x-csrf-token': 'wrong' })).response.status, 401);
     assert.equal((await request('/admin/settings', 'PUT', { usdToToman: 100000 }, { origin: 'https://another.example' })).response.status, 403);
@@ -52,9 +63,10 @@ test('فروشگاه: نصب، امنیت، قیمت، سفارش، اشتراک
     const order = await request('/orders', 'POST', { productId: 'plus', name: 'کاربر تست', contact: '@user_test', expectedPriceToman: 351000 });
     assert.equal(order.response.status, 201);
     assert.equal(order.result.priceToman, 351000);
-    const changed = await request('/admin/settings', 'PUT', { usdToToman: 100000 });
+    const changed = await request('/admin/settings', 'PUT', { usdToToman: 100000, siteName: 'مدار نو' });
     assert.equal(changed.response.status, 200);
     assert.equal((await request('/public')).result.products.find((p) => p.id === 'plus').priceToman, 390000);
+    assert.equal((await request('/client/bootstrap')).result.siteName, 'مدار نو', 'bootstrap updates without rebuilding native apps');
     const tracked = await request(`/orders/${order.result.id}/status`, 'POST', { receipt: order.result.receipt });
     assert.equal(tracked.result.order.priceToman, 351000, 'old orders keep their price snapshot');
     assert.equal((await request(`/orders/${order.result.id}/status`, 'POST', { receipt: 'not-a-receipt' })).response.status, 403);

@@ -158,6 +158,20 @@ export async function handleMarket(request, env, ctx) {
     const route = path.slice('/api/v1'.length);
     if (route === '/health' && request.method === 'GET') return json({ ok: true, app: 'madar', runtime: 'cloudflare-worker', tcpOnly: true, now: new Date().toISOString() });
     if (route === '/ping' && request.method === 'GET') return json({ ok: true, colo: request.cf?.colo || 'unknown', now: Date.now() });
+    // Public, versioned bootstrap for the signed companion binaries. It exposes no admin
+    // credentials or subscriber UUIDs; clients fetch their own subscription via /app.
+    // The response switches on automatically after the admin completes /setup.
+    if (route === '/client/bootstrap' && request.method === 'GET') {
+      const response = await stub.fetch('https://state/public');
+      if (!response.ok) return response;
+      const catalog = await response.json();
+      if (!catalog.initialized) return json({ ok: false, code: 'setup_required', error: 'ابتدا setup مدیر را تکمیل کنید.' }, 409);
+      return json({
+        ok: true, version: 1, initialized: true, origin: url.origin,
+        appUrl: `${url.origin}/app`, siteName: catalog.settings.siteName,
+        transport: 'vless-ws-tcp',
+      });
+    }
     if (route === '/setup/status' && request.method === 'GET') {
       const status = await (await stub.fetch('https://state/status')).json();
       return json({ ...status, setupKeyConfigured: typeof env.SETUP_KEY === 'string' && env.SETUP_KEY.length >= 24, botEncryptionConfigured: secretReady(env), aiConfigured: !!env.AI });

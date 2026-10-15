@@ -1,4 +1,5 @@
 import { $, api, fa, dateFa, copy, toast, registerPwa, setBrand } from '/common.js';
+import { probeWorker, subscriptionIsInvalid } from '/connectivity.js';
 
 const STORAGE_KEY = 'madar_subscription_v1';
 const profiles = [
@@ -23,15 +24,16 @@ function validSubUrl(path) {
 }
 function updateUi() {
   const active = !!subscription;
-  $('#accessBadge').textContent = active ? 'کانفیگ فعال' : 'بدون دسترسی';
+  const awaiting = !active && !!subscriptionUrl;
+  $('#accessBadge').textContent = active ? 'کانفیگ فعال' : awaiting ? 'در انتظار بازیابی' : 'بدون دسترسی';
   $('#accessBadge').classList.toggle('active', active);
-  $('#accessTitle').textContent = active ? 'کانفیگت آماده است' : 'هنوز کانفیگی فعال نیست';
-  $('#accessDesc').textContent = active ? 'یک پروفایل را انتخاب کن و لینک آن را در کلاینت سازگار وارد کن؛ این صفحه خودش VPN را روشن نمی‌کند.' : 'برای شروع، دسترسی رایگان بگیر یا سفارش تأییدشده‌ات را بازیابی کن.';
-  $('#primaryAction').textContent = active ? 'کپی کانفیگ انتخابی ↗' : hasFree ? 'فعال‌سازی طرح رایگان ↗' : 'دیدن طرح‌ها ↗';
+  $('#accessTitle').textContent = active ? 'کانفیگت آماده است' : awaiting ? 'لینک محفوظ است' : 'هنوز کانفیگی فعال نیست';
+  $('#accessDesc').textContent = active ? 'یک پروفایل را انتخاب کن و لینک آن را در کلاینت سازگار وارد کن؛ این صفحه خودش VPN را روشن نمی‌کند.' : awaiting ? 'دسترسی به Worker موقتاً ممکن نبود. لینک اشتراک پاک نشده؛ بازیابی را دوباره بزن.' : 'برای شروع، دسترسی رایگان بگیر یا سفارش تأییدشده‌ات را بازیابی کن.';
+  $('#primaryAction').textContent = active ? 'کپی کانفیگ انتخابی ↗' : awaiting ? 'بازیابی دوبارهٔ کانفیگ ↗' : hasFree ? 'فعال‌سازی طرح رایگان ↗' : 'دیدن طرح‌ها ↗';
   $('#expiryText').textContent = active ? `اعتبار تا ${dateFa(subscription.expiresAt)} · اتصال واقعی در کلاینت مستقل` : 'اتصال سیستم‌عامل فقط از طریق کلاینت مستقل انجام می‌شود.';
-  $('#copySub').disabled = !active;
+  $('#copySub').disabled = !subscriptionUrl;
   $('#copyConfig').disabled = !active;
-  $('#accessMeta').textContent = active ? `نوع: ${subscription.tier === 'free' ? 'رایگان' : 'اشتراکی'} · لبه: ${subscription.endpoint} · اعتبار: ${dateFa(subscription.expiresAt)}` : 'اشتراک فعالی روی این دستگاه ذخیره نشده است.';
+  $('#accessMeta').textContent = active ? `نوع: ${subscription.tier === 'free' ? 'رایگان' : 'اشتراکی'} · لبه: ${subscription.endpoint} · اعتبار: ${dateFa(subscription.expiresAt)}` : awaiting ? 'لینک اشتراک روی همین دستگاه محفوظ است؛ اتصال به Worker هنوز تأیید نشده.' : 'اشتراک فعالی روی این دستگاه ذخیره نشده است.';
   const grid = $('#profileGrid'); grid.replaceChildren();
   if (!active) { grid.append(element('div', 'blank-state', 'ابتدا کانفیگ فعال کنید.')); return; }
   profiles.forEach((profile, index) => {
@@ -47,20 +49,29 @@ function updateUi() {
 }
 async function loadSubscription(path) {
   const validated = validSubUrl(path);
-  if (!validated) throw new Error('لینک اشتراک معتبر نیست.');
+  if (!validated) { storeUrl(''); throw new Error('لینک اشتراک معتبر نیست.'); }
+  subscriptionUrl = validated;
+  storeUrl(validated); // preserve the secret link even if this fetch times out/offline
   try {
     const result = await api(validated.slice('/api/v1'.length) + '?format=json');
-    subscriptionUrl = validated;
     subscription = result;
-    storeUrl(validated);
     updateUi();
   } catch (e) {
-    subscription = null; subscriptionUrl = ''; storeUrl(''); updateUi();
+    subscription = null;
+    if (subscriptionIsInvalid(e.status)) { subscriptionUrl = ''; storeUrl(''); }
+    updateUi();
     throw e;
   }
 }
 async function activate() {
   if (subscription) { await copy(subscription.links[selected]); toast('کانفیگ انتخابی کپی شد. آن را در کلاینت سازگار وارد کن.'); return; }
+  if (subscriptionUrl) {
+    const button = $('#primaryAction'); button.disabled = true;
+    try { await loadSubscription(subscriptionUrl); toast('کانفیگ دوباره از Worker دریافت شد.'); }
+    catch (e) { toast(e.message); }
+    finally { button.disabled = false; }
+    return;
+  }
   if (!hasFree) { location.href = '/#plans'; return; }
   const button = $('#primaryAction'); button.disabled = true;
   try {
@@ -76,38 +87,36 @@ $('#copySub').addEventListener('click', async () => {
   catch (e) { toast(e.message); }
 });
 $('#copyConfig').addEventListener('click', () => subscription && copy(subscription.links[selected]).then(() => toast('کانفیگ انتخابی کپی شد.')).catch((e) => toast(e.message)));
-async function measureNetwork() {
+let probing = false;
+async function measureNetwork(count = 3) {
+  if (probing) return;
+  probing = true;
   $('#pingAgain').disabled = true;
-  $('#networkText').textContent = 'در حال آزمایش دسترسی به Worker...';
-  const samples = []; let colo = '—';
-  for (let i = 0; i < 3; i++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const start = performance.now();
-    try {
-      const res = await fetch('/api/v1/ping', { signal: controller.signal, cache: 'no-store' });
-      if (!res.ok) throw new Error('worker_unavailable');
-      const data = await res.json();
-      if (!data.ok) throw new Error('worker_unavailable');
-      samples.push(Math.round(performance.now() - start));
-      colo = data.colo || '—';
-    } catch { break; }
-    finally { clearTimeout(timer); }
+  $('#pingTen').disabled = true;
+  $('#networkText').textContent = 'در حال آزمایش HTTPS Worker...';
+  try {
+    const result = await probeWorker({ count, onProgress: ({ completed, successes }) => {
+      $('#networkText').textContent = `${fa(completed)} از ${fa(count)} تلاش HTTPS · ${fa(successes)} پاسخ`;
+    } });
+    $('#pingStat').textContent = result.medianMs === null ? '—' : `${fa(result.medianMs)} ms`;
+    $('#coloStat').textContent = result.colo === 'unknown' ? 'نامشخص' : result.colo;
+    $('#networkText').textContent = `${fa(result.successes)} پاسخ از ${fa(result.total)} تلاش HTTPS به Worker (نه اتصال VPN)`;
+    $('#todayText').textContent = result.successes ? 'Worker از این شبکه پاسخ داد' : 'Worker از این شبکه پاسخ نداد';
+  } finally {
+    probing = false;
+    $('#pingAgain').disabled = false;
+    $('#pingTen').disabled = false;
   }
-  if (samples.length) {
-    samples.sort((a, b) => a - b);
-    $('#pingStat').textContent = `${fa(samples[Math.floor(samples.length / 2)])} ms`;
-    $('#coloStat').textContent = colo === 'unknown' ? 'نامشخص' : colo;
-    $('#networkText').textContent = 'Worker از این شبکه پاسخ می‌دهد';
-    $('#todayText').textContent = 'Worker در دسترس است';
-  } else {
-    $('#pingStat').textContent = '—'; $('#coloStat').textContent = '—';
-    $('#networkText').textContent = 'Worker از این شبکه پاسخ نداد؛ دلیل قطعی مشخص نیست';
-    $('#todayText').textContent = 'بررسی اتصال لازم است';
-  }
-  $('#pingAgain').disabled = false;
 }
-$('#pingAgain').addEventListener('click', measureNetwork);
+$('#pingAgain').addEventListener('click', () => measureNetwork(3));
+$('#pingTen').addEventListener('click', () => measureNetwork(10));
+window.addEventListener('online', () => {
+  measureNetwork(3);
+  if (subscriptionUrl && !subscription) loadSubscription(subscriptionUrl).catch(() => {});
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && subscriptionUrl && !subscription) loadSubscription(subscriptionUrl).catch(() => {});
+});
 async function checkOrder(id, receipt) {
   const result = await api(`/orders/${encodeURIComponent(id)}/status`, { method: 'POST', data: { receipt } });
   const order = result.order;

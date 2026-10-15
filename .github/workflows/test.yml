@@ -21,5 +21,12 @@ jobs:
         run: npm run build
       - name: اجرای آزمون‌ها (بازار Worker/DO + سرویس قبلی)
         run: npm test
+      - name: اعتبارسنجی سورس همراه‌ها و آدرس عمومی Worker
+        run: |
+          node --check clients/desktop/main.cjs
+          node --check clients/desktop/endpoint.cjs
+          node --check clients/desktop/preload.cjs
+          node --check clients/desktop/make-build-config.cjs
+          MADAR_WORKER_ORIGIN=https://gaming-hub.account.workers.dev node scripts/validate-worker-origin.cjs
       - name: اعتبارسنجی پیکربندی Worker (dry-run)
         run: npx wrangler deploy --dry-run --outdir=/tmp/dist

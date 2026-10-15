@@ -15,7 +15,7 @@
 | ربات تلگرام | `/start`، `/plans`، `/help`؛ webhook با secret header؛ توکن با AES-GCM و کلید مستقل Worker ذخیره می‌شود |
 | Worker تونل | VLESS-over-WS با اعتبار UUID، تاریخ انقضا، محدودیت TCP 80/443 و دامنه؛ خروجی اشتراک Base64/متن/JSON |
 | دستیار Workers AI | کد واقعی با حافظهٔ **سه پیام آخر**، پیشنهاد محدودشده و تأیید قبل از اعمال؛ فقط پس از افزودن binding و دسترسی Workers AI فعال می‌شود |
-| اپ Android / Windows | سورس WebView و Electron با ورودی دامنهٔ HTTPS؛ بستهٔ نصب‌پذیر از GitHub Actions ساخته می‌شود. **لانچر/مدیر کانفیگ است، نه VPN بومی** |
+| اپ Android / Windows | همراه WebView/Electron با آدرس عمومی Worker در بستهٔ پس از استقرار؛ مانفیست زنده را پس از setup مدیر واکشی و تا آماده‌شدن با تأخیر دوباره تلاش می‌کند. بستهٔ نصب‌پذیر از Actions؛ **VPN بومی نیست** |
 | پرداخت خودکار، UDP، تضمین «نت ملی» | **پیاده نشده**؛ نیازمند سرویس/امکانات اضافه و آزمون واقعی است |
 
 ### ساختار
@@ -54,6 +54,8 @@ npm test
 4. در همان حساب، دو **Secret** با مقدارهای تصادفیِ خودتان ثبت کنید: `npx wrangler secret put SETUP_KEY` و `npx wrangler secret put APP_SECRET`. کلید نصب را نزد خود نگه دارید. سپس `https://<آدرس-واقعی>/setup` را باز کنید. سایت قبل از نصب اولیه سفارش/دسترسی صادر نمی‌کند.
 5. برای ربات، توکن را فقط در گام اول setup یا بخش ربات پنل وارد کنید؛ ثبت webhook نیازمند دامنهٔ عمومی HTTPS و دسترسی Worker به Telegram API است.
 
+**خط لولهٔ یکپارچهٔ انتشار و فایل همراه:** اگر Secretهای `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` را در GitHub Actions تنظیم کرده‌اید، گردش‌کار [Deploy Madar Worker and build companions](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/deploy.yml) بعد از انتشار موفق، URL واقعی Worker را از خروجی Wrangler می‌گیرد، `/api/v1/health` را بررسی می‌کند و APK و نصب‌کننده را **دوباره با همان آدرس عمومی** می‌سازد. این گردش‌کار به حساب و دسترسی Actions شما نیاز دارد؛ استقرار دستی با `npm run deploy` یا Cloudflare Git integration به‌تنهایی آن را فعال نمی‌کند. برای ساخت دستی بعد از انتشار، ورودی `worker_origin` در workflow همراه‌ها یا متغیر مخزن `MADAR_WORKER_ORIGIN` را تنظیم کنید. هیچ Secret یا لینک اشتراکی در فایل‌ها embed نمی‌شود.
+
 **Cloudflare Pages (اختیاری):** ابتدا **Worker بالا** باید منتشر شود. Pages خروجی `public` را با build command `npm run build` سرو می‌کند؛ Pages Functions نیاز به **Service binding `CORE` به Worker `gaming-hub`** دارند. برای لینک‌های کانفیگ Pages، `EDGE_HOST` را به hostname واقعی Worker تنظیم کنید. صفحات تنها و بدون Worker هیچ API یا تونل فعالی ندارند. جزئیات در راهنمای انتشار.
 
 **لینک سریع استقرار پس از انتقال این شاخه به شاخهٔ پیش‌فرض مخزن:** [Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/?url=https://github.com/amingangmanatgh2-hash/gaming-hub). تا وقتی تغییرات این شاخه به `Main` نرسیده‌اند، این دکمه نسخهٔ قدیمی `Main` را منتشر می‌کند؛ برای نسخهٔ حاضر از دستور بالا و همین شاخه استفاده کنید. در این محیط حساب Cloudflare متصل نیست، بنابراین **آدرس زندهٔ ساختگی ارائه نمی‌شود**.
@@ -62,10 +64,14 @@ npm test
 
 گردش‌کار [Build companion apps](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/clients.yml) با push روی همین شاخه یا `workflow_dispatch` دو **artifact** تولید می‌کند:
 
-- `Madar-Android-debug-APK` → `app-debug.apk` (امضای debug برای آزمایش؛ برای انتشار رسمی نیاز به keystore و امضای release دارید)
+- `Madar-Android-debug-APK` → `app-debug.apk` (امضای debug هر runner ممکن است فرق کند؛ برای آپدیت نصب‌شده و انتشار رسمی keystore و امضای release ثابت لازم است)
 - `Madar-Windows-Setup` → `Madar-Setup-0.1.0-x64.exe` (NSIS، بدون امضای کد؛ Windows SmartScreen ممکن است هشدار دهد)
 
-از صفحهٔ اجرای موفق Actions، بخش **Artifacts** را باز و فایل‌ها را دانلود کنید (artifactها ۱۴ روز پس از ساخت منقضی می‌شوند). هر دو برنامه در اولین اجرا آدرس HTTPS Worker شما را می‌پرسند. وب‌اپ `/app` بدون فایل بومی هم نصب‌پذیر است. نصب این برنامه‌ها، خودبه‌خود VPN سراسری ایجاد نمی‌کند. برای توسعهٔ Android: JDK 17، Android SDK 35 و Gradle 8.9؛ در `clients/android` دستور `gradle :app:assembleDebug`. برای ویندوز: در `clients/desktop` دستور `npm ci && npm run dist` روی Windows.
+از صفحهٔ اجرای موفق Actions، بخش **Artifacts** را باز و فایل‌ها را دانلود کنید (artifactها ۱۴ روز پس از ساخت منقضی می‌شوند). بستهٔ ساخته‌شده **با URL حاصل از workflow استقرار** نشانی Worker را از پیش دارد؛ بستهٔ عمومیِ ساخته‌شده صرفاً با push، اگر URL/متغیر تنظیم نشده باشد، نشانی را در اولین اجرا می‌پرسد. پس از setup مدیر، برنامه‌ها `/api/v1/client/bootstrap` را با HTTPS می‌خوانند و صفحهٔ `/app` اشتراک اختصاصی هر کاربر را از Worker می‌گیرد؛ تغییر تنظیمات پنل بدون rebuild اعمال می‌شود. اگر setup کامل نشده یا شبکه قطع باشد، اپ آدرس را نگه می‌دارد و خودکار دوباره تلاش می‌کند. **ویرایش APK/EXE امضاشده پس از ساخت انجام نمی‌شود**؛ برای آدرس Worker جدید باید دوباره بسته بسازید. وب‌اپ `/app` بدون فایل بومی هم نصب‌پذیر است. نصب این برنامه‌ها، خودبه‌خود VPN سراسری ایجاد نمی‌کند. برای توسعهٔ Android: JDK 17، Android SDK 35 و Gradle 8.9؛ در `clients/android` دستور `gradle :app:assembleDebug`. برای ویندوز: در `clients/desktop` دستور `npm ci && npm run dist` روی Windows.
+
+### دربارهٔ هدف «۸ بار از ۱۰ بار»
+
+در `/app` آزمایش ۳تایی یا ۱۰تاییِ **HTTPS به همان Worker** وجود دارد. تلاش مجدد با مهلت زمانی و بازیابی خودکار کانفیگ در همراه‌ها باعث می‌شود خطاهای گذرا کمتر مزاحم شوند و لینک اشتراک هنگام قطعی پاک نشود؛ اما این آزمایش **موفقیت اتصال VLESS یا درصد موفقیت در اینترنت ملی را اندازه نمی‌گیرد**. اگر Cloudflare از شبکهٔ شما قابل‌دسترسی نباشد، هیچ تکراری در همین معماری اتصال ایجاد نمی‌کند؛ **۸/۱۰ تضمین نیست**. برای ارزیابی واقعی باید روی شبکهٔ مقصد با کلاینت VLESS سازگار، ۱۰ تلاش اتصال مستقل انجام دهید و موفقیت، مدت و ساعت/اپراتور را ثبت کنید. مسیر جایگزین واقعی به دامنه/زیرساخت قابل‌دسترسیِ مجاز نیاز دارد و خودکار از یک Worker ساخته نمی‌شود.
 
 ## نکات امنیت و عملیات
 
