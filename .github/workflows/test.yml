@@ -20,7 +20,14 @@ jobs:
       - name: ساخت بستهٔ فرانت
         run: npm run build
       - name: اجرای آزمون‌ها (بازار Worker/DO + سرویس قبلی)
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/madar-tests.log || {
+            excerpt=$(grep -A30 '^not ok' /tmp/madar-tests.log | tr '\n' ' ' | cut -c1-3800)
+            if [ -z "$excerpt" ]; then excerpt=$(tail -n 30 /tmp/madar-tests.log | tr '\n' ' ' | cut -c1-3800); fi
+            echo "::error::$excerpt"
+            exit 1
+          }
       - name: اعتبارسنجی سورس همراه‌ها و آدرس عمومی Worker
         run: |
           node --check clients/desktop/main.cjs

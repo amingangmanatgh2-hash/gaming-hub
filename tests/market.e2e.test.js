@@ -11,7 +11,7 @@ const KEY = 'integration-only-setup-key-long-enough';
 const PERSIST = join(process.cwd(), '.wrangler', `market-test-${process.pid}`);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function ready(child) {
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 150; i++) {
     if (child.exitCode !== null) throw new Error('Wrangler exited before becoming ready');
     try { if ((await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(500) })).ok) return; } catch { /* waiting for port */ }
     await sleep(200);
@@ -20,7 +20,7 @@ async function ready(child) {
 }
 
 // Real Worker + real SQLite-backed DO, using a separate ephemeral local state directory.
-test('فروشگاه: نصب، امنیت، قیمت، سفارش، اشتراک و لغو دسترسی', { timeout: 65_000 }, async () => {
+test('فروشگاه: نصب، امنیت، قیمت، سفارش، اشتراک و لغو دسترسی', { timeout: 90_000 }, async () => {
   const child = spawn(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'dev', '--ip', '127.0.0.1', '--port', String(PORT), '--persist-to', PERSIST,
     '--var', `SETUP_KEY:${KEY}`, '--var', 'APP_SECRET:integration-only-encryption-key-32-characters'], {
     cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],

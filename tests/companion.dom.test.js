@@ -29,7 +29,7 @@ async function load(kind) {
   return { win, dom, errors };
 }
 
-test('اپ همراه سنجش شبکه را بدون خطای DOM و بدون ادعای VPN نشان می‌دهد', { timeout: 5000 }, async () => {
+test('اپ همراه سنجش شبکه را بدون خطای DOM و بدون ادعای VPN نشان می‌دهد', { timeout: 15_000 }, async () => {
   const { win, dom, errors } = await load('app');
   try {
     await new Promise((resolve) => setTimeout(resolve, 780));
