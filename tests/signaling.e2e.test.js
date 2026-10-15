@@ -193,7 +193,9 @@ test('میزبان می‌تواند اخراج کند و اعمال قفل/عم
 test('فایل‌های استاتیک و صفحهٔ اتاق سرو می‌شوند', async () => {
   const home = await fetch(`${BASE}/`);
   assert.equal(home.status, 200);
-  assert.match(await home.text(), /هم‌کلام/);
+  assert.match(await home.text(), /مدار/);
+  const legacy = await fetch(`${BASE}/meet`);
+  assert.match(await legacy.text(), /هم‌کلام/);
   const room = await fetch(`${BASE}/r/ABC1234`);
   assert.equal(room.status, 200);
   assert.match(await room.text(), /ورود به اتاق/);

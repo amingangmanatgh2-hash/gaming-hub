@@ -8,6 +8,11 @@ node_modules/
 *.log
 npm-debug.log*
 coverage/
+tmp-shots/
+downloads/
+.setup-key
+*.apk
+*.exe
 .idea/
 .vscode/*
 !.vscode/extensions.json

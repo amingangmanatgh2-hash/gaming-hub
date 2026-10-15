@@ -1,38 +1,32 @@
 {
-  "name": "hamkalam",
-  "version": "1.0.0",
+  "name": "madar-connect",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "هم‌کلام | Hamkalam — اتاق گفتگوی تصویری/متنی رایگان، فوق‌سبک و بهینه برای اینترنت ایران (Cloudflare Workers/Pages + Durable Objects)",
+  "description": "مدار | Madar — فروشگاه کانفیگ TCP روی Cloudflare Workers، پنل مدیریت و اپ‌های همراه",
   "license": "MIT",
-  "keywords": [
-    "webrtc",
-    "video-call",
-    "cloudflare",
-    "workers",
-    "durable-objects",
-    "persian",
-    "meeting",
-    "rtl"
-  ],
+  "keywords": ["cloudflare", "workers", "durable-objects", "vless", "persian", "storefront"],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "dev": "node scripts/build.mjs && node scripts/dev-server.mjs",
-    "dev:worker": "npm run build && wrangler dev --ip 0.0.0.0 --port 8787",
-    "test": "node --test --test-force-exit tests/*.test.js",
+    "icons": "node scripts/icons.mjs",
+    "dev": "npm run build && wrangler dev --ip 0.0.0.0 --port 8787",
+    "dev:worker": "npm run dev",
+    "dev:legacy": "node scripts/build.mjs && node scripts/dev-server.mjs",
+    "test": "node --test --test-concurrency=1 --test-force-exit tests/*.test.js",
     "deploy": "node scripts/build.mjs && wrangler deploy",
-    "deploy:pages": "node scripts/build.mjs && wrangler pages deploy public --project-name hamkalam",
+    "deploy:pages": "node scripts/build.mjs && wrangler pages deploy public --project-name madar-connect",
     "pages:dev": "node scripts/build.mjs && wrangler pages dev public",
     "tail": "wrangler tail",
     "clean": "node -e \"require('fs').rmSync('public/build',{recursive:true,force:true})\""
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
+    "sharp": "^0.35.5",
     "wrangler": "^4.149.0",
     "ws": "^8.22.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "jsdom": "^25.0.1"

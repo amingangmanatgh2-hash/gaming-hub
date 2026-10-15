@@ -1,6 +1,9 @@
 User-agent: *
 Allow: /
-Disallow: /r/
+Disallow: /panel
+Disallow: /setup
 Disallow: /api/
+Disallow: /edge
+Disallow: /r/
 
-# اتاق‌ها خصوصی هستند و در موتورهای جست‌وجو ایندکس نمی‌شوند.
+# دسترسی و اتاق خصوصی نباید ایندکس شوند؛ robots.txt مکانیزم امنیتی نیست.

@@ -1,5 +1,7 @@
-# صفحهٔ اصلی
-/home  /index.html  200
-
-# مسیر اتاق: /r/CODE → صفحهٔ اتاق (برای Cloudflare Pages؛ در Workers خودِ Worker این کار را می‌کند)
-/r/:code  /room/index.html  200
+# Pages extensionless routes (the Worker handles these in worker/index.js).
+/home          /meet/index.html   200
+/meet          /meet/index.html   200
+/panel         /panel/index.html  200
+/app           /app/index.html    200
+/setup         /setup/index.html  200
+/r/:code       /room/index.html   200

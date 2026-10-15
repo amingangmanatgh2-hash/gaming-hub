@@ -1,191 +1,79 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>هم‌کلام — اتاق گفتگوی تصویری رایگان، سبک و بی‌فیلتر برای اینترنت ایران</title>
-<meta name="description" content="هم‌کلام: جلسات تصویری، صوتی، چت، ارسال فایل، تخته سفید، اشتراک صفحه و بیش از ۱۲۰ قابلیت کاربردی. کاملاً رایگان روی Cloudflare، فوق‌سبک و بهینه برای اینترنت کم‌سرعت ایران. اتاق تا وقتی همه خارج نشده‌اند زنده می‌ماند." />
-<meta name="theme-color" content="#0b1020" />
-<meta name="color-scheme" content="dark light" />
-<meta property="og:title" content="هم‌کلام — اتاق گفتگوی تصویری رایگان" />
-<meta property="og:description" content="اتاق تصویری/صوتی، چت، فایل، تصویر، میکروفن، تخته سفید — بیش از ۱۲۰ قابلیت، کاملاً رایگان و سبک." />
-<meta property="og:type" content="website" />
-<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-<link rel="manifest" href="/manifest.webmanifest" />
-<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-<meta property="og:image" content="/og-image.png" />
-<link rel="stylesheet" href="/styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a101c">
+  <meta name="description" content="مدار؛ فروشگاه شفاف کانفیگ‌های TCP روی Cloudflare Workers، با قیمت‌گذاری دلاری و محاسبهٔ تومانی، پنل مدیریت و اپ همراه.">
+  <meta property="og:title" content="مدار — اینترنت، وقتی در مدار توست">
+  <meta property="og:description" content="طرح‌های رایگان و اشتراکی، قیمت‌گذاری روشن و کانفیگ سازگار با VLESS/TLS/WebSocket.">
+  <meta property="og:type" content="website">
+  <title>مدار — اتصال ساده، انتخاب روشن</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/market.css">
+  <script src="/store.js" type="module" defer></script>
 </head>
-<body class="home">
-<a class="skip" href="#main">پرش به محتوا</a>
-
-<header class="top">
-  <div class="wrap top-in">
-    <div class="brand">
-      <svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00e0c6"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><rect x="3" y="5" width="42" height="38" rx="12" fill="url(#lg)"/><path d="M10 21c3-5 8-7 13-6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M10 28c3 5 8 7 13 6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="31" cy="24" r="6.5" fill="#fff"/><circle cx="31" cy="24" r="3" fill="#5a3ff5"/></svg>
-      <div>
-        <b>هم‌کلام</b>
-        <small>اتاق گفتگوی رایگان — سبک مثل متن، قوی مثل جلسهٔ کاری</small>
-      </div>
+<body class="store-page">
+  <a class="skip-link" href="#main">پرش به محتوا</a>
+  <div class="announcement"><div class="container announcement-inner"><span class="tiny-star">✦</span><span id="announcement">هر مسیر، یک شروع تازه.</span><a href="#plans">طرح‌ها را ببینید <span aria-hidden="true">↗</span></a></div></div>
+  <header class="site-header" id="top">
+    <div class="container nav-wrap">
+      <a class="brand" href="/" aria-label="مدار، صفحهٔ اصلی"><span class="brand-symbol"><span></span></span><span class="brand-word">مدار<small>MADAR CONNECT</small></span></a>
+      <nav class="desktop-nav" aria-label="ناوبری اصلی"><a href="#why">چرا مدار؟</a><a href="#plans">تعرفه‌ها</a><a href="#how">چطور کار می‌کند؟</a><a href="#faq">سوالات رایج</a></nav>
+      <div class="nav-actions"><a class="text-link hide-sm" href="/panel">پنل مدیریت</a><a class="button button-small button-primary" href="/app">ورود به اپ <span aria-hidden="true">↗</span></a></div>
     </div>
-    <nav class="top-nav">
-      <a href="#features">قابلیت‌ها</a>
-      <a href="#deploy">استقرار</a>
-      <a href="#faq">پرسش‌ها</a>
-      <button class="btn ghost sm" id="themeBtn" title="تغییر روشن/تیره">🌗</button>
-      <a class="btn ghost sm" href="/r/" id="navRoom">اتاق جدید</a>
-    </nav>
-  </div>
-</header>
+  </header>
 
-<main id="main">
-  <section class="hero wrap">
-    <div class="hero-copy">
-      <h1>یه اتاق بساز، لینکش رو بفرست، <span class="grad">همون‌جا حرف بزن</span></h1>
-      <p class="lead">
-        تصویر، صدا، چت، ارسال فایل و عکس، میکروفن، اشتراک صفحه، تخته سفید، نظرسنجی، ضبط، زیرنویس و
-        <b>بیش از ۱۲۰ قابلیت کاربردی</b>. بدون ثبت‌نام، بدون تبلیغ، <b>کاملاً رایگان</b>، روی لبهٔ شبکهٔ
-        Cloudflare — بهینه برای اینترنت کم‌سرعت و پرنوسان ایران. اتاق تازه <b>تا وقتی همه خارج نشدن</b> خودکار پاک نمی‌شود.
-      </p>
-      <div class="pills">
-        <span class="pill">⚡ سبک‌تر از ۱۰۰ کیلوبایت</span>
-        <span class="pill">🇮🇷 سازگار با اینترنت ایران</span>
-        <span class="pill">🔒 رمز اتاق + اتاق انتظار</span>
-        <span class="pill">⏱ هر اتاق تا ۸ ساعت زنده</span>
-        <span class="pill">💸 بدون هزینهٔ سرور</span>
-      </div>
-    </div>
-
-    <div class="card create" id="createCard">
-      <h2>ساخت اتاق</h2>
-      <form id="createForm" autocomplete="off">
-        <label>نام اتاق
-          <input name="name" placeholder="مثلاً: جلسهٔ تیم / کلاس ریاضی" maxlength="60" />
-        </label>
-        <div class="row">
-          <label>رمز اتاق (اختیاری)
-            <input name="pin" placeholder="۴ رقمی" inputmode="numeric" maxlength="12" />
-          </label>
-          <label>عمر اتاق
-            <select name="ttlHours">
-              <option value="1">۱ ساعت</option>
-              <option value="2">۲ ساعت</option>
-              <option value="4">۴ ساعت</option>
-              <option value="8" selected>۸ ساعت (پیشنهادی)</option>
-              <option value="12">۱۲ ساعت</option>
-              <option value="24">۲۴ ساعت</option>
-            </select>
-          </label>
+  <main id="main">
+    <section class="hero-section">
+      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="container hero-layout">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="eyebrow-line"></span> اتصال، بدون ابهام <span class="eyebrow-line"></span></div>
+          <h1>اینترنت، وقتی<br><em>در مدارِ توست.</em></h1>
+          <p class="hero-lead">طرح مناسب خودت را انتخاب کن، کانفیگ سازگار دریافت کن و با کلاینت دلخواهت متصل شو. زیرساخت این نسخه روی لبهٔ Cloudflare است؛ <strong>بدون وعدهٔ غیرواقعی دربارهٔ شبکه‌های قطع‌شده.</strong></p>
+          <div class="hero-buttons"><a class="button button-primary button-lg" href="#plans">دیدن طرح‌ها <span aria-hidden="true">↗</span></a><a class="button button-outline button-lg" href="/app">دریافت کانفیگ رایگان <span aria-hidden="true">↗</span></a></div>
+          <div class="hero-facts"><div><span class="fact-icon">↗</span><span>مسیریابی <strong>Cloudflare Anycast</strong></span></div><i></i><div><span class="fact-icon">◎</span><span>قیمت‌گذاری <strong>شفاف و دلاری</strong></span></div><i></i><div><span class="fact-icon">◇</span><span>بدون نیاز به <strong>سرور شخصی</strong></span></div></div>
         </div>
-        <div class="row">
-          <label>حداکثر نفرات
-            <select name="maxP">
-              <option>4</option><option>6</option><option selected>8</option><option>12</option><option>16</option>
-            </select>
-          </label>
-          <label class="check"><input type="checkbox" name="waitingRoom" /> اتاق انتظار (میزبان اجازه بدهد)</label>
+        <div class="hero-art" aria-label="نمای شماتیک مسیر اتصال مدار">
+          <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+          <div class="orbit orbit-outer"><span class="orbit-dot dot-one"></span></div><div class="orbit orbit-mid"><span class="orbit-dot dot-two"></span></div><div class="orbit orbit-inner"></div>
+          <div class="planet"><div class="planet-lines"></div><div class="planet-core"><span class="brand-symbol large"><span></span></span><strong>MADAR</strong><small>YOUR SPACE. YOUR WAY.</small></div></div>
+          <div class="floating-card edge-card"><span class="card-icon card-icon-green">◈</span><span><small>وضعیت لبه</small><b id="edgeLabel">در حال بررسی...</b></span><span class="signal-bars" aria-hidden="true"><i></i><i></i><i></i></span></div>
+          <div class="floating-card speed-card"><div class="speed-top"><span class="live-dot"></span> سنجش اتصال</div><strong id="latencyValue">— <small>ms</small></strong><div class="sparkline" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="floating-pill"><span>✦</span> اتصال با کلاینت سازگار</div>
         </div>
-        <button class="btn primary big" type="submit">🚀 ساخت اتاق و ورود</button>
-        <p class="fine">اتاق روی لبهٔ کلودفلر ساخته می‌شود؛ لینک را برای دیگران بفرستید. تا وقتی یک نفر داخل باشد، اتاق حذف نمی‌شود.</p>
-      </form>
-
-      <div class="sep"><span>یا</span></div>
-
-      <form id="joinForm" class="join">
-        <input name="code" placeholder="کد اتاق، مثلاً 7KQ2M9X" maxlength="24" />
-        <input name="pin" placeholder="رمز (اگر دارد)" maxlength="12" class="pin" />
-        <button class="btn" type="submit">ورود</button>
-      </form>
-      <div class="recent" id="recent"></div>
-    </div>
-  </section>
-
-  <section class="wrap grid3" id="quick">
-    <div class="card">
-      <h3>🎥 امتحان دوربین و میکروفن</h3>
-      <video id="testVideo" playsinline muted autoplay></video>
-      <div class="meter"><i id="testBar"></i></div>
-      <div class="row">
-        <button class="btn sm" id="testStart">روشن کن</button>
-        <button class="btn sm ghost" id="testStop">خاموش</button>
-        <span class="fine" id="testMsg"></span>
       </div>
-    </div>
-    <div class="card">
-      <h3>🌐 چند میلی‌ثانیه تأخیر دارید؟</h3>
-      <p class="fine">تأخیر شبکه به نزدیک‌ترین لبهٔ کلودفلر — مبنای کیفیت تماس شما.</p>
-      <div class="stat" id="netStat">—</div>
-      <button class="btn sm" id="pingBtn">اندازه‌گیری</button>
-      <hr />
-      <h3>🧩 وضعیت سرور</h3>
-      <div class="stat small" id="healthStat">در حال بررسی…</div>
-    </div>
-    <div class="card">
-      <h3>✨ چرا هم‌کلام؟</h3>
-      <ul class="ticks">
-        <li>پیام‌ها و فایل‌های سبک، بدون عبور از سرورهای گران</li>
-        <li>حالت کم‌مصرف (150p/12kbps) برای اینترنت ضعیف</li>
-        <li>اتاق خصوصی با رمز، قفل، اتاق انتظار و اخراج/مسدودی</li>
-        <li>بدون ثبت‌نام، بدون شماره تلفن، بدون تبلیغ</li>
-        <li>کد کامل روی GitHub؛ خودتان روی اکانت رایگان کلودفلر بالا بیاورید</li>
-      </ul>
-    </div>
-  </section>
+      <div class="container trust-bar"><div class="trust-label">زیرساخت این نسخه</div><div class="trust-items"><span>Cloudflare Workers</span><span>TLS / WebSocket</span><span>VLESS · TCP</span><span>Anycast Edge</span></div></div>
+    </section>
 
-  <section class="wrap" id="features">
-    <div class="sec-head">
-      <h2>۱۲۴ قابلیت، همه در یک اتاق</h2>
-      <div class="filters">
-        <input id="featSearch" placeholder="جست‌وجو در قابلیت‌ها…" />
-        <select id="featCat"><option value="">همهٔ دسته‌ها</option></select>
-        <span class="fine" id="featCount"></span>
+    <section class="section why-section" id="why"><div class="container">
+      <div class="section-intro"><div><span class="kicker">01 / تجربهٔ متفاوت</span><h2>همه‌چیز، <span class="text-gradient">روشن و در دسترس.</span></h2></div><p>مدار یک فروشگاه و ابزار صدور کانفیگ است. چیزهایی که واقعاً وجود دارند را نشان می‌دهیم؛ نه هزاران سرورِ ساختگی یا سرعت تضمینی.</p></div>
+      <div class="feature-grid">
+        <article class="feature-card feature-highlight"><span class="feature-no">01</span><div class="feature-glyph">◎</div><h3>یک آدرس، نزدیک‌ترین لبه</h3><p>Cloudflare با Anycast درخواست را به لبهٔ قابل‌دسترس هدایت می‌کند. نتیجه را می‌توانی در اپ خودت اندازه بگیری.</p><span class="feature-foot">EDGE ROUTING <span>↗</span></span></article>
+        <article class="feature-card"><span class="feature-no">02</span><div class="feature-glyph">◇</div><h3>قیمت شفاف، بدون غافلگیری</h3><p>قیمت پایه دلاری است و مبلغ تومانی با نرخ مرجع پنل محاسبه می‌شود؛ نرخ و زمان بروزرسانی را کنار طرح‌ها می‌بینی.</p><span class="feature-foot">CLEAR PRICING <span>↗</span></span></article>
+        <article class="feature-card"><span class="feature-no">03</span><div class="feature-glyph">⌘</div><h3>کنترل در دست خودت</h3><p>طرح آزمایشی یا اشتراکی، کانفیگ قابل واردکردن در کلاینت سازگار و وضعیت سفارش در یک داشبورد ساده.</p><span class="feature-foot">YOUR CONTROL <span>↗</span></span></article>
       </div>
-    </div>
-    <div class="feat-grid" id="featGrid"></div>
-  </section>
+    </div></section>
 
-  <section class="wrap" id="deploy">
-    <h2>در ۹۰ ثانیه خودتان بالا بیاورید (کاملاً رایگان)</h2>
-    <div class="grid3">
-      <div class="card">
-        <h3>۱) یک‌کلیکی</h3>
-        <p class="fine">با دکمهٔ زیر، کلودفلر یک نسخه از همین مخزن را در اکانت گیت‌هاب شما می‌سازد و روی اکانت رایگان خودتان منتشر می‌کند.</p>
-        <a class="btn primary big" id="deployBtn" target="_blank" rel="noreferrer">☁️ Deploy to Cloudflare</a>
-      </div>
-      <div class="card">
-        <h3>۲) با دستور (Workers — پیشنهادی)</h3>
-        <pre><code>git clone YOUR_REPO_URL hamkalam
-cd hamkalam
-npm install
-npx wrangler login
-npm run deploy</code></pre>
-        <p class="fine">همین یک دستور، هم سایت استاتیک و هم سرور سیگنالینگ (Durable Objects) را منتشر می‌کند.</p>
-      </div>
-      <div class="card">
-        <h3>۳) اگر Pages می‌خواهید</h3>
-        <pre><code># روی داشبورد: Workers &amp; Pages → Create → Pages → Connect to Git
-# Build command:      npm run build
-# Build output dir:   public
-# سپس Bindings → Durable Objects → ROOMS → Room</code></pre>
-        <p class="fine">هر دو روش یک اپ می‌دهند؛ تفاوت فقط در محل بایند کردن Durable Object است.</p>
-      </div>
-    </div>
-  </section>
+    <section class="section plans-section" id="plans"><div class="container">
+      <div class="section-intro plans-intro"><div><span class="kicker">02 / انتخاب تو</span><h2>یک طرح برای <span class="text-gradient">هر مسیر.</span></h2></div><div class="rate-box"><span class="live-dot"></span><div><small>نرخ مرجع دلار</small><strong id="rateValue">در حال دریافت...</strong><small id="rateMeta">قیمت نهایی هنگام سفارش ثبت می‌شود</small></div></div></div>
+      <div class="plan-grid" id="planGrid"><div class="empty-state">در حال بارگذاری طرح‌ها...</div></div>
+      <p class="plans-disclaimer" id="planNotice">پرداخت آنلاین هنوز متصل نیست؛ سفارش‌های پولی پس از بررسی دستی مدیر فعال می‌شوند. طرح رایگان نیاز به تأیید ندارد.</p>
+    </div></section>
 
-  <section class="wrap" id="faq">
-    <h2>پرسش‌های پرتکرار</h2>
-    <div class="faq" id="faqList"></div>
-  </section>
-</main>
+    <section class="section steps-section" id="how"><div class="container steps-layout"><div class="steps-copy"><span class="kicker">03 / از انتخاب تا اتصال</span><h2>سه قدم تا<br><span class="text-gradient">شروع مسیر.</span></h2><p>از انتخاب طرح تا دریافت لینک کانفیگ، هر مرحله شفاف و قابل پیگیری است.</p><a href="/app" class="button button-outline">رفتن به داشبورد <span aria-hidden="true">↗</span></a></div><div class="step-list"><div class="step-item"><span>01</span><div><h3>طرحت را انتخاب کن</h3><p>با طرح رایگان امتحان کن یا سفارش طرح اشتراکی ثبت کن.</p></div><b>↗</b></div><div class="step-item"><span>02</span><div><h3>کانفیگت را دریافت کن</h3><p>پس از فعال‌سازی، لینک اشتراک و پروفایل‌های TCP در اپ در دسترس‌اند.</p></div><b>↗</b></div><div class="step-item"><span>03</span><div><h3>در کلاینت سازگار وارد کن</h3><p>برای تونل سراسری سیستم، نصب یک کلاینت VLESS/TLS/WebSocket مستقل لازم است.</p></div><b>↗</b></div></div></div></section>
 
-<footer class="wrap foot">
-  <div>ساخته‌شده با ❤️ برای اینترنت ایران — هم‌کلام نسخهٔ <span id="ver">1.0.0</span> · مجوز MIT</div>
-  <div class="fine">
-    حریم خصوصی: صدا/تصویر مستقیماً بین مرورگرها ردوبدل می‌شود و از سرور ما عبور نمی‌کند؛ چت و فایل‌ها داخل اتاق ذخیره می‌شوند و با خالی‌شدن اتاق پاک می‌شوند.
-  </div>
-</footer>
+    <section class="section app-section" id="downloads"><div class="container app-panel"><div class="app-panel-copy"><span class="kicker">همیشه همراهت</span><h2>مدار، روی هر صفحه.</h2><p>نسخهٔ وب قابل نصب است. فایل APK آزمایشی اندروید و نصب‌کنندهٔ ویندوز در بخش Artifacts گردش‌کار Actions آمادهٔ دانلودند؛ این همراه‌ها کانفیگ را مدیریت می‌کنند و جایگزین موتور VPN سیستم‌عامل نیستند.</p><div class="app-cta"><a href="/app" class="button button-primary">باز کردن وب‌اپ <span aria-hidden="true">↗</span></a><a id="buildsLink" href="https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/deploy.yml" target="_blank" rel="noopener noreferrer" class="button button-outline">APK / Setup هماهنگ با استقرار <span aria-hidden="true">↗</span></a><a href="https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/clients.yml" target="_blank" rel="noopener noreferrer" class="button button-outline">نسخهٔ آزمایشی با ورود دستی آدرس <span aria-hidden="true">↗</span></a></div><small>برای استفادهٔ واقعی از کانفیگ، کلاینت سازگار جداگانه نصب کنید.</small></div><div class="mini-screen" aria-hidden="true"><div class="mini-top"><span>● ● ●</span><span>MADAR / APP</span></div><div class="mini-ring"><span>✦</span></div><strong>اتصال در دسترس</strong><small>کانفیگ را به کلاینت وارد کنید</small><div class="mini-strip"><span>◈ خودکار</span><span>◎ مرور</span><span>▷ ویدئو</span></div></div></div></section>
 
-<div id="toast" class="toasts"></div>
-<script type="module" src="/build/home.js"></script>
+    <section class="section faq-section" id="faq"><div class="container"><div class="section-intro"><div><span class="kicker">04 / شفاف و صریح</span><h2>چند سؤال <span class="text-gradient">مهم.</span></h2></div><p>قبل از خرید، محدودیت‌های این نسخه را بدان.</p></div><div class="faq-list"><details><summary>آیا روی اینترنت ملی یا هنگام قطع کامل اینترنت بین‌الملل کار می‌کند؟<span>+</span></summary><p>خیر، چنین تضمینی وجود ندارد. اگر لبهٔ Cloudflare از شبکهٔ شما قابل دسترس نباشد، این تونل وصل نمی‌شود. اپ فقط دسترس‌پذیری Worker را می‌سنجد و تشخیص قطعی «نت ملی» ندارد.</p></details><details><summary>آیا ۲۰۰۰ سرور و بهترین پینگ بازی فراهم است؟<span>+</span></summary><p>خیر. Cloudflare یک شبکهٔ Anycast با نقاط حضور متعدد دارد، نه ۲۰۰۰ سرور اختصاصی قابل‌انتخاب ما. این نسخه فقط TCP را منتقل می‌کند و UDP موردنیاز بسیاری از بازی‌ها را پوشش نمی‌دهد.</p></details><details><summary>قیمت تومانی چطور محاسبه می‌شود؟<span>+</span></summary><p>قیمت دلاری هر طرح در نرخ «دلار به تومان» پنل ضرب می‌شود. مدیر نرخ را عوض می‌کند و همهٔ قیمت‌های نمایشی به‌روز می‌شوند؛ اتصال خودکار به منبع نرخ، فقط با تنظیم سرویس معتبر در Worker فعال است. نرخ سفارشِ ثبت‌شده ثابت می‌ماند.</p></details><details><summary>پرداخت و فعال‌سازی اشتراک چگونه است؟<span>+</span></summary><p>در این نسخه درگاه پرداخت متصل نیست. سفارش با کد پیگیری ثبت می‌شود و مدیر پس از بررسی دستی، آن را فعال یا رد می‌کند. هیچ مبلغی توسط سایت به‌طور خودکار دریافت نمی‌شود.</p></details><details><summary>اپ اندروید و ویندوز خودش VPN را وصل می‌کند؟<span>+</span></summary><p>خیر. اپ‌های همراه، داشبورد و کانفیگ را نمایش می‌دهند. برای اتصال سراسری، کلاینت مستقلِ سازگار با VLESS روی دستگاه لازم است؛ مرورگر و WebView به‌تنهایی VPN سیستم‌عامل نیستند.</p></details></div></div></section>
+
+    <section class="container final-cta"><div class="final-glow"></div><div><span class="kicker">آماده‌ای؟</span><h2>مسیر بعدی، از همین‌جا شروع می‌شود.</h2><p>طرح‌ها را ببین یا دسترسی آزمایشی بگیر. تصمیم، همیشه با توست.</p></div><a href="/app" class="button button-primary button-lg">شروع با مدار <span aria-hidden="true">↗</span></a></section>
+  </main>
+  <footer class="footer"><div class="container footer-main"><div><a class="brand" href="/"><span class="brand-symbol"><span></span></span><span class="brand-word">مدار<small>MADAR CONNECT</small></span></a><p>زیرساخت ساده‌تر، تصمیم روشن‌تر. ساخته‌شده بر بستر Cloudflare.</p></div><div><strong>دسترسی سریع</strong><a href="#plans">طرح‌ها</a><a href="/app">وب‌اپ</a><a href="/setup">نصب اولیه</a><a href="/panel">پنل مدیریت</a></div><div><strong>شفافیت</strong><a href="#faq">پرسش‌های رایج</a><a href="/meet">سرویس گفت‌وگوی قبلی</a><a href="https://github.com/amingangmanatgh2-hash/gaming-hub" target="_blank" rel="noopener noreferrer">کد منبع ↗</a><a id="supportLink" href="#faq">پشتیبانی</a></div></div><div class="container footer-bottom"><span>© ۲۰۲۶ مدار · نسخهٔ آزمایشی</span><span>ساخته‌شده برای انتخاب آگاهانه <span class="mint">✦</span></span></div></footer>
+
+  <dialog id="orderDialog" class="modal"><form id="orderForm" class="order-form"><button type="button" class="modal-close" id="closeOrder" aria-label="بستن">×</button><span class="kicker">ثبت سفارش</span><h2 id="orderTitle">طرح انتخابی</h2><p id="orderSummary"></p><input type="hidden" name="productId"><label>نام شما <input required maxlength="70" name="name" autocomplete="name" placeholder="نام و نام خانوادگی"></label><label>راه ارتباطی <input required maxlength="100" name="contact" placeholder="آیدی تلگرام یا ایمیل" autocomplete="email"></label><label>توضیحات (اختیاری) <textarea name="note" maxlength="300" rows="3" placeholder="اگر نکته‌ای هست اینجا بنویسید"></textarea></label><p class="form-hint">پرداختی در این مرحله انجام نمی‌شود. پس از بررسی دستی، وضعیت را با کد پیگیری می‌بینید.</p><button class="button button-primary full" type="submit">ثبت سفارش برای بررسی <span aria-hidden="true">↗</span></button><p class="form-feedback" id="orderFeedback" role="status"></p></form><div id="receiptView" class="receipt-view" hidden><span class="receipt-icon">✓</span><h2>سفارش ثبت شد</h2><p>این اطلاعات را ذخیره کنید؛ کد پیگیری فقط یک‌بار نمایش داده می‌شود.</p><div class="receipt-code" id="receiptCode"></div><a class="button button-primary full" id="trackLink" href="/app">پیگیری در اپ ↗</a><button type="button" class="button button-outline full" id="copyReceipt">کپی اطلاعات پیگیری</button></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

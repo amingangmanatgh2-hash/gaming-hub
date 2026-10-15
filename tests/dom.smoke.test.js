@@ -50,8 +50,8 @@ async function loadPage(htmlPath, bundlePath, url) {
   return { window, errors, dom };
 }
 
-test('صفحهٔ خانه بدون خطا بالا می‌آید و قابلیت‌ها رندر می‌شوند', async () => {
-  const { window, errors, dom } = await loadPage('public/index.html', 'public/build/home.js', 'https://hk.example/');
+test('صفحهٔ گفت‌وگوی قبلی بدون خطا بالا می‌آید و قابلیت‌ها رندر می‌شوند', async () => {
+  const { window, errors, dom } = await loadPage('public/meet/index.html', 'public/build/home.js', 'https://hk.example/meet');
   assert.equal(errors.length, 0, `خطاهای جاوااسکریپت: ${errors.join(' | ')}`);
   const feats = window.document.querySelectorAll('#featGrid .feat').length;
   assert.ok(feats > 100, `تعداد قابلیت‌های رندرشده: ${feats}`);

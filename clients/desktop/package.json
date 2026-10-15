@@ -1,0 +1,26 @@
+{
+  "name": "madar-companion-desktop",
+  "productName": "Madar Companion",
+  "version": "0.1.0",
+  "description": "Installable Windows companion for the Madar Cloudflare dashboard. Not a system VPN.",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "node make-build-config.cjs && electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.madar.companion",
+    "productName": "Madar Companion",
+    "asar": true,
+    "files": ["main.cjs", "endpoint.cjs", "build-config.json", "preload.cjs", "setup.html", "setup.js", "icon.ico", "package.json"],
+    "directories": { "output": "release" },
+    "win": { "icon": "icon.ico", "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "artifactName": "Madar-Setup-${version}-${arch}.${ext}" },
+    "publish": null
+  }
+}

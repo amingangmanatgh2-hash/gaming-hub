@@ -1,0 +1,106 @@
+name: Build companion apps (APK and Windows setup)
+
+on:
+  # The deploy workflow passes Wrangler's real deployment-url here. The only
+  # baked-in value is the PUBLIC HTTPS origin; private subscriptions stay on-device.
+  workflow_call:
+    inputs:
+      worker_origin:
+        description: 'Public HTTPS Worker origin returned by deployment'
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      worker_origin:
+        description: 'Optional public HTTPS Worker origin (empty = generic/manual setup)'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['arena/9ca26ff9-gaming-hub']
+    paths:
+      - 'clients/**'
+      - '.github/workflows/clients.yml'
+      - 'public/icon-192.png'
+      - 'public/icon-512.png'
+
+jobs:
+  android:
+    name: Android installable debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MADAR_WORKER_ORIGIN: ${{ inputs.worker_origin || vars.MADAR_WORKER_ORIGIN || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public Worker origin
+        run: node scripts/validate-worker-origin.cjs
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      # Ubuntu runner has ANDROID_HOME and command-line tools preinstalled.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Use preinstalled Android SDK (download only if absent)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms"
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+      - name: Build installable debug APK
+        working-directory: clients/android
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon 2>&1 | tee /tmp/madar-gradle.log || {
+            echo "::error::$(tail -n 25 /tmp/madar-gradle.log | tr '\n' ' ')"
+            exit 1
+          }
+      - name: Verify APK signature, manifest and baked origin
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose clients/android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging clients/android/app/build/outputs/apk/debug/app-debug.apk | head -n 5
+          if [ -n "$MADAR_WORKER_ORIGIN" ]; then
+            origin=$(node -e "process.stdout.write(require('./clients/desktop/endpoint.cjs').safeOrigin(process.env.MADAR_WORKER_ORIGIN))")
+            grep -Fq "\"$origin\"" clients/android/app/build/generated/source/buildConfig/debug/com/madar/companion/BuildConfig.java
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Madar-Android-debug-APK
+          path: clients/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Windows NSIS setup.exe
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      MADAR_WORKER_ORIGIN: ${{ inputs.worker_origin || vars.MADAR_WORKER_ORIGIN || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: clients/desktop/package-lock.json
+      - name: Check public Worker origin
+        run: node scripts/validate-worker-origin.cjs
+      - name: Install desktop dependencies
+        working-directory: clients/desktop
+        run: npm ci --no-audit --no-fund
+      - name: Build Windows installer
+        working-directory: clients/desktop
+        run: npm run dist
+      - name: Verify actual packaged ASAR and public origin
+        working-directory: clients/desktop
+        run: node verify-build.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Madar-Windows-Setup
+          path: clients/desktop/release/Madar-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14

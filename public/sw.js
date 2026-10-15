@@ -1,33 +1,25 @@
-/* Service Worker هم‌کلام — فقط کش فایل‌های ثابت (استراتژی: اول شبکه، در زمان قطعی کش)
-   توجه: هرگز پاسخ‌های /api/* کش نمی‌شوند (چت و اتاق باید زنده باشند). */
-const CACHE = 'hamkalam-v1';
-const ASSETS = ['/', '/styles.css', '/build/home.js', '/favicon.svg', '/manifest.webmanifest'];
-
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS).catch(() => {})).then(() => self.skipWaiting()));
+/* Madar PWA: only public static assets. Never cache API, subscriptions, admin, setup or /edge. */
+const CACHE = 'madar-static-v2';
+const STATIC = ['/app/', '/market.css', '/console.css', '/common.js', '/app.js', '/connectivity.js', '/favicon.svg', '/icon-192.png', '/manifest.webmanifest'];
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(STATIC).catch(() => {})).then(() => self.skipWaiting()));
 });
-
-self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
 });
-
-self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  if (url.pathname.startsWith('/api/')) return; // هیچ‌وقت کش نکن
-  e.respondWith((async () => {
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/panel') || url.pathname.startsWith('/setup') || url.pathname.startsWith('/edge') || url.pathname.startsWith('/r/')) return;
+  const isAsset = /\.(?:js|css|svg|png|webmanifest|woff2)$/.test(url.pathname);
+  event.respondWith((async () => {
     try {
-      const fresh = await fetch(e.request);
-      if (fresh.ok && (url.pathname.startsWith('/build/') || /\.(css|svg|png|webmanifest)$/.test(url.pathname))) {
-        const c = await caches.open(CACHE);
-        c.put(e.request, fresh.clone());
-      }
+      const fresh = await fetch(event.request);
+      if (isAsset && fresh.ok) (await caches.open(CACHE)).put(event.request, fresh.clone());
       return fresh;
     } catch {
-      const cached = await caches.match(e.request, { ignoreSearch: true });
-      if (cached) return cached;
-      const home = await caches.match('/');
-      return home || new Response('آفلاین هستید', { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+      const cached = await caches.match(event.request, { ignoreSearch: true });
+      return cached || new Response('اتصال در دسترس نیست. محتوای آفلاین محدود است.', { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } });
     }
   })());
 });
