@@ -29,12 +29,25 @@ async function load(kind) {
   return { win, dom, errors };
 }
 
+// Probing includes two intentional 220 ms pauses; runner CPU contention can
+// postpone timers, so assert only after the final result rather than sleeping.
+async function waitForText(win, selector, pattern) {
+  const deadline = Date.now() + 10_000;
+  let text = '';
+  do {
+    text = win.document.querySelector(selector)?.textContent || '';
+    if (pattern.test(text)) return text;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  } while (Date.now() < deadline);
+  throw new Error(`Timed out waiting for ${selector}: ${text}`);
+}
+
 test('اپ همراه سنجش شبکه را بدون خطای DOM و بدون ادعای VPN نشان می‌دهد', { timeout: 15_000 }, async () => {
   const { win, dom, errors } = await load('app');
   try {
-    await new Promise((resolve) => setTimeout(resolve, 780));
+    const result = await waitForText(win, '#networkText', /پاسخ از ۳ تلاش HTTPS/);
     assert.equal(errors.length, 0, errors.join(' | '));
-    assert.match(win.document.querySelector('#networkText').textContent, /۳ پاسخ از ۳ تلاش HTTPS/);
+    assert.match(result, /۳ پاسخ از ۳ تلاش HTTPS/);
     assert.ok(win.document.querySelector('#pingTen'), 'manual ten-attempt button exists');
     assert.match(win.document.querySelector('#accessTitle').textContent, /کانفیگی فعال نیست/);
   } finally { dom.window.close(); }
