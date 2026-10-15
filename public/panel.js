@@ -1,4 +1,4 @@
-import { $, api, fa, dateFa, toast, setBrand } from '/common.js';
+import { $, api, fa, dateFa, copy, toast, setBrand } from '/common.js';
 
 let csrf = '';
 let state = null;
@@ -26,6 +26,7 @@ async function refresh() {
   try { state = await api('/admin/state'); }
   catch (e) { if (/نشست/.test(e.message)) showLogin(e.message); else toast(e.message); return; }
   const { settings, products, orders, bot, aiHistory } = state;
+  $('#clientOrigin').value = location.origin;
   setBrand(settings.siteName, 'پنل مدیریت');
   document.body.dataset.accent = settings.accent;
   $('#statOrders').textContent = fa(orders.length);
@@ -163,6 +164,10 @@ $('#settingsForm').addEventListener('submit', async (event) => {
   $('#settingsError').textContent = '';
   try { await api('/admin/settings', { method: 'PUT', data, csrf }); $('#settingsSaved').textContent = 'تغییرات ذخیره شد'; toast('تنظیمات فروشگاه ذخیره شد.'); await refresh(); }
   catch (e) { $('#settingsError').textContent = e.message; }
+});
+$('#copyClientOrigin').addEventListener('click', async () => {
+  try { await copy(location.origin); toast('آدرس عمومی کپی شد؛ فقط دامنهٔ استقرار واقعی را در همراه‌ها استفاده کنید.'); }
+  catch (e) { toast(e.message); }
 });
 $('#passwordForm').addEventListener('submit', async (event) => {
   event.preventDefault();
