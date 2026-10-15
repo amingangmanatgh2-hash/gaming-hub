@@ -27,6 +27,7 @@ jobs:
           node --check clients/desktop/endpoint.cjs
           node --check clients/desktop/preload.cjs
           node --check clients/desktop/make-build-config.cjs
+          node --check clients/desktop/verify-build.cjs
           MADAR_WORKER_ORIGIN=https://gaming-hub.account.workers.dev node scripts/validate-worker-origin.cjs
       - name: اعتبارسنجی پیکربندی Worker (dry-run)
         run: npx wrangler deploy --dry-run --outdir=/tmp/dist

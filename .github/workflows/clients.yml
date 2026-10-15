@@ -95,9 +95,9 @@ jobs:
       - name: Build Windows installer
         working-directory: clients/desktop
         run: npm run dist
-      - name: Verify embedded public origin
+      - name: Verify actual packaged ASAR and public origin
         working-directory: clients/desktop
-        run: node -e "const assert=require('node:assert/strict'); const {safeOrigin}=require('./endpoint.cjs'); const embedded=require('./build-config.json'); assert.equal(embedded.workerOrigin, safeOrigin(process.env.MADAR_WORKER_ORIGIN || '') || '');"
+        run: node verify-build.cjs
       - uses: actions/upload-artifact@v4
         with:
           name: Madar-Windows-Setup
