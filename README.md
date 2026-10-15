@@ -48,17 +48,17 @@ npm test
 
 **راهنمای کامل فارسی:** [docs/DEPLOY-fa.md](docs/DEPLOY-fa.md)
 
-1. کد **این شاخه** را روی GitHub داشته باشید: [مشاهدهٔ شاخهٔ مدار](https://github.com/amingangmanatgh2-hash/gaming-hub/tree/arena/9ca26ff9-gaming-hub).
+1. کد را پس از ادغام PR #5 در [شاخهٔ Main](https://github.com/amingangmanatgh2-hash/gaming-hub/tree/Main) داشته باشید (پیش از ادغام، [شاخهٔ مدار](https://github.com/amingangmanatgh2-hash/gaming-hub/tree/arena/9ca26ff9-gaming-hub)).
 2. از [داشبورد Cloudflare](https://dash.cloudflare.com/) وارد حساب خود شوید؛ یا روی دستگاه خود `npx wrangler login` اجرا کنید.
 3. در همین ریشه: `npm ci && npm run deploy`؛ آدرس واقعی `https://gaming-hub.<account>.workers.dev` فقط پس از انتشار موفق توسط Wrangler نمایش داده می‌شود. نام Worker با سرویس ازقبل‌متصل به این مخزن یکی است؛ برای حساب تازه می‌توانید نام را در `wrangler.toml` تغییر دهید.
 4. در همان حساب، دو **Secret** با مقدارهای تصادفیِ خودتان ثبت کنید: `npx wrangler secret put SETUP_KEY` و `npx wrangler secret put APP_SECRET`. کلید نصب را نزد خود نگه دارید. سپس `https://<آدرس-واقعی>/setup` را باز کنید. سایت قبل از نصب اولیه سفارش/دسترسی صادر نمی‌کند.
 5. برای ربات، توکن را فقط در گام اول setup یا بخش ربات پنل وارد کنید؛ ثبت webhook نیازمند دامنهٔ عمومی HTTPS و دسترسی Worker به Telegram API است.
 
-**خط لولهٔ یکپارچهٔ انتشار و فایل همراه:** اگر Secretهای `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` را در GitHub Actions تنظیم کرده‌اید، گردش‌کار [Deploy Madar Worker and build companions](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/deploy.yml) بعد از انتشار موفق، URL واقعی Worker را از خروجی Wrangler می‌گیرد، `/api/v1/health` را بررسی می‌کند و APK و نصب‌کننده را **دوباره با همان آدرس عمومی** می‌سازد. این گردش‌کار به حساب و دسترسی Actions شما نیاز دارد؛ استقرار دستی با `npm run deploy` یا Cloudflare Git integration به‌تنهایی آن را فعال نمی‌کند. برای ساخت دستی بعد از انتشار، ورودی `worker_origin` در workflow همراه‌ها یا متغیر مخزن `MADAR_WORKER_ORIGIN` را تنظیم کنید. هیچ Secret یا لینک اشتراکی در فایل‌ها embed نمی‌شود.
+**خط لولهٔ یکپارچهٔ انتشار و فایل همراه:** اگر Secretهای `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` را در GitHub Actions تنظیم کرده‌اید، پس از merge هر push روی `Main` گردش‌کار [Deploy Madar Worker and build companions](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/deploy.yml) را اجرا می‌کند؛ پس از انتشار موفق، URL واقعی Worker را از خروجی Wrangler می‌گیرد، `/api/v1/health` را بررسی می‌کند و APK و نصب‌کننده را **دوباره با همان آدرس عمومی** می‌سازد. بدون این Secretها workflow صریحاً شکست می‌خورد؛ استقرار دستی با `npm run deploy` به‌تنهایی آن را فعال نمی‌کند (Cloudflare Git integration مستقل از GitHub Actions است). برای ساخت دستی بعد از انتشار، ورودی `worker_origin` در workflow همراه‌ها یا متغیر مخزن `MADAR_WORKER_ORIGIN` را تنظیم کنید. هیچ Secret یا لینک اشتراکی در فایل‌ها embed نمی‌شود.
 
 **Cloudflare Pages (اختیاری):** ابتدا **Worker بالا** باید منتشر شود. Pages خروجی `public` را با build command `npm run build` سرو می‌کند؛ Pages Functions نیاز به **Service binding `CORE` به Worker `gaming-hub`** دارند. برای لینک‌های کانفیگ Pages، `EDGE_HOST` را به hostname واقعی Worker تنظیم کنید. صفحات تنها و بدون Worker هیچ API یا تونل فعالی ندارند. جزئیات در راهنمای انتشار.
 
-**لینک سریع استقرار پس از انتقال این شاخه به شاخهٔ پیش‌فرض مخزن:** [Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/?url=https://github.com/amingangmanatgh2-hash/gaming-hub). تا وقتی تغییرات این شاخه به `Main` نرسیده‌اند، این دکمه نسخهٔ قدیمی `Main` را منتشر می‌کند؛ برای نسخهٔ حاضر از دستور بالا و همین شاخه استفاده کنید. در این محیط حساب Cloudflare متصل نیست، بنابراین **آدرس زندهٔ ساختگی ارائه نمی‌شود**.
+**لینک سریع استقرار پس از ادغام در `Main`:** [Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/?url=https://github.com/amingangmanatgh2-hash/gaming-hub). این دکمه آخرین نسخهٔ شاخهٔ پیش‌فرض را به حساب Cloudflare **شما** متصل می‌کند، نه اینکه خودش آدرس زندهٔ تأییدشده باشد. آدرس واقعی را فقط پس از موفقیت deploy و بررسی سلامت منتشر کنید.
 
 ## APK و setup.exe
 

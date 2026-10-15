@@ -1,6 +1,6 @@
 # استقرار مدار روی Cloudflare — راهنمای اجرایی
 
-> **این راهنما مربوط به مدار در شاخهٔ `arena/9ca26ff9-gaming-hub` است.** راهنمای سرویس قدیمی در [DEPLOY-LEGACY-fa.md](DEPLOY-LEGACY-fa.md) قرار دارد.
+> **این راهنما مربوط به نسخهٔ مدار است که پس از ادغام PR #5 در `Main` قرار می‌گیرد.** قبل از ادغام، شاخهٔ `arena/9ca26ff9-gaming-hub` را دریافت کنید. راهنمای سرویس قدیمی در [DEPLOY-LEGACY-fa.md](DEPLOY-LEGACY-fa.md) قرار دارد.
 
 ## پیش‌نیازها
 
@@ -11,10 +11,10 @@
 
 ## مسیر توصیه‌شده: یک Worker برای سایت + API + تونل
 
-1. **شاخهٔ درست** را بگیرید (تا قبل از merge روی `Main` نسخهٔ قدیمی است):
+1. **پس از ادغام، شاخهٔ `Main`** را بگیرید (پیش از ادغام به‌جای `Main` از `arena/9ca26ff9-gaming-hub` استفاده کنید):
 
    ```bash
-   git clone --branch arena/9ca26ff9-gaming-hub https://github.com/amingangmanatgh2-hash/gaming-hub.git madar
+   git clone --branch Main https://github.com/amingangmanatgh2-hash/gaming-hub.git madar
    cd madar
    npm ci
    npm test
@@ -84,7 +84,7 @@ binding = "AI"
 
 ## دو اپ همراه
 
-**مسیر خودکار:** در تنظیمات GitHub Actions مخزن دو Secret با نام `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` ثبت کنید (با سطح دسترسی لازم برای استقرار Worker). گردش‌کار [Deploy Madar Worker and build companions](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/deploy.yml) را روی شاخهٔ حاوی این کد اجرا کنید. پس از deploy موفق، URL واقعی از خروجی Wrangler دریافت می‌شود؛ workflow پاسخ `/api/v1/health` را بررسی می‌کند و سپس همان URL **عمومی** را هنگام build در APK و setup.exe قرار می‌دهد. URL در فایل قرار می‌گیرد، **نه رمز مدیر، SETUP_KEY، APP_SECRET یا لینک اشتراک**. از صفحهٔ همان اجرا دو artifact را دانلود کنید. هنگام Run workflow شاخهٔ حاوی این کد را انتخاب کنید؛ دکمهٔ یک‌کلیک Cloudflare همچنان نسخهٔ `Main` را می‌گیرد. خطای Cloudflare Builds جداگانه باید در داشبورد حساب بررسی شود.
+**مسیر خودکار:** در تنظیمات GitHub Actions مخزن دو Secret با نام `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` ثبت کنید (با سطح دسترسی لازم برای استقرار Worker). پس از ادغام در `Main`، هر push این شاخه گردش‌کار [Deploy Madar Worker and build companions](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/deploy.yml) را اجرا می‌کند؛ بدون این دو Secret، گردش‌کار با خطای واضح متوقف می‌شود و باینری با URL ساختگی نمی‌سازد. اجرای دستی workflow نیز در صورت داشتن مجوز GitHub Actions ممکن است. پس از deploy موفق، URL واقعی از خروجی Wrangler دریافت می‌شود؛ workflow پاسخ `/api/v1/health` را بررسی می‌کند و سپس همان URL **عمومی** را هنگام build در APK و setup.exe قرار می‌دهد. URL در فایل قرار می‌گیرد، **نه رمز مدیر، SETUP_KEY، APP_SECRET یا لینک اشتراک**. از صفحهٔ همان اجرا دو artifact را دانلود کنید. برای اجرای دستی پیش از merge، شاخهٔ حاوی این کد را انتخاب کنید. شکست جداگانهٔ Cloudflare Builds را در داشبورد همان حساب بررسی کنید؛ موفقیت تست یا dry-run به‌معنی انتشار نیست.
 
 **استقرار دستی/Cloudflare Git integration:** این روش‌ها خودبه‌خود workflow ساخت بعد از deploy را صدا نمی‌زنند؛ در [workflow ساخت همراه‌ها](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/clients.yml) ورودی `worker_origin` را به URL واقعی HTTPS Worker (مثلاً `https://worker.your-subdomain.workers.dev`، بدون `/app`) بدهید، یا متغیر مخزن `MADAR_WORKER_ORIGIN` را تنظیم کنید. ساخت بدون URL هم ممکن است؛ آن بسته آدرس را در اولین اجرا می‌پرسد.
 

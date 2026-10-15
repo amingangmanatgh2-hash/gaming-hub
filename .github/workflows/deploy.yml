@@ -4,6 +4,10 @@
 name: Deploy Madar Worker and build companions
 
 on:
+  # After this PR is merged, deploy the default branch first. Companions are
+  # built only after Wrangler returns a real, health-checked HTTPS origin.
+  push:
+    branches: ['Main']
   repository_dispatch:
     types: [deploy, "*"]
   workflow_dispatch:
