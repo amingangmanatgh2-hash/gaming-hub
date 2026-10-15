@@ -2,9 +2,10 @@
  * Only authenticated credentials, domain destinations, and ports 80/443 are accepted.
  * No UDP, arbitrary IP connections, packet VPN, or DPI-bypass guarantee. */
 import { connect } from 'cloudflare:sockets';
-import { InputError, parseVlessHeader } from '../shared/market.js';
+import { InputError, parseVlessHeader, binaryWebSocketFrame } from '../shared/market.js';
 
 const MAX_HEADER = 4096;
+const MAX_FRAME_BYTES = 1024 * 1024;
 const MAX_STREAM_BYTES = 250 * 1024 * 1024;
 
 export async function handleEdge(request, stub, ctx) {
@@ -48,8 +49,7 @@ export async function handleEdge(request, stub, ctx) {
   };
   const onMessage = async (event) => {
     if (closed) return;
-    if (!(event.data instanceof ArrayBuffer) && !ArrayBuffer.isView(event.data)) throw new InputError('Binary WebSocket only');
-    const chunk = new Uint8Array(event.data);
+    const chunk = await binaryWebSocketFrame(event.data, MAX_FRAME_BYTES);
     bytes += chunk.byteLength;
     if (bytes > MAX_STREAM_BYTES) throw new InputError('Connection limit');
     if (initialized) { await writer.write(chunk); return; }
@@ -75,7 +75,11 @@ export async function handleEdge(request, stub, ctx) {
     ctx.waitUntil(readUpstream());
   };
   server.addEventListener('message', (event) => {
-    queue = queue.then(() => onMessage(event)).catch(() => close(1008, 'Connection refused'));
+    queue = queue.then(() => onMessage(event)).catch((err) => {
+      if (err instanceof InputError && err.message === 'Binary WebSocket only') return close(1003, 'Binary frame required');
+      if (err instanceof InputError && err.message === 'Frame too large') return close(1009, 'Frame too large');
+      close(1008, 'Connection refused');
+    });
   });
   server.addEventListener('close', () => close());
   server.addEventListener('error', () => close(1011, 'Connection error'));

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_SETTINGS, DEFAULT_PRODUCTS, InputError, tomanPrice, publicCatalog, validateSettings, validateProduct, normalizeAiProposal, isSafeDestination, parseVlessHeader, vlessLinks } from '../shared/market.js';
+import { DEFAULT_SETTINGS, DEFAULT_PRODUCTS, InputError, tomanPrice, publicCatalog, validateSettings, validateProduct, normalizeAiProposal, isSafeDestination, parseVlessHeader, binaryWebSocketFrame, vlessLinks } from '../shared/market.js';
 
 const plan = { ...DEFAULT_PRODUCTS[1], features: [...DEFAULT_PRODUCTS[1].features] };
 
@@ -55,6 +55,15 @@ test('هدر VLESS: تکه‌تکه، TCP، دامنه و UUID درست تجزی
   assert.throws(() => parseVlessHeader(packet({ port: 22 })), InputError);
   assert.throws(() => parseVlessHeader(packet({ type: 1 })), InputError);
   assert.throws(() => parseVlessHeader(packet({ domain: 'host.local' })), InputError);
+});
+
+test('فریم‌های دودویی WebSocket در Worker به‌صورت Blob هم پذیرفته می‌شوند؛ متن و فریم بزرگ رد می‌شوند', async () => {
+  assert.deepEqual([...await binaryWebSocketFrame(new Blob([Uint8Array.from([0, 1, 2])]))], [0, 1, 2]);
+  assert.deepEqual([...await binaryWebSocketFrame(Uint8Array.from([3, 4]).buffer)], [3, 4]);
+  assert.deepEqual([...await binaryWebSocketFrame(Uint8Array.from([9, 6, 7, 9]).subarray(1, 3))], [6, 7]);
+  await assert.rejects(binaryWebSocketFrame('not-binary'), InputError);
+  await assert.rejects(binaryWebSocketFrame(new Blob([Uint8Array.from([1, 2, 3, 4])]), 3), InputError);
+  await assert.rejects(binaryWebSocketFrame(Uint8Array.from([1, 2, 3, 4]).buffer, 3), InputError);
 });
 
 test('اشتراک شامل چهار پروفایل با یک hostname واقعی است، نه سرورهای ساختگی', () => {

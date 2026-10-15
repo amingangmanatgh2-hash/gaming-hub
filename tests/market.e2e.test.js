@@ -98,20 +98,23 @@ test('فروشگاه: نصب، امنیت، قیمت، سفارش، اشتراک
     const loggedIn = await request('/login', 'POST', { password: 'StrongerPass456' });
     assert.equal(loggedIn.response.status, 200);
 
-    // Invalid UUID is rejected *before* any outbound TCP connection is opened.
-    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/edge`);
-    const closeCode = await new Promise((resolve, reject) => {
-      ws.once('open', () => {
-        const header = new Uint8Array(23 + 'github.com'.length);
-        header[0] = 0; crypto.getRandomValues(header.subarray(1, 17));
-        header[18] = 1; header[19] = 1; header[20] = 187; header[21] = 2; header[22] = 10;
-        header.set(new TextEncoder().encode('github.com'), 23);
-        ws.send(header);
-      });
-      ws.once('close', (code) => resolve(code));
-      ws.once('error', reject);
+    const edgeCloseCode = (frame) => new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${PORT}/edge`);
+      const timer = setTimeout(() => { ws.terminate(); reject(new Error('Edge socket timeout')); }, 10000);
+      ws.once('open', () => ws.send(frame));
+      ws.once('close', (code) => { clearTimeout(timer); resolve(code); });
+      ws.once('error', (error) => { clearTimeout(timer); reject(error); });
     });
-    assert.equal(closeCode, 1008);
+    // Wrangler/workerd delivers binary frames as Blob. Before the regression fix,
+    // every binary frame (even a valid VLESS header) was mistaken for text and
+    // closed as unsupported; a parsed header with bad credentials must be 1008.
+    const header = new Uint8Array(23 + 'github.com'.length);
+    header[0] = 0; crypto.getRandomValues(header.subarray(1, 17));
+    header[18] = 1; header[19] = 1; header[20] = 187; header[21] = 2; header[22] = 10;
+    header.set(new TextEncoder().encode('github.com'), 23);
+    assert.equal(await edgeCloseCode(header), 1008, 'invalid UUID rejected before outbound TCP');
+    assert.equal(await edgeCloseCode('not-binary'), 1003, 'text WebSocket frames not accepted');
+    assert.equal(await edgeCloseCode(new Uint8Array(1024 * 1024 + 1)), 1009, 'oversized frames rejected');
   } catch (error) {
     throw new Error(`${error.message}\nWrangler tail:\n${logs.slice(-2000)}`);
   } finally {

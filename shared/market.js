@@ -136,6 +136,20 @@ export function isSafeDestination(host, port) {
   return !['localhost', 'metadata.google.internal'].includes(domain);
 }
 
+// Binary frames can arrive as Blob in workerd (including local Wrangler), or as
+// ArrayBuffer/typed arrays in other WebSocket runtimes. Never coerce text frames.
+export async function binaryWebSocketFrame(data, maxBytes = 1024 * 1024) {
+  let chunk;
+  if (data instanceof Blob) {
+    if (data.size > maxBytes) throw new InputError('Frame too large');
+    chunk = new Uint8Array(await data.arrayBuffer());
+  } else if (data instanceof ArrayBuffer) chunk = new Uint8Array(data);
+  else if (ArrayBuffer.isView(data)) chunk = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  else throw new InputError('Binary WebSocket only');
+  if (chunk.byteLength > maxBytes) throw new InputError('Frame too large');
+  return chunk;
+}
+
 export function parseVlessHeader(bytes) {
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   if (data.length < 18) return null;
