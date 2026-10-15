@@ -1,0 +1,85 @@
+name: Build PHANTOM OPS X (game tests + Android launcher APK)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['arena/62b3106c-gaming-hub']
+    paths:
+      - 'phantom-ops-x/**'
+      - '.github/workflows/phantom-apk.yml'
+
+jobs:
+  test-game:
+    name: Game logic tests (Node)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Unit tests (profiles, economy, mod engine, launcher)
+        run: node --test phantom-ops-x/tests/*.test.js
+      - name: Regenerate + verify update manifest hashes
+        working-directory: phantom-ops-x
+        run: |
+          node tools/gen-manifest.mjs
+          node -e "const m=require('./app/update-manifest.json'); const n=Object.keys(m.files).length; console.log('manifest files:', n); if(n<10) process.exit(1)"
+
+  android:
+    name: Android installable debug APK
+    needs: test-game
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Use preinstalled Android SDK (download only if absent)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms"
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+      - name: Build launcher APK (Gradle bundles phantom-ops-x/app as assets)
+        working-directory: phantom-ops-x/launcher-android
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon 2>&1 | tee /tmp/phantom-gradle.log || {
+            echo "::error::$(tail -n 25 /tmp/phantom-gradle.log | tr '\n' ' ')"
+            exit 1
+          }
+      - name: Verify APK signature, manifest and bundled game
+        run: |
+          APK=phantom-ops-x/launcher-android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 3
+          python3 - "$APK" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          needed = ['assets/game/index.html', 'assets/game/js/game.js', 'assets/game/js/vendor/three.module.min.js', 'assets/game/update-manifest.json']
+          missing = [n for n in needed if n not in names]
+          print('APK entries:', len(names))
+          if missing:
+              print('MISSING from APK:', missing); sys.exit(1)
+          print('Game bundle present inside APK ✔')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhantomOpsX-Android-debug-APK
+          path: phantom-ops-x/launcher-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload web bundle (playable in any modern browser)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhantomOpsX-web-bundle
+          path: phantom-ops-x/app
+          if-no-files-found: error
+          retention-days: 14

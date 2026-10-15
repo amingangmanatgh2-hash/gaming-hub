@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="phantom">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>PHANTOM OPS X — Maximum Freedom FPS Lab</title>
+<meta name="theme-color" content="#0a0e1a">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{ "imports": { "three": "./js/vendor/three.module.min.js" } }</script>
+</head>
+<body>
+
+<!-- ============ LAUNCHER SCREEN ============ -->
+<section id="launcherScreen" class="screen">
+  <div class="launcher-card">
+    <div class="logo">PHANTOM<span>OPS X</span></div>
+    <p class="tagline">MAXIMUM FREEDOM FPS LAB — standalone &amp; offline</p>
+    <div class="ver-row"><span>Installed</span><b id="installedVer">1.0.0</b><span>Latest</span><b id="latestVer">—</b></div>
+    <div class="progress"><div id="launchProgress"></div></div>
+    <div id="launchLog" class="launch-log"></div>
+    <div class="btn-row">
+      <button id="btnPlayLauncher" class="btn primary big">▶ PLAY</button>
+      <button id="btnCheckUpdate" class="btn">⟳ Check updates</button>
+      <button id="btnRepair" class="btn warn">🛠 Repair</button>
+    </div>
+    <p class="fineprint">Independent experimental FPS. Not affiliated with Call of Duty. No official accounts, servers or purchases are touched.</p>
+  </div>
+</section>
+
+<!-- ============ ACCOUNT SCREEN ============ -->
+<section id="accountScreen" class="screen hidden">
+  <div class="panel-card">
+    <h2>👤 PHANTOM ACCOUNTS</h2>
+    <p class="muted">Local experimental profiles only — isolated inventory, progression &amp; settings per profile.</p>
+    <div id="accountList" class="account-list"></div>
+    <div class="btn-row">
+      <input id="newUsername" class="input" placeholder="New username…" maxlength="20">
+      <button id="btnCreateProfile" class="btn primary">Create</button>
+      <button id="btnGuest" class="btn">Guest mode</button>
+    </div>
+    <p id="accountError" class="error"></p>
+  </div>
+</section>
+
+<!-- ============ MAIN MENU ============ -->
+<section id="menuScreen" class="screen hidden">
+  <div class="menu-wrap">
+    <header class="menu-head">
+      <div class="logo small">PHANTOM<span>OPS X</span></div>
+      <div class="profile-chip" id="profileChip"></div>
+    </header>
+    <div class="menu-grid">
+      <div class="panel-card">
+        <h3>🎯 DEPLOY</h3>
+        <label>Map <select id="selMap" class="input"></select></label>
+        <label>Mode <select id="selMode" class="input"></select></label>
+        <label>Difficulty <select id="selDiff" class="input"></select></label>
+        <label>Primary <select id="selPrimary" class="input"></select></label>
+        <label>Secondary <select id="selSecondary" class="input"></select></label>
+        <button id="btnDeploy" class="btn primary big">DEPLOY ▶</button>
+        <p class="muted small">WASD move · Mouse aim · LMB fire · RMB ADS · R reload · 1/2/Q weapons · Shift sprint · Space jump · C descend (fly)</p>
+      </div>
+      <div class="panel-card">
+        <h3>⚡ LAB</h3>
+        <button class="btn block" data-open-menu="armory">🔫 Mythic Armory X</button>
+        <button class="btn block" data-open-menu="inventory">💰 Unlimited Inventory Lab</button>
+        <button class="btn block" data-open-menu="aim">🎯 Modification Engine</button>
+        <button class="btn block" data-open-menu="visuals">🖥 Visuals &amp; HUD Editor</button>
+        <button class="btn block" data-open-menu="accounts">👤 Accounts &amp; Backups</button>
+        <button class="btn block" data-open-menu="configs">💾 Saved Configurations</button>
+        <div id="menuStats" class="menu-stats"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GAME ============ -->
+<div id="gameWrap" class="hidden">
+  <div id="hud" class="hidden">
+    <div id="crosshair"></div>
+    <div id="hitmarker">✕</div>
+    <div id="scope"></div>
+    <div id="hurt"></div>
+    <div class="hud-el hud-health" data-hud="health">
+      <div class="hpbar"><div id="healthFill"></div></div>
+      <div id="healthText">100 HP</div>
+    </div>
+    <div class="hud-el hud-ammo" data-hud="ammo">
+      <div id="ammoText">30 / 180</div>
+      <div id="weaponText">PHANTOM-7</div>
+      <div id="reloadHint">RELOADING…</div>
+    </div>
+    <div class="hud-el hud-score" data-hud="score">
+      <div id="scoreText">0 — 0</div>
+      <div id="timerText">5:00</div>
+    </div>
+    <div class="hud-el hud-radar" data-hud="radar" id="radarWrap">
+      <canvas id="radar" width="132" height="132"></canvas>
+      <div class="radar-label">TRAINING RADAR</div>
+    </div>
+    <div class="hud-el hud-fps" data-hud="fps">
+      <div id="fpsCounter">60 FPS</div>
+      <div id="perfWrap"><canvas id="perfCanvas" width="150" height="46"></canvas></div>
+    </div>
+    <div id="killfeed"></div>
+    <div id="damageLayer"></div>
+    <div id="tagLayer"></div>
+    <div id="respawn"><div id="respawnText">Eliminated</div></div>
+  </div>
+
+  <!-- touch controls -->
+  <div id="touchUI" class="hidden">
+    <div id="joyBase"><div id="joyStick"></div></div>
+    <div class="touch-btns">
+      <button id="btnFire" class="tbtn fire">FIRE</button>
+      <button id="btnAds" class="tbtn">ADS</button>
+      <button id="btnJump" class="tbtn">JUMP</button>
+      <button id="btnReloadT" class="tbtn">RLD</button>
+      <button id="btnSwap" class="tbtn">SWAP</button>
+    </div>
+    <div id="flyControls">
+      <button id="btnFlyUp" class="tbtn">▲</button>
+      <button id="btnFlyDown" class="tbtn">▼</button>
+    </div>
+  </div>
+
+  <div id="pauseOverlay" class="overlay hidden">
+    <div class="panel-card">
+      <h2>⏸ PAUSED</h2>
+      <button id="btnResume" class="btn primary block">Resume</button>
+      <button id="btnPauseMenu" class="btn block" data-open-menu="aim">Phantom Menu</button>
+      <button id="btnQuitMatch" class="btn warn block">Quit match</button>
+    </div>
+  </div>
+
+  <div id="endOverlay" class="overlay hidden">
+    <div class="panel-card">
+      <h2 id="endTitle">VICTORY</h2>
+      <div id="endStats"></div>
+      <button id="btnEndMenu" class="btn primary block">Back to menu</button>
+    </div>
+  </div>
+</div>
+
+<button id="btnPhantom" class="hidden">⚡ PHANTOM</button>
+
+<!-- ============ FLOATING PHANTOM MENU ============ -->
+<div id="phantomMenu" class="hidden">
+  <div id="pmHeader">
+    <span class="pm-title">⚡ PHANTOM OPS X</span>
+    <input id="pmSearch" placeholder="Search modules…">
+    <button id="pmMin" class="pm-win-btn">—</button>
+    <button id="pmClose" class="pm-win-btn">✕</button>
+  </div>
+  <div id="pmTabs"></div>
+  <div id="pmBody"></div>
+  <div id="pmResize"></div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

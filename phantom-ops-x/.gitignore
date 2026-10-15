@@ -1,0 +1,6 @@
+node_modules/
+launcher-android/app/src/main/assets/game/
+launcher-android/app/build/
+launcher-android/build/
+launcher-android/.gradle/
+*.apk
