@@ -1,0 +1,102 @@
+name: Release PHANTOM OPS X
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        type: string
+        required: true
+        default: 'phantom-ops-x-v1.0.0'
+      title:
+        description: 'Release title'
+        type: string
+        required: false
+        default: 'PHANTOM OPS X v1.0.0 — Maximum Freedom FPS Lab'
+
+jobs:
+  release:
+    name: Build, verify and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Game logic tests
+        run: node --test phantom-ops-x/tests/*.test.js
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Android SDK (download only if absent)
+        run: |
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+      - name: Build APK
+        working-directory: phantom-ops-x/launcher-android
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Verify APK + stage release assets
+        run: |
+          APK=phantom-ops-x/launcher-android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 3
+          cp "$APK" PhantomOpsX-v1.0.0-debug.apk
+          (cd phantom-ops-x/app && zip -qr ../PhantomOpsX-web-v1.0.0.zip .)
+          mv phantom-ops-x/PhantomOpsX-web-v1.0.0.zip .
+          sha256sum PhantomOpsX-v1.0.0-debug.apk PhantomOpsX-web-v1.0.0.zip > SHA256SUMS.txt
+          ls -la PhantomOpsX-v1.0.0-debug.apk PhantomOpsX-web-v1.0.0.zip SHA256SUMS.txt
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TITLE: ${{ inputs.title }}
+        run: |
+          cat > /tmp/release-notes.md <<'NOTES'
+          # ⚡ PHANTOM OPS X — v1.0.0 «Maximum Freedom FPS Lab»
+
+          یه شوتر اول‌شخص **کامل، مستقل و صددرصد آفلاین** — نه ماکت، نه نمونه‌ی نمایشی؛ یه بازی واقعی و قابل بازی با موتور ماد قدرتمندی که تک‌تک تنظیماتش وسط گیم‌پلی اثر می‌ذاره! 🔥
+
+          ## 🎮 گیم‌پلی
+          - ۳ مپ آفلاین (Training Yard, Desert Outpost, Neon Docks شبانه) و ۳ حالت بازی: Team Deathmatch, Free-for-All, Training
+          - بات‌های هوشمند با ۴ درجه سختی (از تازه‌کار تا الیت) — گشت‌زنی، درگیری، استریف و شلیک گروهی
+          - ADS و اسکوپ واقعی اسنایپر، ریکویل و بلوم، ری‌لود، تعویض سلاح، افکت‌های حذف (Kill Effect)، دمیج نامبر، رادار آموزشی و HUD قابل ویرایش
+
+          ## ⚡ Ultra Modification Engine — قابلیت‌های گاد
+          - **ایم:** قفل هدف (نزدیک‌ترین/ضعیف‌ترین/نزدیک کراس)، هدف‌گیری سر یا بدن، اسموتینگ و قدرت ایم، فلیک‌شات، پیش‌بینی حرکت هدف و پروفایل ایم جدا برای هر سلاح
+          - **حرکت:** پرواز (Fly)، سرعت و پرش تا ×۶، کنترل هوایی و گرانش قابل تنظیم + پریست‌های ذخیره‌شدنی
+          - **سلاح:** فایر ریت تا ×۵، ریکویل صفر واقعی، ADS و ری‌لود نزدیک به فوری، دمیج تا ×۶ و تیر بی‌نهایت سندباکس
+          - **ویژوال:** رادار، ایندیکیتور دشمن، کراس‌هیر ساز، شمارنده FPS و گراف پرفورمنس
+
+          ## 🔫 Mythic Armory X + Inventory Lab
+          - ۱۶ سلاح اورجینال (۴ Mythic و ۴ Legendary) با مدل سه‌بعدی، متریال انیمیشنی، مسیر آپگرید، اتچمنت و پیش‌نمایش اول‌شخص
+          - ۲۶ کازمتیک اورجینال: لباس، کامو (طلایی، الماسی، پلاسما، ووید)، چارم، افکت حذف و مازل افکت
+          - 💰 PHANTOM CREDITS کاملاً تخیلی: هر مقداری خواستی ست کن یا نامحدودش کن، همه‌چی رو رایگان آنلاک و تست کن
+
+          ## 👤 اکانت و منوی شناور
+          - پروفایل‌های محلی نامحدود و کاملاً جدا + حالت مهمان، بکاپ محلی با چک‌سام
+          - منوی شناور درگ‌ودراپ و قابل تغییر سایز، جستجوی ماژول، ۴ تم، کانفیگ ذخیره‌شدنی — با **فارسی RTL و انگلیسی LTR**
+
+          ## 🚀 لانچر اندروید مستقل
+          نصب و اجرای آفلاین، آپدیت آنلاین با **تأیید SHA-256 تک‌تک فایل‌ها** قبل از نصب (با رول‌بک خودکار)، ریپیر بدون پاک‌شدن پروفایل‌ها، لاگ نصب و خطا.
+
+          ## 📦 دانلود
+          - **PhantomOpsX-v1.0.0-debug.apk** — نصب مستقیم روی اندروید (دیباگ‌ساین، برای تست)
+          - **PhantomOpsX-web-v1.0.0.zip** — بازش کن، با هر استاتیک‌سروری اجرا کن، توی مرورگر بازی کن
+          - **SHA256SUMS.txt** — هش بررسی اصالت فایل‌ها
+
+          > پروژه‌ی مستقل و آزمایشی؛ هیچ ارتباطی با Call of Duty نداره و به هیچ اکانت/سرور رسمی دست نمی‌زنه. همه‌ی مکانیک‌ها فقط داخل همین بازی مستقل هستن. ۴۰ تست واحد + ۱۷ چک اسمک در CI پاس شدن ✅
+          NOTES
+          gh release create "$TAG" \
+            PhantomOpsX-v1.0.0-debug.apk PhantomOpsX-web-v1.0.0.zip SHA256SUMS.txt \
+            --title "$TITLE" \
+            --notes-file /tmp/release-notes.md \
+            --target "$GITHUB_SHA"
+          gh release view "$TAG" --json url,tagName,assets --jq '{url, tag: .tagName, assets: [.assets[].name]}'

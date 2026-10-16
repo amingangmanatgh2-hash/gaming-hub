@@ -1,0 +1,20 @@
+{
+ "app": "phantom-ops-x",
+ "version": "1.0.0",
+ "generatedAt": "2026-10-15T16:32:00.945Z",
+ "files": {
+  "css/style.css": "9bd139ed366edeeec1b8384d201c2751d817ba157ba31553b21056393799b813",
+  "index.html": "cb01680172fdabdea05446ff514f4eb4b09b1666c600c1aca896ddf31e6dec27",
+  "js/audio.js": "c1bcb165bae144b1678a233a892abb354457bbad298a5cdad2b2e7c552bb1558",
+  "js/catalog.js": "d4f3ace798a2717c0741bd71aa9e44ecb1380f477212fa64fa3a278b1f17a371",
+  "js/economy.js": "46c43916a0c5196e32ba6761f36cf507030dfd80b30d02fb02ae35cc83d56d48",
+  "js/game.js": "4f76cb7c24371f1b7a03876d21f84183fc8551a6469882b179d322ffb996bc3f",
+  "js/launcher-core.js": "e49bd3ffb61365c4da956ff186305dc8901905a30d984360bb082a5c39215c02",
+  "js/main.js": "57c6e1602de2d83be98d7d5850ec75e23c7caccf8488bfae5d805a99a5a0f872",
+  "js/menu.js": "3f33fce39a36b4de0d342278d004202fd7d534e1f06602fb8e7b2f54de9467a1",
+  "js/model.js": "8274e4cb02fa0a6750e89d9adc36770bc6da2779b7facd3c4d463104a2c171e8",
+  "js/mods.js": "60536b4d9c08baee192373c2090b19157dfd987de21f4c8e948a69999c88251b",
+  "js/profiles.js": "80d3c2dad0424d6da6bf23e01b0c6cf9b97eb82d26490df2bb840797df88c04d",
+  "js/vendor/three.module.min.js": "3e690ac7d180b0aadf0891bea39eec643e29e2d3e75c99b18689518665f69ba6"
+ }
+}

@@ -5,7 +5,14 @@
   "type": "module",
   "description": "مدار | Madar — فروشگاه کانفیگ TCP روی Cloudflare Workers، پنل مدیریت و اپ‌های همراه",
   "license": "MIT",
-  "keywords": ["cloudflare", "workers", "durable-objects", "vless", "persian", "storefront"],
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "durable-objects",
+    "vless",
+    "persian",
+    "storefront"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "icons": "node scripts/icons.mjs",
@@ -17,7 +24,8 @@
     "deploy:pages": "node scripts/build.mjs && wrangler pages deploy public --project-name madar-connect",
     "pages:dev": "node scripts/build.mjs && wrangler pages dev public",
     "tail": "wrangler tail",
-    "clean": "node -e \"require('fs').rmSync('public/build',{recursive:true,force:true})\""
+    "clean": "node -e \"require('fs').rmSync('public/build',{recursive:true,force:true})\"",
+    "test:phantom": "node --test phantom-ops-x/tests/*.test.js"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
