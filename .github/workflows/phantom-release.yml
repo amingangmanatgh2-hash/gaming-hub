@@ -1,6 +1,8 @@
 name: Release PHANTOM OPS X
 
 on:
+  push:
+    tags: ['phantom-ops-x-v*']
   workflow_dispatch:
     inputs:
       tag:
@@ -56,8 +58,8 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
-          TITLE: ${{ inputs.title }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          TITLE: ${{ inputs.title || 'PHANTOM OPS X — Maximum Freedom FPS Lab' }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
           # ⚡ PHANTOM OPS X — v1.0.0 «Maximum Freedom FPS Lab»
