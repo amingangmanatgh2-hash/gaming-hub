@@ -36,6 +36,7 @@ public final class CompanionLink {
     }
     public static void queue(String action) { queued=action; queuedAt=now(); status="Queued; focus game within 10 seconds"; }
     public static void stop(MinecraftClient mc) {
+        try { Files.deleteIfExists(ROOT.resolve("command.json")); } catch(IOException ignored) {}
         queued=""; SpecialClient.COLLECTOR.stop(mc,"Stopped by user"); SpecialClient.BRIDGE.stop(mc,"Stopped by user");
         status="Stopped";
     }

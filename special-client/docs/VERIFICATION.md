@@ -41,3 +41,20 @@ verify each multiplier on both buttons, idle/held-input behavior, F8 cancellatio
 menu/focus/disconnect cleanup, one-block and 8-block routes, rejection of diagonal/
 height-changing routes, missing blocks, obstacles, damage, world border, LAN and
 server rejection. Never test experimental movement over valuable worlds/void.
+
+## 1.2.0-alpha.3 companion/collector update
+
+Local Python regression: **148 passed, 1 skipped** (Windows DPAPI integration is
+skipped on Linux). New tests cover HTTPS endpoint forms, endpoint-bound keys,
+redacted HTTP failures, tool whitelist, pending STOP override, session/stale commands
+and one-shot chat IPC. Java adds three bounded grid-planner tests (13 total Java
+unit tests across the client). CI build at `4000a24` compiled/tested Java successfully
+and ran Python tests on both OSes; the Qt navigation smoke found a missing Companion
+page-title mapping, subsequently fixed. Release CI must pass against the exact
+publication commit; source alone is not proof of published success.
+
+Not verified live: paid-provider requests (no user key), speech engines, game chat
+IPC in a running Minecraft session, item scan/navigation/pickup/return or wool gap
+bridging. The collector is a bounded private-world experiment, not a general
+Bedwars/server automation system. Test in a disposable flat world with a safe floor,
+first without gaps, then a single gap with wool and an emergency stop ready.

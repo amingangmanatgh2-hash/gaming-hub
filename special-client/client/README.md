@@ -1,4 +1,4 @@
-# SPECIAL CLIENT 1.1 — Fabric module studio
+# SPECIAL CLIENT 1.2 — Fabric module studio
 
 Target **Minecraft 1.20.1 + Fabric Loader 0.15.11+ + Fabric API 0.92.2**,
 Java 17, Gradle 8.6. This jar does not support other game versions or loaders.
@@ -10,13 +10,13 @@ gradle --no-daemon build
 ```
 
 No wrapper binary is checked in; CI provisions Gradle 8.6. Install the remapped
-`build/libs/special-client-1.1.0-alpha.2.jar`, not a sources/dev jar. Remove the
+`build/libs/special-client-1.2.0-alpha.3.jar`, not a sources/dev jar. Remove the
 previous SPECIAL CLIENT jar first (one copy only). Put it and matching Fabric API
 in your selected Fabric 1.20.1 game directory's `mods` folder. The Windows launcher
 installer does not automatically install this jar or Fabric API.
 
 ```sh
-special-client-cli --game-dir "C:/Games/Special" install-client-mod build/libs/special-client-1.1.0-alpha.2.jar --minecraft 1.20.1 --loader fabric
+special-client-cli --game-dir "C:/Games/Special" install-client-mod build/libs/special-client-1.2.0-alpha.3.jar --minecraft 1.20.1 --loader fabric
 ```
 
 ## Module studio
@@ -93,3 +93,12 @@ Java/JUnit and Windows Qt packaging are built in CI. Check the **specific run** 
 success; Minecraft runtime, mixin injection and movement/input behavior require
 manual testing in-game before calling this stable. None of the automated-input
 features are represented as universally server-legal or “ban safe”.
+
+## Companion / resource task update
+
+Right Shift > Companion opens private launcher-backed chat and explicit emerald/diamond
+collection buttons. See [Companion setup and exact limits](../docs/COMPANION.md).
+Collection is private-singleplayer, loaded visible drops, flat bounded routes only;
+optional hotbar wool bridging is OFF by default. It is not universal server/map
+automation, screenshot vision or an anti-cheat evasion feature. API chat is optional
+and paid-provider/movement/speech behavior needs manual testing.

@@ -38,6 +38,8 @@ class CompanionError(RuntimeError):
 def endpoint(value: str) -> str:
     value = value.strip().rstrip("/")
     try:
+        if any(c.isspace() for c in value):
+            raise ValueError()
         p = urlsplit(value)
         if p.scheme != "https" or not p.hostname or p.username or p.password or p.query or p.fragment:
             raise ValueError()
@@ -91,6 +93,8 @@ class SecretStore:
 
     def get(self, base: str) -> str:
         try:
+            if self.path.stat().st_size > 16 * 1024:
+                return ""
             data = json.loads(unprotect(self.path.read_bytes()))
             if data.get("endpoint") == endpoint(base):
                 return str(data.get("key", ""))

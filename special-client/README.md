@@ -1,6 +1,6 @@
 # SPECIAL CLIENT
 
-Current experimental update: **1.1.0-alpha.2** — see [release notes](docs/RELEASE_NOTES.md).
+Current experimental update: **1.2.0-alpha.3** — see [release notes](docs/RELEASE_NOTES.md).
 
 Minecraft Java Edition launcher source and an experimental Fabric client mod.
 **Not an official Minecraft product; not affiliated with Mojang or Microsoft.**
@@ -11,7 +11,7 @@ Minecraft Java Edition launcher source and an experimental Fabric client mod.
   mod manager, profiles, launcher-side cape generation/preview, performance
   dashboard, offline readiness and repair are included.
 - Fabric mod source targets **1.20.1 only**: module studio, physical-click bursts, ten bridge lessons, private-singleplayer
-  flat bridge practice, projectile estimate and overhead warning. See [client documentation](client/README.md) for exact limits.
+  flat bridge practice, optional BYOK companion and bounded private-world collection. See [client documentation](client/README.md) for exact limits.
 - Windows PyInstaller/Inno Setup and Fabric builds run in GitHub Actions. Alpha.1
   successfully built Windows packages and the Fabric jar, and rendered all launcher
   pages in an offscreen Qt smoke test. Each new update still requires its own green
@@ -100,3 +100,6 @@ Updater payloads use hashes over HTTPS, **not publisher signatures**. Use only
 trusted update manifests/endpoints. No public release/update hosting is provisioned.
 Third-party mods retain their own licenses; review them before redistributing.
 No FPS gains are guaranteed; backups, server rules and compatibility remain important.
+
+See [Companion setup, privacy and task limits](docs/COMPANION.md). AI chat is optional;
+no API key is required to launch Minecraft or use local practice controls.

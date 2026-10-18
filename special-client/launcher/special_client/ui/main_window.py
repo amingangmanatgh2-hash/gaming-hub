@@ -187,7 +187,7 @@ class MainWindow(QWidget):
         self.page_title.setText(
             {"play": "Play", "mods": "Mod Manager", "performance": "Performance",
              "capes": "SPECIAL CAPES", "profiles": "Profiles",
-             "settings": "Settings", "logs": "Logs & Diagnostics"}[key])
+             "settings": "Settings", "companion": "AI Companion", "logs": "Logs & Diagnostics"}[key])
 
         old_idx = self.stack.currentIndex()
         new_idx = self.stack.indexOf(self._pages[key])

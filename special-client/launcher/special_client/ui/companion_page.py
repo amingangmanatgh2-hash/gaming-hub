@@ -114,7 +114,12 @@ class CompanionPage(QWidget):
             self.status.setText("Could not save. Check HTTPS endpoint, model and key. No key was printed.")
 
     def _delete_key(self):
-        self.secrets.clear()
+        try:
+            self.secrets.clear()
+        except OSError:
+            self.status.setText("Cannot delete the saved key; check file permissions.")
+            return
+        self._clear()
         self.key.clear()
         self.status.setText("Saved key deleted. External chat needs a new key.")
 
@@ -166,6 +171,8 @@ class CompanionPage(QWidget):
         def work():
             try:
                 result = ChatClient().ask(base, model, key, messages)
+            except CompanionError as exc:
+                result = {"text": str(exc), "actions": []}
             except Exception:
                 result = {"text": "Chat failed. Check API settings, connectivity, model and quota. No action executed.", "actions": []}
             self.completed.emit((result, context))
