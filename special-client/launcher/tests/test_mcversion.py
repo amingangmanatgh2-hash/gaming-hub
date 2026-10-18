@@ -57,14 +57,14 @@ class TestLibraries:
         v = version_from_raw(version_1_20_1)
         lib = v.libraries[0]
         assert lib.name == "org.testfw:core-lib:1.0.0"
-        assert str(lib.maven_path()) == \
+        assert lib.maven_path().as_posix() == \
             "org/testfw/core-lib/1.0.0/core-lib-1.0.0.jar"
 
     def test_classifier_path(self, version_1_20_1):
         v = version_from_raw(version_1_20_1)
         lib = v.libraries[0]
         p = lib.classifier_path("natives-windows-x86_64")
-        assert str(p) == \
+        assert p.as_posix() == \
             "org/testfw/core-lib/1.0.0/core-lib-1.0.0-natives-windows-x86_64.jar"
 
     def test_native_classifier_selection(self, version_1_20_1):

@@ -40,16 +40,16 @@ jobs:
       - name: Tests and lint
         working-directory: special-client/launcher
         run: |
-          python -m pytest tests -v
+          python ../tools/ci_run.py python -m pytest tests -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m pyflakes special_client tests
+          python ../tools/ci_run.py python -m pyflakes special_client tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Generate assets and package launcher
         working-directory: special-client
         run: |
           python tools/make_assets.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pyinstaller packaging/special_client.spec --noconfirm
+          python tools/ci_run.py pyinstaller packaging/special_client.spec --noconfirm
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "dist/SPECIAL_CLIENT/SPECIAL_CLIENT_CLI.exe" --help
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -60,7 +60,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw 'Inno Setup 6 not installed on runner' }
-          & $iscc packaging/innosetup/SPECIAL_CLIENT.iss
+          python tools/ci_run.py $iscc packaging/innosetup/SPECIAL_CLIENT.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-FileHash dist/SPECIAL_CLIENT_Setup.exe -Algorithm SHA256 | Format-List | Out-File dist/SHA256.txt
       - uses: actions/upload-artifact@v4
