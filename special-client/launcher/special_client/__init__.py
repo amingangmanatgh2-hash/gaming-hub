@@ -9,7 +9,7 @@ Package layout
 
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 APP_NAME = "SPECIAL CLIENT"
 APP_ID = "special-client"
 BRAND = "SpecialClient"

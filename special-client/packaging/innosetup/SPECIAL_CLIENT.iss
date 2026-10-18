@@ -1,7 +1,7 @@
 [Setup]
 AppId={{8F1C2A64-5B7E-4E2A-9C3D-15EEC1AACC10}
 AppName=SPECIAL CLIENT
-AppVersion=1.0.0
+AppVersion=1.1.0
 DefaultDirName={localappdata}\Programs\SPECIAL CLIENT
 DefaultGroupName=SPECIAL CLIENT
 PrivilegesRequired=lowest

@@ -1,5 +1,7 @@
 # SPECIAL CLIENT
 
+Current experimental update: **1.1.0-alpha.2** — see [release notes](docs/RELEASE_NOTES.md).
+
 Minecraft Java Edition launcher source and an experimental Fabric client mod.
 **Not an official Minecraft product; not affiliated with Mojang or Microsoft.**
 
@@ -8,12 +10,12 @@ Minecraft Java Edition launcher source and an experimental Fabric client mod.
 - Python launcher core and regression tests are implemented. Qt GUI sources,
   mod manager, profiles, launcher-side cape generation/preview, performance
   dashboard, offline readiness and repair are included.
-- Fabric mod source targets **1.20.1 only**: HUD/menu, projectile estimate,
-  overhead warning. See [client documentation](client/README.md) for exact limits.
-- Windows PyInstaller/Inno Setup sources and a GitHub Actions build workflow are
-  included. **No verified EXE, installer, compiled mod or Windows smoke test is
-  shipped from this Linux development sandbox.** Check CI results and test on
-  Windows before distributing. GUI runtime was not tested here (missing GL libs).
+- Fabric mod source targets **1.20.1 only**: module studio, physical-click bursts, ten bridge lessons, private-singleplayer
+  flat bridge practice, projectile estimate and overhead warning. See [client documentation](client/README.md) for exact limits.
+- Windows PyInstaller/Inno Setup and Fabric builds run in GitHub Actions. Alpha.1
+  successfully built Windows packages and the Fabric jar, and rendered all launcher
+  pages in an offscreen Qt smoke test. Each new update still requires its own green
+  CI run. **Minecraft runtime/mixin/input/bridge behavior is not manually validated.**
 - Cape images/registry/preview do **not** currently render capes inside Minecraft.
   They are not official cosmetics and vanilla players will not see custom capes.
 - This is not yet a fully release-validated launcher/client. Do not interpret

@@ -29,7 +29,7 @@ jobs:
           python ../tools/ci_run.py python -m pytest tests -v
       - name: Build and test Fabric mod
         working-directory: special-client/client
-        run: gradle --no-daemon build
+        run: python ../tools/ci_run.py gradle --no-daemon build
       - uses: actions/upload-artifact@v4
         with:
           name: SPECIAL_CLIENT_Fabric_1.20.1

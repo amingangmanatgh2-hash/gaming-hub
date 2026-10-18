@@ -1,67 +1,94 @@
-# SPECIAL CLIENT — Fabric client source
+# SPECIAL CLIENT 1.1 — Fabric module studio
 
 Target **Minecraft 1.20.1 + Fabric Loader 0.15.11+ + Fabric API 0.92.2**,
-Java 17, Gradle 8.6. This is not compatible with Forge/NeoForge/Quilt or other
-Minecraft versions merely because the launcher supports those loaders.
+Java 17, Gradle 8.6. This jar does not support other game versions or loaders.
 
-## Build
-
-Install JDK 17 and Gradle 8.6, then in this directory run:
+## Build / install
 
 ```sh
 gradle --no-daemon build
 ```
 
-No Gradle wrapper binary is checked in. CI provisions the specified Gradle
-version explicitly. The remapped distributable is `build/libs/special-client-1.0.0.jar`
-(**not** the `-sources.jar` or development jar).
-Put this and the matching Fabric API jar in your Fabric 1.20.1 game directory's
-`mods` folder, or use the launcher's explicit local install command:
+No wrapper binary is checked in; CI provisions Gradle 8.6. Install the remapped
+`build/libs/special-client-1.1.0-alpha.2.jar`, not a sources/dev jar. Remove the
+previous SPECIAL CLIENT jar first (one copy only). Put it and matching Fabric API
+in your selected Fabric 1.20.1 game directory's `mods` folder. The Windows launcher
+installer does not automatically install this jar or Fabric API.
 
 ```sh
-special-client-cli --game-dir "C:/Games/Special" install-client-mod build/libs/special-client-1.0.0.jar --minecraft 1.20.1 --loader fabric
+special-client-cli --game-dir "C:/Games/Special" install-client-mod build/libs/special-client-1.1.0-alpha.2.jar --minecraft 1.20.1 --loader fabric
 ```
 
-The command checks metadata, rejects duplicate SPECIAL CLIENT copies, and atomically
-installs to `mods/special-client.jar`. Metadata validation is NOT a signature or
-proof of authenticity; only install jars you built or trust. Fabric/API installation
-is separate. There is no automatic download of an unpublished SPECIAL CLIENT jar.
+## Module studio
 
-## Controls and modules
+Right Shift opens a responsive dark sidebar/card menu with accent animation,
+search, categories (HUD, Visuals, Alerts, Input, Practice), toggles and separate
+left/right multiplier controls. Category changes keep the menu compact rather
+than putting every module in one overflowing list. Crosshair length is adjustable
+and accent color cycles through four palettes. Settings persist atomically in
+`config/specialclient.json`. Use Minecraft GUI scale to expose the full XYZ editor
+and lesson card on small displays. At smaller scales the coach HUD shows lesson
+steps. This is a redesign of the **in-game mod UI**, not a new launcher theme.
 
-Right Shift opens the vanilla-widget menu: category filters, module search,
-on/off controls, crosshair-length slider and four-color palette. Save/close writes
-`config/specialclient.json` with atomic replacement. Drag the top-left HUD while
-in the menu (start on its title outside the center panel). Use Minecraft's GUI
-scale if the panel does not fit. Extra keybindings for prediction/warning are
-initially unbound and can be set in Options > Controls. Vanilla's Accessibility
-Sprint Toggle remains available; this mod does not automate movement.
+## Physical-click bursts (off by default)
 
-- FPS, server tab-list latency, coordinates, facing and **reported vanilla range**.
-- Physical left/right click counts sampled once per rendered frame over 1 second.
-  Very short clicks between frames may be missed; this is not an autoclicker.
-- WASD/Space/Shift, armor durability and active effects.
-- Optional colored crosshair overlay (does not suppress the vanilla crosshair).
-- Optional projectile estimate: bow while drawing, pearl, snowball, egg, and
-  non-Riptide trident while charging. Air-drag/block-raycast simulation, up to 160
-  ticks in loaded chunks. A bearing square and block coordinates are drawn on the
-  HUD; **not a world-space impact decal**, not an entity-hit prediction.
-- Optional overhead warning: armed players holding a trident/crossbow/pearl or a
-  projectile in an upward 45-degree cone, radius 12 by default. Optional local
-  sound with cooldown. **Not a prediction of intent**, and can produce false alarms.
-- Once per second, frame-time/FPS/latency telemetry is written to
-  `special/config/game-stats.json` for the launcher.
+Input > Physical-click bursts; left/right separately cycle **1 / 2 / 4 / 8**.
+A physical GLFW PRESS starts one burst of `multiplier - 1` extra vanilla-bound
+key press requests; the original physical click stays unchanged. Holding a button
+never starts another burst. A new press replaces the old burst for that button,
+not an unbounded backlog. Extra requests are spaced 4 game ticks apart. This is
+**not continuous idle autoclicking**, but it DOES automate extra input and may be
+prohibited on multiplayer servers. It is not guaranteed to register 8 attacks,
+placements or hits: vanilla cooldowns and server rules still apply.
 
-Projectile estimates ignore water, spread, entity collisions, crossbow shots,
-Riptide/enchantments and server plugins. Off-hand projectiles are not modeled.
-No camera adjustment, clicks, attacks, movement or item use is injected. No custom
-packet hooks, reach changes or server-hit registration modifications exist.
-Follow server rules: some servers prohibit even informational overlays.
+- Works only for normal mouse-left attack / mouse-right use bindings.
+- Both buttons have independent pending counts and cooldowns.
+- Clears on menus, focus loss, pause, disconnect, death, disable and bridge practice.
+- **F8** disables bursts and stops bridge practice; re-enable deliberately in Input.
+- The physical CPS HUD still counts sampled physical presses, not synthetic requests.
+- No custom packet hooks or damage/reach/cooldown modifications.
 
-## Verification status
+## Bridge lessons and singleplayer trainer
 
-Java compilation, JUnit execution and Minecraft runtime testing were **not available
-in the development sandbox** (no JDK / Fabric dependency access). The GitHub workflow
-builds/tests the mod, but its result must be checked before treating the jar as
-release-ready. Planned richer features (animations, arbitrary color picker,
-per-module hotkeys/HUD anchors, cape rendering) are not implemented here.
+Practice has **10 lessons x 5 steps**: Sneak, Diagonal Sneak, Ninja/Speed,
+Breezily, Witchly, Godbridge, Moonwalk, Telly, Jump/Staircase, Hold-use/“0 CPS”.
+Select a lesson and step with the menu buttons. Enable Lesson coach overlay to
+show instructions while practicing. These are instruction pages, **not ten
+implemented automatic bridge styles**. [Persian guide](../docs/BRIDGE_GUIDE_FA.md).
+
+Automatic practice is deliberately limited to **private integrated singleplayer**:
+LAN-published worlds and remote servers are rejected. It is a **flat, straight,
+sneak bridge only**, not automatic godbridge/telly/diagonal/staircase.
+
+1. Back up worlds; use a safe practice area, ideally creative over a disposable floor.
+2. Stand centered on a full cube, on ground (not flying), holding safe full cubes.
+3. Optionally set destination support-block XYZ in Practice, or bind Select bridge
+   destination in Options > Controls and look at a block within normal reach.
+4. Destination must be at the same support Y and on one X/Z axis, 1–32 blocks away.
+   Without a destination, an 8-block route is chosen backward from your facing.
+   XYZ waypoints may lie in air, but placement still requires actual supporting faces.
+5. Click Start straight practice, or bind Start/stop practice in Controls. The
+   trainer rotates the view toward block faces, sneaks backward and uses vanilla
+   `interactBlock` only after a real, in-reach block raycast; it waits for confirmation.
+6. **F8 or physical WASD/Space stops.** Menus, focus loss, pause, flight, missing
+   blocks/support, height/lateral drift, obstructions, rejection and timeout stop it.
+
+This is experimental: compile/unit tests do not prove movement safety. No fall
+prevention guarantee. No arbitrary air placement, teleport, freecam or pathfinding.
+A destination is a waypoint, not permission to spawn floating blocks. Placement
+uses ordinary vanilla interactions (which naturally produce vanilla traffic), not
+packet interception/spoofing. Opening to LAN while active stops practice next tick.
+
+## Existing modules / limits
+
+FPS, latency, coordinates, facing, vanilla range, physical CPS, keystrokes,
+armor/effects, crosshair overlay, projectile estimate and overhead warnings remain.
+Projectile prediction ignores fluids/entity hits/spread/server plugins and shows a
+bearing square, not a world-space decal. Overhead warnings detect equipment/position,
+not intent. Cape artwork remains launcher-only. Stats bridge still writes
+`special/config/game-stats.json` once per second.
+
+Java/JUnit and Windows Qt packaging are built in CI. Check the **specific run** for
+success; Minecraft runtime, mixin injection and movement/input behavior require
+manual testing in-game before calling this stable. None of the automated-input
+features are represented as universally server-legal or “ban safe”.

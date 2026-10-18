@@ -84,6 +84,10 @@ public final class ModScreen extends Screen {
         button("Step >", contentX + half + 6, row, half, () -> { c.lessonStep = (c.lessonStep + 1) % 5; rebuild(); }); row += 23;
         // Lesson text is rendered in the remaining card; controls stay compact at high GUI scales.
         if (ph >= 340) row += 78;
+        if (ph < 232) {
+            button("Start straight practice", contentX, row, contentW, () -> { close(); SpecialClient.BRIDGE.start(client); });
+            return;
+        }
         int fieldW = (contentW - 12) / 3;
         BlockPos dest = SpecialClient.BRIDGE.destination();
         String[] defaults = dest == null ? new String[]{"X", "Y", "Z"} : new String[]{"" + dest.getX(), "" + dest.getY(), "" + dest.getZ()};
