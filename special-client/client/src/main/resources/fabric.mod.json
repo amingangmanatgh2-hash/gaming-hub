@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "specialclient",
+  "version": "1.0.0",
+  "name": "SPECIAL CLIENT",
+  "description": "Local HUD, projectile estimate and overhead warning. No combat automation.",
+  "environment": "client",
+  "entrypoints": {"client": ["dev.specialclient.SpecialClient"]},
+  "license": "MIT",
+  "depends": {"fabricloader": ">=0.15.11", "minecraft": "1.20.1", "java": ">=17", "fabric-api": "*"}
+}

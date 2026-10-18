@@ -1,0 +1,129 @@
+{
+  "id": "1.20.1",
+  "type": "release",
+  "mainClass": "net.minecraft.client.main.Main",
+  "releaseTime": "2023-06-12T11:00:00+00:00",
+  "time": "2023-06-12T11:00:00+00:00",
+  "arguments": {
+    "game": [
+      "--username", "${auth_player_name}",
+      "--version", "${version_name}",
+      "--gameDir", "${game_directory}",
+      "--assetsDir", "${game_assets}",
+      "--assetIndex", "${assets_index_name}",
+      "--uuid", "${auth_uuid}",
+      "--accessToken", "${auth_access_token}",
+      "--userType", "${user_type}",
+      "--versionType", "${version_type}",
+      "--clientId", "${clientid}",
+      "--xuid", "${auth_xuid}"
+    ],
+    "jvm": [
+      {
+        "rules": [
+          {"action": "allow", "os": {"name": "windows"}},
+          {"action": "disallow", "os": {"name": "linux"}}
+        ],
+        "value": ["-Xss1M"]
+      },
+      "-Djava.library.path=${natives_directory}",
+      "-Dminecraft.launcher.brand=${launcher_name}",
+      "-Dminecraft.launcher.version=${launcher_version}",
+      "-cp", "${classpath}"
+    ]
+  },
+  "javaVersion": {"majorVersion": 17},
+  "libraries": [
+    {
+      "name": "org.testfw:core-lib:1.0.0",
+      "natives": {
+        "windows": "natives-windows-x86_64",
+        "linux": "natives-linux"
+      },
+      "extract": {"exclude": ["META-INF/"]},
+      "downloads": {
+        "artifact": {
+          "path": "org/testfw/core-lib/1.0.0/core-lib-1.0.0.jar",
+          "url": "__SERVER__/libs/core-lib-1.0.0.jar",
+          "sha1": "__SHA_core-lib-1.0.0.jar__",
+          "size": "__SIZE_core-lib-1.0.0.jar__"
+        },
+        "classifiers": {
+          "natives-windows-x86_64": {
+            "path": "org/testfw/core-lib/1.0.0/core-lib-1.0.0-natives-windows-x86_64.jar",
+            "url": "__SERVER__/libs/core-lib-natives-win.jar",
+            "sha1": "__SHA_core-lib-natives-win.jar__",
+            "size": "__SIZE_core-lib-natives-win.jar__"
+          },
+          "natives-linux": {
+            "path": "org/testfw/core-lib/1.0.0/core-lib-1.0.0-natives-linux.jar",
+            "url": "__SERVER__/libs/core-lib-natives-linux.jar",
+            "sha1": "__SHA_core-lib-natives-linux.jar__",
+            "size": "__SIZE_core-lib-natives-linux.jar__"
+          }
+        }
+      }
+    },
+    {
+      "name": "org.testfw:linux-helper:2.0.0",
+      "rules": [
+        {"action": "allow", "os": {"name": "linux"}},
+        {"action": "disallow", "os": {"name": "windows"}}
+      ],
+      "downloads": {
+        "artifact": {
+          "path": "org/testfw/linux-helper/2.0.0/linux-helper-2.0.0.jar",
+          "url": "__SERVER__/libs/linux-helper-2.0.0.jar",
+          "sha1": "__SHA_linux-helper-2.0.0.jar__",
+          "size": "__SIZE_linux-helper-2.0.0.jar__"
+        }
+      }
+    },
+    {
+      "name": "org.testfw:windows-helper:2.0.0",
+      "rules": [
+        {"action": "allow", "os": {"name": "windows"}},
+        {"action": "disallow", "os": {"name": "linux"}}
+      ],
+      "downloads": {
+        "artifact": {
+          "path": "org/testfw/windows-helper/2.0.0/windows-helper-2.0.0.jar",
+          "url": "__SERVER__/libs/windows-helper-2.0.0.jar",
+          "sha1": "__SHA_windows-helper-2.0.0.jar__",
+          "size": "__SIZE_windows-helper-2.0.0.jar__"
+        }
+      }
+    },
+    {
+      "name": "org.testfw:common:3.0.0",
+      "downloads": {
+        "artifact": {
+          "path": "org/testfw/common/3.0.0/common-3.0.0.jar",
+          "url": "__SERVER__/libs/common-3.0.0.jar",
+          "sha1": "__SHA_common-3.0.0.jar__",
+          "size": "__SIZE_common-3.0.0.jar__"
+        }
+      }
+    }
+  ],
+  "assetIndex": {
+    "id": "test-10",
+    "sha1": "__SHA_test-10.json__",
+    "size": "__SIZE_test-10.json__",
+    "totalSize": 1000,
+    "url": "__SERVER__/assets/test-10.json"
+  },
+  "assets": "test-10",
+  "downloads": {
+    "client": {
+      "sha1": "__SHA_1.20.1.jar__",
+      "size": "__SIZE_1.20.1.jar__",
+      "url": "__SERVER__/versions/1.20.1.jar"
+    },
+    "server": {
+      "sha1": "__SHA_1.20.1-server.jar__",
+      "size": "__SIZE_1.20.1-server.jar__",
+      "url": "__SERVER__/versions/1.20.1-server.jar"
+    }
+  }
+}

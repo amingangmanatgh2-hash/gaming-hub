@@ -1,0 +1,65 @@
+{
+  "id": "1.8.9",
+  "type": "old",
+  "mainClass": "net.minecraft.client.main.Main",
+  "minecraftArguments": "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${game_assets} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}",
+  "javaVersion": {"majorVersion": 8},
+  "libraries": [
+    {
+      "name": "org.legacyfw:legacy-core:0.9.0",
+      "natives": {
+        "windows": "windows",
+        "linux": "natives-linux"
+      },
+      "extract": {"exclude": ["META-INF/"]},
+      "downloads": {
+        "artifact": {
+          "path": "org/legacyfw/legacy-core/0.9.0/legacy-core-0.9.0.jar",
+          "url": "__SERVER__/libs/legacy-core-0.9.0.jar",
+          "sha1": "__SHA_legacy-core-0.9.0.jar__",
+          "size": "__SIZE_legacy-core-0.9.0.jar__"
+        },
+        "classifiers": {
+          "windows": {
+            "path": "org/legacyfw/legacy-core/0.9.0/legacy-core-0.9.0-windows.jar",
+            "url": "__SERVER__/libs/legacy-core-win.jar",
+            "sha1": "__SHA_legacy-core-win.jar__",
+            "size": "__SIZE_legacy-core-win.jar__"
+          },
+          "natives-linux": {
+            "path": "org/legacyfw/legacy-core/0.9.0/legacy-core-0.9.0-natives-linux.jar",
+            "url": "__SERVER__/libs/legacy-core-linux.jar",
+            "sha1": "__SHA_legacy-core-linux.jar__",
+            "size": "__SIZE_legacy-core-linux.jar__"
+          }
+        }
+      }
+    },
+    {
+      "name": "org.legacyfw:common:0.9.0",
+      "downloads": {
+        "artifact": {
+          "path": "org/legacyfw/common/0.9.0/common-0.9.0.jar",
+          "url": "__SERVER__/libs/legacy-common-0.9.0.jar",
+          "sha1": "__SHA_legacy-common-0.9.0.jar__",
+          "size": "__SIZE_legacy-common-0.9.0.jar__"
+        }
+      }
+    }
+  ],
+  "assetIndex": {
+    "id": "test-8",
+    "sha1": "__SHA_test-8.json__",
+    "size": "__SIZE_test-8.json__",
+    "totalSize": 800,
+    "url": "__SERVER__/assets/test-8.json"
+  },
+  "assets": "test-8",
+  "downloads": {
+    "client": {
+      "sha1": "__SHA_1.8.9.jar__",
+      "size": "__SIZE_1.8.9.jar__",
+      "url": "__SERVER__/versions/1.8.9.jar"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "special-client"
+version = "1.0.0"
+description = "SPECIAL CLIENT — premium Minecraft Java Edition launcher & client"
+readme = { text = "SPECIAL CLIENT launcher", content-type = "text/plain" }
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "SPECIAL CLIENT" }]
+dependencies = [
+    "requests>=2.31",
+    "psutil>=5.9",
+    "Pillow>=10.0",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+special-client = "special_client.app:main"
+special-client-cli = "special_client.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["special_client*"]
+
+[tool.setuptools.package-data]
+special_client = ["assets/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
