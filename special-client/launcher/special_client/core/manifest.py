@@ -1,10 +1,4 @@
-"""Mojang version manifest handling.
-
-Source of truth: ``https://piston-meta.mojang.com/mc/game/version_manifest_v2.json``
-(the same endpoint the official launcher uses). The manifest is cached under
-``special/cache/`` so the launcher can start fully offline; a stale cache is
-explicitly labelled as such.
-"""
+"""Cached official version catalogue with independently hosted GitHub metadata fallback."""
 from __future__ import annotations
 
 import json
@@ -17,15 +11,16 @@ from . import net
 from .versions import is_supported
 
 MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-CACHE_TTL_SECONDS = 3600  # 1 hour
+GITHUB_CATALOG_URL = "https://github.com/amingangmanatgh2-hash/gaming-hub/releases/download/special-client-catalog/versions.json"
+CACHE_TTL_SECONDS = 6 * 3600
 
 
 @dataclass
 class VersionEntry:
     id: str
-    type: str                      # release | snapshot | old
-    url: str                       # version json url
-    time: str = ""                 # ISO timestamp
+    type: str
+    url: str
+    time: str = ""
     sha1: str = ""
 
     @property
@@ -40,74 +35,71 @@ class Manifest:
     entries: list = field(default_factory=list)
     fetched_at: float = 0.0
     from_cache: bool = False
+    source: str = "official"
+    stale: bool = False
 
     def by_id(self, version_id: str) -> Optional[VersionEntry]:
-        for e in self.entries:
-            if e.id == version_id:
-                return e
-        return None
+        return next((e for e in self.entries if e.id == version_id), None)
 
     def sorted(self, *, only_supported: bool = False) -> list:
-        es = self.entries
-        if only_supported:
-            es = [e for e in es if e.is_supported]
-        return sorted(es, key=lambda e: (e.time or ""), reverse=True)
+        es = [e for e in self.entries if e.is_supported] if only_supported else self.entries
+        return sorted(es, key=lambda e: e.time or "", reverse=True)
 
     def releases(self, *, only_supported: bool = True) -> list:
-        return [e for e in self.sorted(only_supported=only_supported)
-                if e.type in ("release", "old")]
+        return [e for e in self.sorted(only_supported=only_supported) if e.type in ("release", "old")]
 
 
-def load_manifest(cache_dir: Path, session, *, force: bool = False,
-                  timeout: float = 20.0) -> Manifest:
-    """Fetch the manifest, falling back to cache when offline.
-
-    Raises ``net.NetworkError`` only when there is no cache at all and the
-    network is unavailable — callers translate that into "offline mode".
-    """
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_file = cache_dir / "version_manifest.json"
-
-    cached: Optional[Manifest] = None
-    if cache_file.exists() and not force:
-        try:
-            cached = _parse(json.loads(cache_file.read_text()))
-            cached.from_cache = True
-        except Exception:
-            cached = None
-
-    if not force and cached and time.time() - cached.fetched_at < CACHE_TTL_SECONDS:
-        return cached
-
+def cached_manifest(cache_dir: Path) -> Optional[Manifest]:
     try:
-        raw = net.get_json(session, MANIFEST_URL)
-        m = _parse(raw)
-        m.fetched_at = time.time()
-        cache_file.write_text(json.dumps(raw, indent=1))
-        return m
-    except net.NetworkError:
-        if cached:
-            return cached
-        raise
-    except Exception as e:  # malformed payload: keep cache if we have one
-        if cached:
-            return cached
-        raise net.NetworkError(f"manifest fetch failed: {e}") from e
+        path = cache_dir / "version_manifest.json"
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        result = _parse(raw)
+        result.fetched_at = float(raw.get("_fetched_at", path.stat().st_mtime))
+        result.source = raw.get("_source", "cache")
+        result.from_cache = True
+        result.stale = time.time() - result.fetched_at > CACHE_TTL_SECONDS
+        return result
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def load_manifest(cache_dir: Path, session, *, force: bool = False, timeout: float = 8.0) -> Manifest:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cached = cached_manifest(cache_dir)  # force refresh must NOT discard offline fallback
+    if cached and not force and not cached.stale:
+        return cached
+    errors = []
+    for source, url in (("github", GITHUB_CATALOG_URL), ("official", MANIFEST_URL)):
+        try:
+            raw = net.get_json(session, url, timeout=timeout)
+            result = _parse(raw)
+            result.fetched_at = time.time()
+            result.source = source
+            saved = {**raw, "_fetched_at": result.fetched_at, "_source": source}
+            tmp = cache_dir / "version_manifest.json.tmp"
+            tmp.write_text(json.dumps(saved), encoding="utf-8")
+            tmp.replace(cache_dir / "version_manifest.json")
+            return result
+        except (net.NetworkError, ValueError, KeyError, TypeError, OSError) as exc:
+            errors.append(type(exc).__name__)
+    if cached:
+        return cached
+    raise net.NetworkError("Version catalogue unavailable from GitHub and Mojang; check connectivity/TLS. " + ", ".join(errors))
 
 
 def _parse(raw: dict) -> Manifest:
-    entries = [
-        VersionEntry(
-            id=e["id"],
-            type=e.get("type", "release"),
-            url=e["url"],
-            time=e.get("releaseTime", ""),
-            sha1=e.get("sha1", ""),
-        )
-        for e in raw.get("versions", [])
-    ]
-    return Manifest(
-        latest_release=raw.get("latest", {}).get("release", ""),
-        latest_snapshot=raw.get("latest", {}).get("snapshot", ""),
-        entries=entries,
-    )
+    if not isinstance(raw, dict) or not isinstance(raw.get("versions"), list):
+        raise ValueError("Invalid catalogue")
+    entries = []
+    for e in raw["versions"]:
+        if not isinstance(e, dict):
+            continue
+        vid, url = e.get("id"), e.get("url")
+        if not isinstance(vid, str) or not isinstance(url, str) or not vid or len(vid) > 100:
+            continue
+        if any(c in vid for c in '/\\:') or vid in (".", ".."):
+            continue
+        entries.append(VersionEntry(vid, e.get("type", "release"), url, e.get("releaseTime", ""), e.get("sha1", "")))
+    if not entries:
+        raise ValueError("Catalogue contains no versions")
+    return Manifest(raw.get("latest", {}).get("release", ""), raw.get("latest", {}).get("snapshot", ""), entries)

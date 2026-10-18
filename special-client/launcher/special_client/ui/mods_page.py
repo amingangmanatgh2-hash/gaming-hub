@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QHeaderView, QLabel,
+from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QHeaderView, QLabel, QComboBox,
                                QMessageBox, QTableWidget, QTableWidgetItem,
                                QAbstractItemView, QPushButton, QVBoxLayout,
                                QWidget)
@@ -65,6 +65,26 @@ class ModsPage(QWidget):
             acts.addWidget(b)
         top.addLayout(acts)
         outer.addLayout(top)
+
+        source_row = QHBoxLayout()
+        self.external = QComboBox()
+        for name, url in [("Sodium (performance)", "https://github.com/CaffeineMC/sodium"),
+                          ("LiquidBounce", "https://github.com/CCBlueX/LiquidBounce"),
+                          ("Meteor Client", "https://github.com/MeteorDevelopment/meteor-client"),
+                          ("Wurst Client", "https://github.com/Wurst-Imperium/Wurst7")]:
+            self.external.addItem(name, url)
+        source_row.addWidget(self.external, 1)
+        official = QPushButton("Official source / builds ↗")
+        def open_source():
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            QDesktopServices.openUrl(QUrl(self.external.currentData()))
+        official.clicked.connect(open_source)
+        source_row.addWidget(official)
+        outer.addLayout(source_row)
+        source_note = dim_label("External clients: download from upstream, then Import JAR. Check exact game/loader and licenses; do not stack client suites blindly.")
+        source_note.setWordWrap(True)
+        outer.addWidget(source_note)
 
         # table
         self.table = QTableWidget(0, 6)

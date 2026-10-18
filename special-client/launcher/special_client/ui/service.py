@@ -8,11 +8,12 @@ installing (hundreds of files) and keeps all core code Qt-free.
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Qt
 
 from .. import __version__
 from ..core import net
@@ -23,11 +24,12 @@ from ..core.download import DownloadManager
 from ..core.java import JavaRuntime, detect_java_runtimes, pick_java
 from ..core.launch import GameRunner, LaunchError, LaunchService, \
     check_offline_readiness
-from ..core.manifest import Manifest, load_manifest
+from ..core.manifest import Manifest, load_manifest, cached_manifest
 from ..core.mcversion import LaunchSpec
 from ..core.mods.loaders import LoaderService
 from ..core.mods.manager import ModManager
 from ..core.paths import DirLayout
+from ..core.storage import default_game_dir, is_vanilla
 from ..core.perf.monitor import GameProcessMonitor
 from ..core.perf.statsbridge import StatsBridge
 from ..core.updater.updater import Updater
@@ -52,6 +54,8 @@ class Worker(QObject):
 
 class AppService(QObject):
     # UI-facing signals
+    manifest_ready = Signal(object)
+    manifest_failed = Signal(str)
     status = Signal(str)                 # global status bar text
     progress = Signal(str, object)       # (url, DownloadProgress)
     log_line = Signal(str)
@@ -63,6 +67,9 @@ class AppService(QObject):
 
         # --- config & profiles (game dir chosen in settings) -------------
         self.config = Config(self.app_dir / "launcher-config.json")
+        if is_vanilla(Path(self.config.get("game_dir"))):
+            self.config.set("game_dir", str(default_game_dir()))
+            self.config.save()
         self._set_game_dir(Path(self.config.get("game_dir")), save=False)
 
         self.downloads = DownloadManager(self.session)
@@ -83,6 +90,10 @@ class AppService(QObject):
         # --- updater ---------------------------------------------------------
         self.updater = Updater(self.app_dir, self.session, self.downloads,
                                current_version=__version__)
+
+        self._manifest = cached_manifest(self.layout.client_cache)
+        self._manifest_busy = False
+        self._manifest_attempt = 0.0
 
         # --- java ------------------------------------------------------------
         self.java_runtimes: list = []
@@ -105,7 +116,10 @@ class AppService(QObject):
         self.profiles = ProfileStore(self._layout.client_config / "profiles.json")
 
     def set_game_dir(self, game_dir: Path) -> None:
+        if is_vanilla(Path(game_dir)):
+            raise ValueError("Choose a dedicated SPECIAL CLIENT folder, not the vanilla .minecraft directory.")
         self._set_game_dir(game_dir)
+        self._manifest = cached_manifest(self.layout.client_cache)
         self.runner = GameRunner(self.layout)
         self.mod_manager = ModManager(self.layout, self.session, self.downloads)
         self.loader_service = LoaderService(self.layout, self.session, self.downloads)
@@ -130,10 +144,27 @@ class AppService(QObject):
     # manifest ------------------------------------------------------------
     # ------------------------------------------------------------------ #
     def load_manifest(self) -> Optional[Manifest]:
-        try:
-            return load_manifest(self.layout.client_cache, self.session)
-        except net.NetworkError:
-            return None
+        """Memory/cache-only access for UI callers; never blocks the GUI on HTTP."""
+        return self._manifest
+
+    def request_manifest(self, force=False) -> None:
+        if self._manifest_busy:
+            return
+        if not force and time.time() - self._manifest_attempt < 30:
+            return
+        self._manifest_attempt = time.time()
+        self._manifest_busy = True
+        game_dir = self.layout.game_dir
+        def done(manifest):
+            self._manifest_busy = False
+            if self.layout.game_dir == game_dir:
+                self._manifest = manifest
+                self.manifest_ready.emit(manifest)
+        def failed(error):
+            self._manifest_busy = False
+            self.manifest_failed.emit(error)
+        self.run_async(lambda progress: load_manifest(self.layout.client_cache, self.session, force=bool(force)),
+                       on_ok=done, on_err=failed)
 
     # ------------------------------------------------------------------ #
     # accounts --------------------------------------------------------------
@@ -185,6 +216,9 @@ class AppService(QObject):
         java = pick_java(self.java_runtimes, launch_version.id,
                          (prof.java_path if prof else "")
                          or self.config.get("java_path"))
+        need = launch_version.java_version.major_version
+        if java is None or java.major < need:
+            java = next((rt for rt in self.java_runtimes if rt.major >= need), None)
         if java is None:
             raise RuntimeError(
                 f"No suitable Java runtime found for {launch_version.id}. "
@@ -245,26 +279,22 @@ class AppService(QObject):
                   on_err=None,
                   on_progress=None) -> Worker:
         w = Worker(self)
+        if on_ok:
+            w.finished_ok.connect(on_ok, Qt.QueuedConnection)
+        if on_err:
+            w.failed.connect(on_err, Qt.QueuedConnection)
+        if on_progress:
+            w.progress.connect(on_progress, Qt.QueuedConnection)
 
         def target():
             def progress(stage, frac, detail):
                 w.progress.emit(str(stage), float(frac), str(detail))
-                if on_progress:
-                    try:
-                        on_progress(stage, frac, detail)
-                    except Exception:
-                        pass
 
             try:
                 result = fn(progress)
             except Exception as e:  # noqa: BLE001
                 w.failed.emit(f"{type(e).__name__}: {e}")
                 return
-            if on_ok:
-                try:
-                    on_ok(result)
-                except Exception:
-                    pass
             w.finished_ok.emit(result)
 
         t = threading.Thread(target=target, daemon=True)

@@ -28,6 +28,8 @@ from pathlib import Path
 #: minimum major java version required per MC version band
 def required_java_major(mc_version: str) -> int:
     v = mc_version.strip()
+    if re.match(r"^2[6-9]\.", v):
+        return 25  # modern year-numbered line; authoritative JSON overrides this fallback
     m = re.match(r"^1\.(\d+)(?:\.(\d+))?", v)
     if not m:
         return 8

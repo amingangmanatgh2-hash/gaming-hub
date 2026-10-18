@@ -23,7 +23,7 @@ class CapePreview(QWidget):
         self._zoom = 1.0
         self._canvas: np.ndarray | None = None
         self._auto = True
-        self._timer = QTimer(self, interval=66)     # ~15 fps is plenty
+        self._timer = QTimer(self, interval=160)     # ~15 fps is plenty
         self._timer.timeout.connect(self._tick)
         self._timer.start()
         self._render()
@@ -45,6 +45,8 @@ class CapePreview(QWidget):
 
     # ------------------------------------------------------------------ #
     def _tick(self) -> None:
+        if not self.isVisible() or not self._auto:
+            return
         if self._auto:
             self._angle += 0.05
             self._time += 0.06

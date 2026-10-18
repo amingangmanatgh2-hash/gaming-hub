@@ -43,10 +43,10 @@ class TestPresets:
         r = apply_preset("potato", "/tmp/options.txt", existing=existing)
         opts = r.written["__options__"]
         # preset keys applied
-        assert "renderDistance=4" in opts
+        assert "renderDistance:4" in opts
         # user keys preserved
-        assert "fov=110" in opts
-        assert "chatWidth=4" in opts
+        assert "fov:110" in opts
+        assert "chatWidth:4" in opts
 
     def test_apply_preset_unknown_key_raises(self):
         import pytest

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "notice": "Metadata/source links only. No Minecraft or third-party JAR redistribution. Check upstream license, Minecraft and loader before installation.",
+  "performance": [
+    {"id":"sodium","source":"https://github.com/CaffeineMC/sodium","versions":"https://modrinth.com/mod/sodium/versions"},
+    {"id":"lithium","source":"https://github.com/CaffeineMC/lithium-fabric","versions":"https://modrinth.com/mod/lithium/versions"},
+    {"id":"ferritecore","source":"https://github.com/malte0811/FerriteCore","versions":"https://modrinth.com/mod/ferrite-core/versions"},
+    {"id":"immediatelyfast","source":"https://github.com/RaphiMC/ImmediatelyFast","versions":"https://modrinth.com/mod/immediatelyfast/versions"}
+  ],
+  "external_clients": [
+    {"id":"liquidbounce","name":"LiquidBounce","source":"https://github.com/CCBlueX/LiquidBounce","note":"Follow upstream installer/version instructions; not universally compatible with this Fabric 1.20.1 mod."},
+    {"id":"meteor","name":"Meteor Client","source":"https://github.com/MeteorDevelopment/meteor-client","note":"Version-specific Fabric client; do not combine with other client suites without checking conflicts."},
+    {"id":"wurst","name":"Wurst Client","source":"https://github.com/Wurst-Imperium/Wurst7","note":"Version-specific upstream builds. Check Minecraft/loader requirements and server rules."}
+  ]
+}

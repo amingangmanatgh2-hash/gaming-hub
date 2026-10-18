@@ -9,13 +9,14 @@ from .. import APP_NAME, __version__
 from .theme import Theme
 
 NAV = [
-    ("play", "Play", "▶"),
-    ("mods", "Mods", "⬢"),
+    ("play", "Play & downloads", "▶"),
+    ("profiles", "Instances", "◆"),
+    ("mods", "Mods & clients", "⬢"),
     ("performance", "Performance", "⚡"),
-    ("capes", "Capes", "✦"),
-    ("profiles", "Profiles", "◆"),
-    ("settings", "Settings", "⚙"),
+    ("servers", "Friends server", "⌂"),
+    ("capes", "Capes & wings", "✦"),
     ("companion", "Companion", "✧"),
+    ("settings", "Settings", "⚙"),
     ("logs", "Logs", "≡"),
 ]
 
@@ -62,27 +63,17 @@ class MainWindow(QWidget):
         root2.addLayout(root, 1)
         root2.addWidget(sb, 0)
 
-        # pages
-        from .play_page import PlayPage
-        from .mods_page import ModsPage
-        from .perf_page import PerfPage
-        from .capes_page import CapesPage
-        from .profiles_page import ProfilesPage
-        from .settings_page import SettingsPage
-        from .logs_page import LogsPage
-        from .companion_page import CompanionPage
-
-        self._pages["play"] = PlayPage(self)
-        self._pages["mods"] = ModsPage(self)
-        self._pages["performance"] = PerfPage(self)
-        self._pages["capes"] = CapesPage(self)
-        self._pages["profiles"] = ProfilesPage(self)
-        self._pages["settings"] = SettingsPage(self)
-        self._pages["logs"] = LogsPage(self)
-        self._pages["companion"] = CompanionPage(self)
-        for i, (key, _l, _i) in enumerate(NAV):
-            self.stack.addWidget(self._pages[key])
-
+        # Load expensive preview/diagnostic widgets only when their page is opened.
+        self._page_modules = {
+            "play": ("play_page", "PlayPage"), "mods": ("mods_page", "ModsPage"),
+            "performance": ("perf_page", "PerfPage"), "capes": ("capes_page", "CapesPage"),
+            "profiles": ("profiles_page", "ProfilesPage"), "settings": ("settings_page", "SettingsPage"),
+            "logs": ("logs_page", "LogsPage"), "companion": ("companion_page", "CompanionPage"),
+            "servers": ("servers_page", "ServersPage"),
+        }
+        self._ensure_page("play")
+        # Companion's light mailbox listener must remain available while Minecraft runs.
+        self._ensure_page("companion")
         self.show_page("play", animate=False)
 
     def _build_side(self) -> QWidget:
@@ -91,7 +82,7 @@ class MainWindow(QWidget):
         side.setFixedWidth(212)
         lay = QVBoxLayout(side)
         lay.setContentsMargins(14, 18, 14, 14)
-        lay.setSpacing(6)
+        lay.setSpacing(3)
 
         logo = QLabel()
         # use the bundled logo when available; fall back to styled text
@@ -121,7 +112,7 @@ class MainWindow(QWidget):
             b.setObjectName("NavButton")
             b.setCheckable(True)
             b.setCursor(Qt.PointingHandCursor)
-            b.setMinimumHeight(38)
+            b.setMinimumHeight(30)
             b.clicked.connect(lambda _=False, k=key: self.show_page(k))
             self._nav_buttons[key] = b
             lay.addWidget(b)
@@ -175,7 +166,24 @@ class MainWindow(QWidget):
         return bar
 
     # ------------------------------------------------------------------ #
+    def _ensure_page(self, key):
+        if key not in self._pages and key in self._page_modules:
+            from importlib import import_module
+            module, name = self._page_modules[key]
+            self._pages[key] = getattr(import_module("special_client.ui." + module), name)(self)
+            self.stack.addWidget(self._pages[key])
+
+    def closeEvent(self, event):
+        server = self._pages.get("servers")
+        if server and (server.host.running or server.busy):
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Server still active", "Stop the server on Friends server before closing the launcher. This preserves the world gracefully.")
+            event.ignore()
+            return
+        super().closeEvent(event)
+
     def show_page(self, key: str, animate: bool = True) -> None:
+        self._ensure_page(key)
         if key not in self._pages:
             return
         if key == self._current_page and self._pages[key].isVisible():
@@ -187,7 +195,7 @@ class MainWindow(QWidget):
         self.page_title.setText(
             {"play": "Play", "mods": "Mod Manager", "performance": "Performance",
              "capes": "SPECIAL CAPES", "profiles": "Profiles",
-             "settings": "Settings", "companion": "AI Companion", "logs": "Logs & Diagnostics"}[key])
+             "settings": "Settings", "companion": "AI Companion", "servers": "Friends Server", "logs": "Logs & Diagnostics"}[key])
 
         old_idx = self.stack.currentIndex()
         new_idx = self.stack.indexOf(self._pages[key])
@@ -201,6 +209,8 @@ class MainWindow(QWidget):
                 except Exception:
                     pass
 
+        if self.service.config.get("lite_mode", True):
+            animate = False
         if animate and old_idx != new_idx and not self._fading:
             self._animate_switch(page, _switch)
         else:

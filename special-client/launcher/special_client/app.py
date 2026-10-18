@@ -65,7 +65,7 @@ def main() -> int:
     app.processEvents()
 
     splash.set_progress(0.4, "Loading versions…")
-    service.load_manifest()
+    # The version catalogue is refreshed on a worker, never during splash rendering.
     app.processEvents()
 
     if service.config.get("check_updates_on_start") and \
@@ -93,6 +93,7 @@ def main() -> int:
 
     splash.set_progress(0.9, "Ready")
     window = MainWindow(service, theme)
+    QTimer.singleShot(0, service.request_manifest)
     # keep the splash alive a minimum of 2.2s for brand presence
     remaining = max(0.0, 2.2 - (time.time() - t0))
 

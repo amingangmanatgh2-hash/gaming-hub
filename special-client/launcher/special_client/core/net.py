@@ -45,10 +45,12 @@ def make_session(
 def _bounded_request(session, timeout):
     """Wrap Session.request so *timeout* applies even to bare calls."""
 
+    original_request = session.request
+
     def request(method, url, **kwargs):
         ensure_https(url)
         kwargs.setdefault("timeout", timeout)
-        return session.request(method, url, **kwargs)
+        return original_request(method, url, **kwargs)
 
     return request
 
@@ -64,9 +66,12 @@ class ApiError(NetworkError):
         self.url = url
 
 
-def get_json(session, url, *, params=None, headers=None) -> object:
+def get_json(session, url, *, params=None, headers=None, timeout=None) -> object:
     try:
-        resp = session.get(url, params=params, headers=headers)
+        kwargs = {"params": params, "headers": headers}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        resp = session.get(url, **kwargs)
     except requests.RequestException as e:
         raise NetworkError(f"GET {url} failed: {e}") from e
     if resp.status_code == 404:

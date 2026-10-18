@@ -56,6 +56,17 @@ PALETTES = {
     ),
 }
 
+# Original palette variants, not copied third-party artwork.
+for _id, _name, _accent in [
+    ("aurora", "Aurora", (60,255,170)), ("solar", "Solar", (255,210,50)),
+    ("rose", "Rose Quartz", (255,90,175)), ("ocean", "Deep Ocean", (40,150,255)),
+    ("toxic", "Toxic Lime", (180,255,30)), ("royal", "Royal Violet", (175,90,255)),
+    ("crimson", "Crimson", (255,45,65)), ("pearl", "Pearl", (230,240,255)),
+    ("copper", "Copper", (230,145,90)),
+]:
+    PALETTES[_id] = Palette(_id, _name, (7,10,18), tuple(c//4 for c in _accent),
+                            _accent, tuple(min(255,c+70) for c in _accent), _accent, _accent)
+
 
 def generate_cape(palette_id: str = "legend", seed: int = 7) -> Image.Image:
     """Render the 64×32 cape texture for *palette_id*."""

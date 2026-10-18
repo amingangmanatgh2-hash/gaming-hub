@@ -30,12 +30,18 @@ class Theme:
 
 
 THEMES: dict[str, Theme] = {
+    "studio-graphite": Theme(
+        id="studio-graphite", name="Studio Graphite",
+        bg="#0c1018", bg_elevated="#151c28", bg_input="#1c2636", border="#2a384c",
+        text="#eef5ff", text_dim="#9baec6", accent="#80edc4", accent_soft="#2280edc4",
+        accent2="#7ba2ff", danger="#ff738c", ok="#80edc4", warn="#efc77d",
+    ),
     "midnight-neon": Theme(
         id="midnight-neon", name="Midnight Neon",
         bg="#0b0d14", bg_elevated="#12151f", bg_input="#181c29",
         border="#232a3d",
         text="#e8ecf8", text_dim="#8b93ad",
-        accent="#00e5ff", accent_soft="2200e5ff", accent2="#7c3aff",
+        accent="#00e5ff", accent_soft="#2200e5ff", accent2="#7c3aff",
         danger="#ff4d6d", ok="#3ddc84", warn="#ffb020",
     ),
     "void-purple": Theme(
@@ -43,7 +49,7 @@ THEMES: dict[str, Theme] = {
         bg="#0d0a14", bg_elevated="#151022", bg_input="#1c1530",
         border="#2c2148",
         text="#efe9ff", text_dim="#9d90c4",
-        accent="#a855f7", accent_soft="33a855f7", accent2="#00e5ff",
+        accent="#a855f7", accent_soft="#33a855f7", accent2="#00e5ff",
         danger="#ff4d6d", ok="#3ddc84", warn="#ffb020",
     ),
     "carbon-cyan": Theme(
@@ -51,7 +57,7 @@ THEMES: dict[str, Theme] = {
         bg="#0a0f10", bg_elevated="#10181a", bg_input="#162225",
         border="#22343a",
         text="#e6f4f4", text_dim="#7fa3a8",
-        accent="#2ee6c8", accent_soft="2a2ee6c8", accent2="#4d7cff",
+        accent="#2ee6c8", accent_soft="#2a2ee6c8", accent2="#4d7cff",
         danger="#ff4d6d", ok="#3ddc84", warn="#ffb020",
     ),
     "ember-dark": Theme(
@@ -59,12 +65,12 @@ THEMES: dict[str, Theme] = {
         bg="#100b0a", bg_elevated="#1a1210", bg_input="#241815",
         border="#3a2620",
         text="#f8ece8", text_dim="#b3918a",
-        accent="#ff7840", accent_soft="2aff7840", accent2="#ffd166",
+        accent="#ff7840", accent_soft="#2aff7840", accent2="#ffd166",
         danger="#ff4d6d", ok="#3ddc84", warn="#ffb020",
     ),
 }
 
-DEFAULT_THEME = "midnight-neon"
+DEFAULT_THEME = "studio-graphite"
 
 
 def qss(t: Theme) -> str:
@@ -84,10 +90,10 @@ QMainWindow, #RootWidget {{ background: {t.bg}; }}
 #SectionTitle {{ font-size: 13px; font-weight: 700; color: {t.text_dim};
                   letter-spacing: 1.2px; }}
 #Card {{ background: {t.bg_elevated}; border: 1px solid {t.border};
-         border-radius: 10px; }}
+         border-radius: 12px; }}
 #AccentCard {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1,
               stop:0 {t.accent_soft}, stop:1 {t.bg_elevated});
-         border: 1px solid {t.accent_soft}; border-radius: 10px; }}
+         border: 1px solid {t.accent_soft}; border-radius: 12px; }}
 
 QPushButton {{
     background: {t.bg_input}; border: 1px solid {t.border};
@@ -100,8 +106,8 @@ QPushButton:disabled {{ color: {t.text_dim}; border-color: {t.border}; }}
 QPushButton#PrimaryButton {{
     background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
         stop:0 {t.accent}, stop:1 {t.accent2});
-    border: none; color: #06080d; font-weight: 800; font-size: 14px;
-    border-radius: 10px; padding: 12px 28px;
+    border: none; color: #06080d; font-weight: 700; font-size: 15px;
+    border-radius: 12px; padding: 12px 28px;
 }}
 QPushButton#PrimaryButton:hover {{ opacity: 0.92; }}
 QPushButton#PrimaryButton:disabled {{

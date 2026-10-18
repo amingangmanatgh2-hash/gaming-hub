@@ -87,6 +87,10 @@ class CapeRegistry:
                 reg.capes = [Cape(**c) for c in d.get("capes", [])] or reg.capes
             except (json.JSONDecodeError, OSError, TypeError):
                 pass
+        existing = {c.id for c in reg.capes}
+        for pid, palette in texture.PALETTES.items():
+            if "special-" + pid not in existing:
+                reg.capes.append(Cape("special-" + pid, palette.name, pid, "special-" + pid + ".png"))
         return reg
 
     # -- api ----------------------------------------------------------------

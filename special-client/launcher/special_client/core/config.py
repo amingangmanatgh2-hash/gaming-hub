@@ -16,13 +16,15 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, Optional
 
+from .storage import default_game_dir
+
 DEFAULTS: dict[str, Any] = {
-    "game_dir": str(Path.home() / ".minecraft"),
+    "game_dir": str(Path.home() / "SpecialClient" / "game"),
     "java_path": "",            # empty = auto-detect
     "ram_mb": 4096,
     "version_id": "1.20.1",
     "loader": "vanilla",        # vanilla | fabric | quilt | neoforge | forge
-    "theme": "midnight-neon",
+    "theme": "studio-graphite",
     "language": "en",
     "close_to_tray": False,
     "update_channel": "stable", # stable | beta | off
@@ -30,6 +32,7 @@ DEFAULTS: dict[str, Any] = {
     "perf_preset": "balanced",
     "minimize_at_launch": True,
     "first_run_done": False,
+    "lite_mode": True,
     "msa_client_id": "",        # optional Azure public-client override
     "msa_device_id": "00000000402b5328",  # well-known public id (see docs)
 }
@@ -72,6 +75,8 @@ class Config:
     def __init__(self, path: Path, defaults: Optional[dict] = None):
         self.path = path
         self._defaults = dict(DEFAULTS if defaults is None else defaults)
+        if defaults is None and not path.exists():
+            self._defaults["game_dir"] = str(default_game_dir())
         self.data: dict = {}
         self.load()
 

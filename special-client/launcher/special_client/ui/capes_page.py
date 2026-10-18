@@ -85,13 +85,24 @@ class CapesPage(QWidget):
         av.addLayout(self.assign_row)
         self.assign_note = dim_label(
             "SPECIAL CLIENT renders your cape on your character in-game. "
-            "Visibility elsewhere is governed by Minecraft: other clients or "
-            "vanilla players only see a cape when the server sends one "
-            "(officially assigned capes or server-side systems). We never "
+            "Friends need the same SPECIAL Fabric mod and your imported public cosmetic profile. Vanilla players do not see these cosmetics. We never "
             "claim universal visibility and never impersonate Mojang/"
             "Microsoft cosmetics.")
         self.assign_note.setWordWrap(True)
         av.addWidget(self.assign_note)
+        wings = QCheckBox("Animated wings on my back (SPECIAL Fabric 1.20.1 only)")
+        from ..core.cosmetics import CosmeticsStore
+        wings.setChecked(CosmeticsStore(self.svc.layout.game_dir).read()["self"].get("wings", False))
+        wings.toggled.connect(lambda v: CosmeticsStore(self.svc.layout.game_dir).set_self(wings=v))
+        av.addWidget(wings)
+        peers = QHBoxLayout()
+        export = QPushButton("Export my public cosmetic profile…")
+        export.clicked.connect(self._export_peer)
+        load = QPushButton("Import friend's profile…")
+        load.clicked.connect(self._import_peer)
+        peers.addWidget(export)
+        peers.addWidget(load)
+        av.addLayout(peers)
         right.addWidget(a)
 
         right.addStretch(1)
@@ -144,6 +155,14 @@ class CapesPage(QWidget):
         cid = self._current_cape_id()
         if not cid:
             return
+        from ..core.cosmetics import CosmeticsStore
+        cape = self.svc.capes.cape(cid)
+        if not cape or not cape.builtin:
+            QMessageBox.information(self, "Preview only", "Custom imported artwork remains launcher-preview only; select a built-in cape for the Fabric renderer.")
+            return
+        CosmeticsStore(self.svc.layout.game_dir).set_self(cape=cape.palette)
+        if self.svc.active_session:
+            self.svc.capes.self_uuid = self.svc.active_session.uuid
         self.svc.capes.assign_self(cid)
         self.svc.capes.save(self.svc.layout.client_config,
                             self.svc.layout.client_capes)
@@ -171,3 +190,22 @@ class CapesPage(QWidget):
             if self.list.item(i).data(Qt.UserRole) == cape.id:
                 self.list.setCurrentRow(i)
                 break
+
+    def _export_peer(self):
+        if not self.svc.active_session:
+            QMessageBox.information(self, "Select account", "Select your actual game account first so the correct UUID is shared.")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export public cosmetics (no credentials)", "special-cosmetics.json", "JSON (*.json)")
+        if path:
+            from ..core.cosmetics import CosmeticsStore
+            CosmeticsStore(self.svc.layout.game_dir).export_peer(self.svc.active_session.uuid, path)
+
+    def _import_peer(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Import public cosmetic profile", "", "JSON (*.json)")
+        if path:
+            try:
+                from ..core.cosmetics import CosmeticsStore
+                count = CosmeticsStore(self.svc.layout.game_dir).import_peers(path)
+                self.assign_note.setText(f"Imported {count} peer profiles. Visible only in compatible SPECIAL clients; no vanilla/global visibility.")
+            except (OSError, ValueError, AttributeError, TypeError) as exc:
+                QMessageBox.warning(self, "Invalid cosmetic profile", str(exc))

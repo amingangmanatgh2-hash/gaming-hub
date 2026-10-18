@@ -71,6 +71,7 @@ public final class SpecialClient implements ClientModInitializer {
         }
         while (companion.wasPressed()) if (mc.currentScreen == null) mc.setScreen(new CompanionScreen());
         CompanionLink.tick(mc);
+        CosmeticsSettings.tick();
         while (destination.wasPressed()) BRIDGE.pickDestination(mc);
         while (bridge.wasPressed()) startPractice(mc);
         COLLECTOR.tick(mc);

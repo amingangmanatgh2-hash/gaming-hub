@@ -16,12 +16,12 @@ import re
 from dataclasses import dataclass
 
 _SNAP_RE = re.compile(r"^(\d{2})w(\d{2})([ab])?$")
-_NUM_RE = re.compile(r"^1\.(\d+)(?:\.(\d+))?(.*)$")
+_NUM_RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?(.*)$")
 
 #: Inclusive supported range for the launcher. 1.8 (legacy argument format)
 #: through the latest 1.21.x release line; future 1.21.x ids are accepted.
 SUPPORTED_MIN = "1.8"
-SUPPORTED_MAX = "1.21.99"
+SUPPORTED_MAX = None  # catalogue eligibility is open-ended, not a runtime guarantee
 
 
 @dataclass(frozen=True)
@@ -41,8 +41,8 @@ def version_key(v: str) -> VersionKey:
         return VersionKey("snapshot", (year, week, _letter_rank(letter)), v)
     m = _NUM_RE.match(v)
     if m:
-        patch = int(m.group(2)) if m.group(2) is not None else 0
-        return VersionKey("release", (1, int(m.group(1)), patch, m.group(3)), v)
+        patch = int(m.group(3)) if m.group(3) is not None else 0
+        return VersionKey("release", (int(m.group(1)), int(m.group(2)), patch, m.group(4)), v)
     # unknown shape: order after everything, deterministic
     return VersionKey("unknown", (999, 999, 999, v), v)
 
@@ -69,7 +69,8 @@ def compare(a: str, b: str) -> int:
 
 
 def is_supported(v: str) -> bool:
-    return compare(v, SUPPORTED_MIN) >= 0 and compare(v, SUPPORTED_MAX) <= 0
+    key = version_key(v)
+    return key.kind == "snapshot" or (key.kind == "release" and compare(v, SUPPORTED_MIN) >= 0)
 
 
 def normalize(v: str) -> str:

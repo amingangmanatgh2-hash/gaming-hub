@@ -42,7 +42,7 @@ class SettingsPage(QWidget):
         row.addWidget(btn)
         v.addLayout(row)
         note = dim_label(
-            "SPECIAL CLIENT uses separate folders inside the game directory: "
+            "Dedicated installation; never the vanilla .minecraft. Prefer a writable D:/E: drive when available. Folders: "
             "versions/, libraries/, assets/, mods/, resourcepacks/, "
             "shaderpacks/, and special/ (configs, capes, logs, backups). "
             "Updates and repairs NEVER delete worlds (saves/), resource "
@@ -94,6 +94,10 @@ class SettingsPage(QWidget):
         self.theme_box.setCurrentIndex(max(0, i))
         self.theme_box.currentIndexChanged.connect(self._theme_changed)
         row3.addWidget(self.theme_box, 1)
+        self.lite = QCheckBox("Lite mode (no page animations)")
+        self.lite.setChecked(bool(self.svc.config.get("lite_mode", True)))
+        self.lite.toggled.connect(lambda v: (self.svc.config.set("lite_mode", v), self.svc.config.save()))
+        row3.addWidget(self.lite)
         v3.addLayout(row3)
         self.chk_min = QCheckBox("Minimize launcher when the game starts")
         self.chk_min.setChecked(bool(self.svc.config.get("minimize_at_launch")))
@@ -189,10 +193,15 @@ class SettingsPage(QWidget):
             f"Game directory will change to:\n{d}\n\nExisting versions, "
             f"libraries, assets and mods there are kept. Profiles and "
             f"client settings move with the directory (special/).")
-        self.svc.set_game_dir(Path(d))
+        try:
+            self.svc.set_game_dir(Path(d))
+        except ValueError as exc:
+            QMessageBox.warning(self, "Separate installation required", str(exc))
+            return
         self.dir_label.setText(str(self.svc.layout.game_dir))
         self.win._pages["play"].on_shown()
-        self.win._pages["mods"].on_shown()
+        if "mods" in self.win._pages:
+            self.win._pages["mods"].on_shown()
 
     def _theme_changed(self, _i) -> None:
         from .theme import get_theme

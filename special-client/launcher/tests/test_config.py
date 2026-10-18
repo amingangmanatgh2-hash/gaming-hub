@@ -10,7 +10,7 @@ from special_client.core.config import Config, ProfileStore
 def test_defaults_applied(tmp_path):
     c = Config(tmp_path / "config.json")
     assert c.get("ram_mb") == 4096
-    assert c.get("theme") == "midnight-neon"
+    assert c.get("theme") == "studio-graphite"
 
 
 def test_set_get_save_load(tmp_path):
@@ -23,7 +23,7 @@ def test_set_get_save_load(tmp_path):
     assert c2.get("ram_mb") == 8192
     assert c2.get("custom_key") == "value"
     # untouched defaults still present
-    assert c2.get("theme") == "midnight-neon"
+    assert c2.get("theme") == "studio-graphite"
 
 
 def test_atomic_write_no_partial_file(tmp_path):

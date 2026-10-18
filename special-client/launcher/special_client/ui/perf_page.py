@@ -19,7 +19,7 @@ class PerfPage(QWidget):
         self.svc = window.service
         self._hist = []
         self._build()
-        self._timer = QTimer(self, timeout=self._tick, interval=500)
+        self._timer = QTimer(self, timeout=self._tick, interval=2000)
         self._timer.start()
 
     # ------------------------------------------------------------------ #
@@ -115,6 +115,8 @@ class PerfPage(QWidget):
         self._tick()
 
     def _tick(self) -> None:
+        if not self.isVisible():
+            return
         sample = self.svc.monitor.sample()
         stats = self.svc.stats_bridge.read()
         if sample is None and stats is None:
@@ -170,13 +172,19 @@ class PerfPage(QWidget):
         if options_path.exists():
             try:
                 for line in options_path.read_text().splitlines():
-                    if "=" in line:
-                        k, v = line.split("=", 1)
+                    if ":" in line:
+                        k, v = line.split(":", 1)
                         existing[k.strip()] = v.strip()
             except OSError:
                 pass
-        result = apply_preset(key, options_path, existing=existing)
+        play = self.win._pages["play"]
+        selected = play.selected_version()
+        result = apply_preset(key, options_path, existing=existing, mc_version=selected.id if selected else "1.20.1")
+        import shutil
+        if options_path.exists():
+            shutil.copy2(options_path, options_path.with_suffix(".txt.special-backup"))
         options_path.write_text(result.written["__options__"])
+        self.win._pages["play"].ram.setValue(ram)
         self.svc.config.set("perf_preset", key)
         self.svc.config.save()
         self.mem_note.setText(

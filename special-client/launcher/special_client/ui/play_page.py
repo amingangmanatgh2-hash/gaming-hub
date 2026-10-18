@@ -39,6 +39,9 @@ class PlayPage(QWidget):
         v.addWidget(self.version_box)
         self.version_note = dim_label("loading version list…")
         v.addWidget(self.version_note)
+        refresh_versions = QPushButton("Refresh catalogue")
+        refresh_versions.clicked.connect(lambda: self.svc.request_manifest(True))
+        v.addWidget(refresh_versions)
 
         c2 = card()
         v2 = QVBoxLayout(c2)
@@ -179,6 +182,7 @@ class PlayPage(QWidget):
         outer.addWidget(section_title("LAST OUTPUT"))
         self.log_tail = QPlainTextEdit()
         self.log_tail.setReadOnly(True)
+        self.log_tail.setMaximumBlockCount(200)
         self.log_tail.setMaximumHeight(150)
         self.log_tail.setStyleSheet("font-family: Consolas, 'Cascadia Mono', monospace; font-size: 11px;")
         outer.addWidget(self.log_tail)
@@ -189,13 +193,17 @@ class PlayPage(QWidget):
         self._refresh_timer.start()
         self._refresh_timer_2 = QTimer(self, timeout=self._refresh_offline,
                                        interval=4000)
-        self._refresh_timer_2.start()
+        # Full offline integrity scans are explicit/selection-driven, not every four seconds.
 
         self.svc.log_line.connect(self._append_log)
+        self.svc.manifest_ready.connect(lambda _: self._refresh_versions())
+        self.svc.manifest_failed.connect(lambda error: self.version_note.setText("Catalogue failed; retry Refresh. " + error[:180]))
+        self.version_box.currentIndexChanged.connect(lambda _: self._version_selected())
 
     # ------------------------------------------------------------------ #
     def on_shown(self) -> None:
-        self._refresh_versions(force=True)
+        self._refresh_versions()
+        self.svc.request_manifest()
         self._refresh_java()
         self._refresh_accounts()
         self._refresh_loaders()
@@ -211,18 +219,16 @@ class PlayPage(QWidget):
 
     # -- versions -----------------------------------------------------------
     def _refresh_versions(self, force: bool = False) -> None:
-        cur = self.version_box.currentData()
+        selected = self.version_box.currentData()
+        cur = selected.id if selected else self.svc.config.get("version_id")
         self.version_box.blockSignals(True)
         self.version_box.clear()
         manifest = self.svc.load_manifest()
         if manifest is None:
-            self.version_box.addItem("— offline (no cached manifest) —", None)
-            self.version_note.setText(
-                "Offline: version list unavailable. Installed versions will "
-                "still be listed below the loader if present.")
-            self.version_box.blockSignals(False)
-            self._refresh_loaders()
-            return
+            from ..core.manifest import Manifest, VersionEntry
+            entries = [VersionEntry(p.stem, "release", "") for p in self.svc.layout.versions.glob("*/*.json")
+                       if p.stem == p.parent.name]
+            manifest = Manifest(entries=entries, from_cache=True, source="installed")
         entries = manifest.sorted(only_supported=True)
         releases = [e for e in entries if e.type in ("release", "old")]
         snapshots = [e for e in entries if e.type == "snapshot"]
@@ -233,6 +239,7 @@ class PlayPage(QWidget):
             self.version_box.insertItem(self.version_box.count(), "— Snapshots —", None)
             for e in snapshots[:40]:
                 self.version_box.addItem(e.id, e)
+        self.version_box.setCurrentIndex(1 if releases else 0)
         # restore selection
         if cur:
             for i in range(self.version_box.count()):
@@ -245,6 +252,16 @@ class PlayPage(QWidget):
             f"{len(releases)} releases · {len(snapshots)} snapshots"
             + (" (from cache)" if getattr(manifest, "from_cache", False) else ""))
         self.win.set_online_display(True, getattr(manifest, "from_cache", False))
+        if not releases:
+            self.version_note.setText("No cached releases. Refresh downloads GitHub catalogue with Mojang fallback.")
+        self._refresh_loaders()
+
+    def _version_selected(self):
+        entry = self.selected_version()
+        if entry:
+            self.svc.config.set("version_id", entry.id)
+            self.svc.config.save()
+        self._refresh_java()
         self._refresh_loaders()
 
     def selected_version(self):
@@ -613,10 +630,12 @@ class PlayPage(QWidget):
         self.offline_text.setText(
             "\n".join(f"• {b}" for b in report.blockers[:6])
             + ("\n\n(With internet the Install button fixes these automatically.)"
-               if report.version_json_ok else ""))
+               if report.version_installed else ""))
 
     # -- dynamic refresh ----------------------------------------------------------------------
     def _refresh_dynamic(self) -> None:
+        if not self.isVisible():
+            return
         if not self.java_runtimes_ready:
             self._refresh_java()
         # keep log tail small
