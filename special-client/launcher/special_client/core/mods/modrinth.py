@@ -94,7 +94,7 @@ class ModrinthClient:
 
     def versions(self, slug: str, *, loader: str, mc: str) -> list:
         """All published versions of *slug* for *loader* + *mc*, newest first."""
-        params = {"loaders": [loader], "game_versions": [mc]}
+        params = {"loaders": json.dumps([loader]), "game_versions": json.dumps([mc])}
         d = net.get_json(self.session, f"{API_BASE}/project/{slug}/version",
                          params=params)
         if not isinstance(d, list):

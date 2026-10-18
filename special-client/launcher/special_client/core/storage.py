@@ -8,7 +8,7 @@ import tempfile
 
 def default_game_dir() -> Path:
     explicit = os.environ.get("SPECIAL_CLIENT_GAME_DIR")
-    if explicit:
+    if explicit and not is_vanilla(Path(explicit)):
         return Path(explicit).expanduser()
     if os.name == "nt":
         for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
@@ -27,4 +27,6 @@ def default_game_dir() -> Path:
 
 
 def is_vanilla(path: Path) -> bool:
-    return path.expanduser().resolve() == (Path.home() / ".minecraft").resolve()
+    target = path.expanduser().resolve()
+    vanilla = (Path.home() / ".minecraft").resolve()
+    return target == vanilla or vanilla in target.parents

@@ -152,7 +152,7 @@ class ModManager:
     def resolve_version(self, entry, mc: str, loader: str) -> Optional[ModVersion]:
         """Latest version from Modrinth; falls back to the catalog pin offline."""
         try:
-            v = self.modrinth.latest(entry.slug, loader=loader, mc=mc)
+            v = self.modrinth.latest({"ferritecore": "ferrite-core"}.get(entry.slug, entry.slug), loader=loader, mc=mc)
             if v and v.primary_file:
                 return v
         except Exception:

@@ -72,8 +72,8 @@ CATALOG: list = [
         loaders=("fabric",),
         mc_versions=("1.20.1", "1.21.99"),
         known_good={"1.20.1": "0.5.10", "1.21.1": "0.5.10"},
-        description="Rewrites the rendering engine for a large FPS increase.",
-        license="MIT",
+        description="Renderer optimization; measure your own FPS/frametimes, no gain guaranteed.",
+        license="Check upstream version-specific license",
     ),
     ModEntry(
         slug="lithium",
@@ -83,7 +83,7 @@ CATALOG: list = [
         mc_versions=("1.20.1", "1.21.99"),
         known_good={"1.20.1": "0.11.2", "1.21.1": "0.14.1"},
         description="Game logic optimizations (entities, blocks, redstone).",
-        license="MIT",
+        license="Check upstream version-specific license",
     ),
     ModEntry(
         slug="ferritecore",
@@ -103,7 +103,7 @@ CATALOG: list = [
         mc_versions=("1.20.1", "1.21.99"),
         known_good={"1.20.1": "1.2.14", "1.21.1": "1.2.21"},
         description="Fixes expensive rendering operations (atlases, etc.).",
-        license="MIT",
+        license="Check upstream version-specific license",
     ),
     ModEntry(
         slug="entityculling",
@@ -113,7 +113,7 @@ CATALOG: list = [
         mc_versions=("1.20.1", "1.21.99"),
         known_good={"1.20.1": "1.6.2", "1.21.1": "1.7.0"},
         description="Skips rendering entities you cannot see.",
-        license="MIT",
+        license="Check upstream version-specific license",
     ),
     ModEntry(
         slug="modernfix",
@@ -123,7 +123,7 @@ CATALOG: list = [
         mc_versions=("1.20.1", "1.21.99"),
         known_good={"1.20.1": "5.14.4", "1.21.1": "5.20.1"},
         description="Collection of modernization and startup optimizations.",
-        license="MIT",
+        license="Check upstream version-specific license",
     ),
     ModEntry(
         slug="iris",
@@ -134,7 +134,7 @@ CATALOG: list = [
         known_good={"1.20.1": "1.6.19", "1.21.1": "1.8.4"},
         dependencies=("sodium", "indium"),
         description="OpenGL shader support with low overhead.",
-        license="MIT",
+        license="Check upstream version-specific license",
     ),
     ModEntry(
         slug="indium",
@@ -144,7 +144,7 @@ CATALOG: list = [
         mc_versions=("1.20.1", "1.21.99"),
         known_good={"1.20.1": "1.0.34", "1.21.1": "1.0.34"},
         description="Sodium-compatible model rendering (required by Iris).",
-        license="MIT",
+        license="Check upstream version-specific license",
         optional=True,
     ),
 ]

@@ -3,7 +3,7 @@
   "notice": "Metadata/source links only. No Minecraft or third-party JAR redistribution. Check upstream license, Minecraft and loader before installation.",
   "performance": [
     {"id":"sodium","source":"https://github.com/CaffeineMC/sodium","versions":"https://modrinth.com/mod/sodium/versions"},
-    {"id":"lithium","source":"https://github.com/CaffeineMC/lithium-fabric","versions":"https://modrinth.com/mod/lithium/versions"},
+    {"id":"lithium","source":"https://github.com/CaffeineMC/lithium","versions":"https://modrinth.com/mod/lithium/versions"},
     {"id":"ferritecore","source":"https://github.com/malte0811/FerriteCore","versions":"https://modrinth.com/mod/ferrite-core/versions"},
     {"id":"immediatelyfast","source":"https://github.com/RaphiMC/ImmediatelyFast","versions":"https://modrinth.com/mod/immediatelyfast/versions"}
   ],

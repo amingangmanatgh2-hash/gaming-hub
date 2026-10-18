@@ -59,11 +59,11 @@ class GameProcessMonitor:
             self._last_sample = None
             return None
         try:
-            p.cpu_percent(None)
+            cpu = p.cpu_percent(None)
             mem = p.memory_info()
             self._last_sample = ProcessSample(
                 pid=p.pid,
-                cpu_percent=p.cpu_percent(None) or 0.0,
+                cpu_percent=cpu or 0.0,
                 ram_mb=mem.rss / (1024 * 1024),
                 threads=len(p.threads()) if _can_threads(p) else 0,
             )

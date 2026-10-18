@@ -63,3 +63,14 @@ class TestPresets:
         opts = r.written["__options__"]
         # renderDistance comes before maxFps in the rendered file
         assert opts.index("renderDistance") < opts.index("maxFps")
+
+
+def test_real_vanilla_colon_syntax_and_value_types():
+    modern = apply_preset("potato", "options.txt", existing={"fov": "0.5"}, mc_version="1.20.1").written["__options__"]
+    assert "graphicsMode:0\n" in modern
+    assert "particles:2\n" in modern
+    assert "ao:false\n" in modern
+    assert "fov:0.5\n" in modern
+    assert "=" not in modern
+    legacy = apply_preset("potato", "options.txt", mc_version="1.8.9").written["__options__"]
+    assert "ao:0\n" in legacy and "fancyGraphics:false\n" in legacy

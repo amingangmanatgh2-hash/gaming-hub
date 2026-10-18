@@ -63,3 +63,21 @@ def test_future_number_format_is_eligible_not_a_release_claim():
     assert not is_supported("garbage")
     # No synthetic 26.3 entry is invented in a real downloaded manifest.
     assert load_manifest.__name__ == "load_manifest"
+
+
+def test_modrinth_filters_are_json_arrays():
+    import json
+    from special_client.core.mods.modrinth import ModrinthClient
+    class EmptyResponse:
+        status_code = 200
+        def json(self):
+            return []
+    session = Session()
+    def get(url, **kwargs):
+        session.calls.append((url, kwargs))
+        return EmptyResponse()
+    session.get = get
+    assert ModrinthClient(session).versions("sodium", loader="fabric", mc="1.20.1") == []
+    params = session.calls[0][1]["params"]
+    assert json.loads(params["loaders"]) == ["fabric"]
+    assert json.loads(params["game_versions"]) == ["1.20.1"]

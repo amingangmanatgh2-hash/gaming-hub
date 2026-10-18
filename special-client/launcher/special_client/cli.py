@@ -24,11 +24,6 @@ from .core.paths import DirLayout
 from .core.auth import make_offline_session
 
 
-def _service(home: Path):
-    from .ui.service import AppService
-    return AppService(home)
-
-
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="special-client",
                                 description=f"{APP_NAME} headless CLI")

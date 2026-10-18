@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 from . import net
 from .versions import is_supported
@@ -97,9 +98,12 @@ def _parse(raw: dict) -> Manifest:
         vid, url = e.get("id"), e.get("url")
         if not isinstance(vid, str) or not isinstance(url, str) or not vid or len(vid) > 100:
             continue
+        if urlsplit(url).scheme != "https" or urlsplit(url).username or urlsplit(url).password:
+            continue
         if any(c in vid for c in '/\\:') or vid in (".", ".."):
             continue
         entries.append(VersionEntry(vid, e.get("type", "release"), url, e.get("releaseTime", ""), e.get("sha1", "")))
     if not entries:
         raise ValueError("Catalogue contains no versions")
-    return Manifest(raw.get("latest", {}).get("release", ""), raw.get("latest", {}).get("snapshot", ""), entries)
+    latest = raw.get("latest") if isinstance(raw.get("latest"), dict) else {}
+    return Manifest(latest.get("release", ""), latest.get("snapshot", ""), entries)

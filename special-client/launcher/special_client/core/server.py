@@ -56,7 +56,7 @@ class ServerHost:
             raise ServerError("Select a valid Java executable and RAM between 512 and 4096 MB")
         # Do not silently turn off authentication in an existing user-edited configuration.
         props = (self.directory / "server.properties").read_text(encoding="utf-8")
-        if any(line.strip().lower().replace(" ", "") == "online-mode=false" for line in props.splitlines()):
+        if any(re.sub(r"\s+", "", line.lower()) == "online-mode=false" for line in props.splitlines()):
             raise ServerError("This hosting UI requires online-mode=true; restore authentication before starting.")
         with (self.directory / "console.log").open("ab") as log:
             self.process = subprocess.Popen([java, "-Xms512M", f"-Xmx{ram_mb}M", "-jar", "server.jar", "nogui"],

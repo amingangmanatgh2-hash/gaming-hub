@@ -1,6 +1,6 @@
 # SPECIAL CLIENT
 
-Current experimental update: **1.2.0-alpha.3** — see [release notes](docs/RELEASE_NOTES.md).
+Current experimental update: **1.3.0-alpha.4** — see [release notes](docs/RELEASE_NOTES.md).
 
 Minecraft Java Edition launcher source and an experimental Fabric client mod.
 **Not an official Minecraft product; not affiliated with Mojang or Microsoft.**
@@ -16,8 +16,10 @@ Minecraft Java Edition launcher source and an experimental Fabric client mod.
   successfully built Windows packages and the Fabric jar, and rendered all launcher
   pages in an offscreen Qt smoke test. Each new update still requires its own green
   CI run. **Minecraft runtime/mixin/input/bridge behavior is not manually validated.**
-- Cape images/registry/preview do **not** currently render capes inside Minecraft.
-  They are not official cosmetics and vanilla players will not see custom capes.
+- Built-in cape palettes and low-poly animated wings now have an experimental Fabric
+  1.20.1 feature renderer. Public preference sharing works only with compatible clients,
+  not vanilla players. Arbitrary artwork stays preview-only. Runtime is not validated.
+- [Lite launcher / catalogue / hosting / cosmetics guide](docs/LAUNCHER_LITE.md).
 - This is not yet a fully release-validated launcher/client. Do not interpret
   checked-in source or build automation as successful end-to-end game testing.
 

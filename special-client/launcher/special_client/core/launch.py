@@ -83,11 +83,21 @@ class LaunchService:
     # ------------------------------------------------------------------ #
     def fetch_version_json(self, entry, *, use_cache: bool = True) -> McVersion:
         vjson = self.layout.instance_version_json(entry.id)
-        if use_cache and vjson.exists():
-            return load_version_json(vjson)
-        raw = net.get_json(self.session, entry.url)
-        save_version_json(raw, vjson)
-        return version_from_raw(raw)
+        digest = getattr(entry, "sha1", "")
+        if digest:
+            self._download_checked(entry.url, vjson, digest, None, lambda *args: None, "version metadata")
+            version = load_version_json(vjson)
+        elif use_cache and vjson.exists():
+            version = load_version_json(vjson)
+        else:
+            raw = net.get_json(self.session, entry.url)
+            version = version_from_raw(raw)
+            if version.id != entry.id:
+                raise LaunchError("Version metadata ID does not match selection")
+            save_version_json(raw, vjson)
+        if version.id != entry.id:
+            raise LaunchError("Version metadata ID does not match selection")
+        return version
 
     def _download_checked(self, url: str, dest: Path, sha1: Optional[str],
                           size: Optional[int], progress: ProgressCb,

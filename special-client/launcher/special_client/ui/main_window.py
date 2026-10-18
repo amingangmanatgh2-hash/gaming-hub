@@ -285,7 +285,7 @@ class MainWindow(QWidget):
             self.online_label.setText("● online")
             self.online_label.setStyleSheet(f"color: {self.t.ok};")
         else:
-            self.online_label.setText("● offline" + (" (cached)" if cached else ""))
+            self.online_label.setText("● cached catalogue" if cached else "● offline")
             self.online_label.setStyleSheet(f"color: {self.t.warn};")
 
     def statusBar(self) -> QStatusBar:

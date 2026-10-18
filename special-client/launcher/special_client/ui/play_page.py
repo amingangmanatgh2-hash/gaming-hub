@@ -249,9 +249,9 @@ class PlayPage(QWidget):
                     break
         self.version_box.blockSignals(False)
         self.version_note.setText(
-            f"{len(releases)} releases · {len(snapshots)} snapshots"
+            f"{len(releases)} releases · {len(snapshots)} snapshots · {manifest.source}"
             + (" (from cache)" if getattr(manifest, "from_cache", False) else ""))
-        self.win.set_online_display(True, getattr(manifest, "from_cache", False))
+        self.win.set_online_display(not manifest.from_cache, manifest.from_cache)
         if not releases:
             self.version_note.setText("No cached releases. Refresh downloads GitHub catalogue with Mojang fallback.")
         self._refresh_loaders()

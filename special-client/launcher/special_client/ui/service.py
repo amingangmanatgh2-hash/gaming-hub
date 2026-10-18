@@ -67,7 +67,7 @@ class AppService(QObject):
 
         # --- config & profiles (game dir chosen in settings) -------------
         self.config = Config(self.app_dir / "launcher-config.json")
-        if is_vanilla(Path(self.config.get("game_dir"))):
+        if not self.config.get("game_dir") or is_vanilla(Path(self.config.get("game_dir"))):
             self.config.set("game_dir", str(default_game_dir()))
             self.config.save()
         self._set_game_dir(Path(self.config.get("game_dir")), save=False)
@@ -155,6 +155,7 @@ class AppService(QObject):
         self._manifest_attempt = time.time()
         self._manifest_busy = True
         game_dir = self.layout.game_dir
+        cache_dir = self.layout.client_cache
         def done(manifest):
             self._manifest_busy = False
             if self.layout.game_dir == game_dir:
@@ -163,7 +164,7 @@ class AppService(QObject):
         def failed(error):
             self._manifest_busy = False
             self.manifest_failed.emit(error)
-        self.run_async(lambda progress: load_manifest(self.layout.client_cache, self.session, force=bool(force)),
+        self.run_async(lambda progress: load_manifest(cache_dir, self.session, force=bool(force)),
                        on_ok=done, on_err=failed)
 
     # ------------------------------------------------------------------ #
