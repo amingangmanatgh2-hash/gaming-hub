@@ -19,6 +19,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.6'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test Python core on Linux (including POSIX permissions)
+        working-directory: special-client/launcher
+        run: |
+          python -m pip install ".[dev]" pyflakes
+          python ../tools/ci_run.py python -m pytest tests -v
       - name: Build and test Fabric mod
         working-directory: special-client/client
         run: gradle --no-daemon build
@@ -44,6 +52,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python ../tools/ci_run.py python -m pyflakes special_client tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Smoke test all Qt pages offscreen
+        working-directory: special-client
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/ci_run.py python tools/gui_smoke.py
       - name: Generate assets and package launcher
         working-directory: special-client
         run: |
@@ -71,3 +84,47 @@ jobs:
             special-client/dist/SPECIAL_CLIENT_Portable.zip
             special-client/dist/SHA256.txt
           if-no-files-found: error
+  prerelease:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/8bcdca13-gaming-hub' && contains(github.event.head_commit.message, '[prerelease]')
+    needs: [windows, client-mod]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: SPECIAL_CLIENT_Windows
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: SPECIAL_CLIENT_Fabric_1.20.1
+          path: mod-assets
+      - name: Prepare verified release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp mod-assets/special-client-1.0.0.jar release-assets/
+          cp special-client/docs/RELEASE_NOTES.md release-assets/TESTING.md
+          cd release-assets
+          test -s SPECIAL_CLIENT_Setup.exe
+          test -s SPECIAL_CLIENT_Portable.zip
+          test -s special-client-1.0.0.jar
+          sha256sum SPECIAL_CLIENT_Setup.exe SPECIAL_CLIENT_Portable.zip special-client-1.0.0.jar TESTING.md > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+      - name: Publish experimental prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=special-client-v1.0.0-alpha.1
+          gh release create "$tag" \
+            release-assets/SPECIAL_CLIENT_Setup.exe \
+            release-assets/SPECIAL_CLIENT_Portable.zip \
+            release-assets/special-client-1.0.0.jar \
+            release-assets/SHA256SUMS.txt release-assets/TESTING.md \
+            --target "$GITHUB_SHA" --draft --prerelease \
+            --title "SPECIAL CLIENT 1.0.0-alpha.1 — Experimental test build" \
+            --notes-file special-client/docs/RELEASE_NOTES.md
+          gh release edit "$tag" --draft=false --prerelease --latest=false

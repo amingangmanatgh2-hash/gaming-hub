@@ -49,6 +49,7 @@ class TestAccountStore:
         store.remove("Steve")
         assert store.list_names() == []
 
+    @pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits do not model Windows ACLs")
     def test_file_permissions(self, tmp_path):
         store = AccountStore(tmp_path)
         store.add(_session("Alice"), "uhs-2")
@@ -122,3 +123,12 @@ class TestMicrosoftFlowShape:
         resp = {"DisplayClaims": {"xui": [["12345", "name", 0], []]}}
         assert m._uhs(resp) == "12345"
         assert m._uhs({"DisplayClaims": {}}) == ""
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI integration")
+def test_windows_tokens_encrypted(tmp_path):
+    store = AccountStore(tmp_path)
+    store.add(_session("Protected"), "uhs")
+    assert b"refresh-1" not in store.file.read_bytes()
+    assert store.file.read_bytes().startswith(b"SPECIAL-DPAPI-1\n")
+    assert AccountStore(tmp_path).get("Protected")["refresh_token"] == "refresh-1"

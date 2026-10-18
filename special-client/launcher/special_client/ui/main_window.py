@@ -39,7 +39,7 @@ class MainWindow(QWidget):
 
     # ------------------------------------------------------------------ #
     def _build(self) -> None:
-        root = QHBoxLayout(self)
+        root = QHBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self._build_side(), 0)
@@ -57,11 +57,9 @@ class MainWindow(QWidget):
         sb = QStatusBar()
         sb.setObjectName("StatusBar")
         self._sb = sb
-        root2 = QVBoxLayout()
+        root2 = QVBoxLayout(self)
         root2.addLayout(root, 1)
         root2.addWidget(sb, 0)
-        self.layout().addLayout(root2)
-        self.setLayout(root2)
 
         # pages
         from .play_page import PlayPage

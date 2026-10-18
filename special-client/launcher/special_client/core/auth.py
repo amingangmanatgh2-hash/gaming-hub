@@ -306,7 +306,7 @@ class MicrosoftAuth:
 # --------------------------------------------------------------------------- #
 
 class AccountStore:
-    """Persistent Microsoft account tokens (0600 file)."""
+    """Persistent tokens: per-user DPAPI on Windows; 0600 on POSIX."""
 
     def __init__(self, auth_dir: Path):
         self.auth_dir = Path(auth_dir)
@@ -315,7 +315,8 @@ class AccountStore:
     def _load(self) -> dict:
         if self.file.exists():
             try:
-                return __import__("json").loads(self.file.read_text())
+                from .credentials import unprotect
+                return __import__("json").loads(unprotect(self.file.read_bytes()))
             except Exception:
                 pass
         return {}
@@ -323,7 +324,10 @@ class AccountStore:
     def _save(self, data: dict) -> None:
         self.auth_dir.mkdir(parents=True, exist_ok=True)
         tmp = self.file.with_suffix(".tmp")
-        tmp.write_text(__import__("json").dumps(data, indent=2))
+        from .credentials import protect
+        payload = __import__("json").dumps(data, indent=2).encode("utf-8")
+        tmp.write_bytes(protect(payload))
+        os.chmod(tmp, 0o600)
         os.replace(tmp, self.file)
         os.chmod(self.file, 0o600)
 

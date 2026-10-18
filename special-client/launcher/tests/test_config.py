@@ -2,6 +2,8 @@
 import json
 import os
 
+import pytest
+
 from special_client.core.config import Config, ProfileStore
 
 
@@ -46,6 +48,7 @@ def test_corrupt_config_quarantined(tmp_path):
     assert len(bad) == 1
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits do not model Windows ACLs")
 def test_config_file_permissions(tmp_path):
     p = tmp_path / "config.json"
     c = Config(p)
