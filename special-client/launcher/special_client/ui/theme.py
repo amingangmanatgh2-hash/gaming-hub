@@ -25,6 +25,9 @@ class Theme:
     ok: str
     warn: str
 
+    def qss(self) -> str:
+        return qss(self)
+
 
 THEMES: dict[str, Theme] = {
     "midnight-neon": Theme(
