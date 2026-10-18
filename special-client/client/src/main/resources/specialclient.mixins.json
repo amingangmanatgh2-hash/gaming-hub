@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "dev.specialclient.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": ["MouseMixin"],
+  "injectors": {"defaultRequire": 1}
+}

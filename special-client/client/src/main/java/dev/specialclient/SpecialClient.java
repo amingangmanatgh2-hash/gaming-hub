@@ -24,7 +24,9 @@ import java.util.Locale;
 
 public final class SpecialClient implements ClientModInitializer {
     public static ClientConfig config;
-    private KeyBinding menu, prediction, warning;
+    public static final BridgePractice BRIDGE = new BridgePractice();
+    private static final ClickBurst BURST = new ClickBurst();
+    private KeyBinding menu, prediction, warning, emergency, bridge, destination;
     private final ArrayDeque<Long> left = new ArrayDeque<>(), right = new ArrayDeque<>();
     private boolean leftDown, rightDown, threat;
     private int ticks, soundCooldown;
@@ -39,11 +41,39 @@ public final class SpecialClient implements ClientModInitializer {
         menu = key("menu", GLFW.GLFW_KEY_RIGHT_SHIFT);
         prediction = key("prediction", GLFW.GLFW_KEY_UNKNOWN);
         warning = key("warning", GLFW.GLFW_KEY_UNKNOWN);
+        emergency = key("emergency", GLFW.GLFW_KEY_F8);
+        bridge = key("bridge", GLFW.GLFW_KEY_UNKNOWN);
+        destination = key("destination", GLFW.GLFW_KEY_UNKNOWN);
+        ClientTickEvents.START_CLIENT_TICK.register(this::inputTick);
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         HudRenderCallback.EVENT.register(this::render);
     }
     private KeyBinding key(String name, int code) {
         return KeyBindingHelper.registerKeyBinding(new KeyBinding("key.specialclient." + name, InputUtil.Type.KEYSYM, code, "SPECIAL CLIENT"));
+    }
+    /** Called ONLY from a physical GLFW mouse-button callback, never from the burst queue. */
+    public static void physicalMouse(long window, int button, int action) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (config == null || !config.clickBurst || BRIDGE.active() || mc.player == null || mc.world == null
+                || mc.currentScreen != null || !mc.isWindowFocused() || mc.isPaused()
+                || window != mc.getWindow().getHandle() || action != GLFW.GLFW_PRESS) return;
+        if (button == 0 && mc.options.attackKey.matchesMouse(0)) BURST.press(0, config.leftMultiplier);
+        if (button == 1 && mc.options.useKey.matchesMouse(1)) BURST.press(1, config.rightMultiplier);
+    }
+    private void inputTick(MinecraftClient mc) {
+        while (emergency.wasPressed()) {
+            BRIDGE.stop(mc, "Emergency stop (F8)"); BURST.clear();
+            config.clickBurst = false; config.save();
+        }
+        while (destination.wasPressed()) BRIDGE.pickDestination(mc);
+        while (bridge.wasPressed()) BRIDGE.start(mc);
+        BRIDGE.tick(mc);
+        if (!config.clickBurst || BRIDGE.active() || mc.player == null || mc.world == null
+                || mc.currentScreen != null || !mc.isWindowFocused() || mc.isPaused() || mc.player.isDead()) {
+            BURST.clear(); return;
+        }
+        if (BURST.tick(0) && mc.options.attackKey.matchesMouse(0)) KeyBinding.onKeyPressed(InputUtil.Type.MOUSE.createFromCode(0));
+        if (BURST.tick(1) && mc.options.useKey.matchesMouse(1)) KeyBinding.onKeyPressed(InputUtil.Type.MOUSE.createFromCode(1));
     }
     private void tick(MinecraftClient mc) {
         while (menu.wasPressed()) if (mc.currentScreen == null) mc.setScreen(new ModScreen());
@@ -135,6 +165,17 @@ public final class SpecialClient implements ClientModInitializer {
             int g = config.crosshairGap, l = config.crosshairLength;
             ctx.fill(cx-g-l, cy, cx-g, cy+1, color); ctx.fill(cx+g+1, cy, cx+g+l+1, cy+1, color);
             ctx.fill(cx, cy-g-l, cx+1, cy-g, color); ctx.fill(cx, cy+g+1, cx+1, cy+g+l+1, color);
+        }
+        if (config.clickBurst) ctx.drawCenteredTextWithShadow(mc.textRenderer,
+                "PHYSICAL BURST L x" + config.leftMultiplier + " / R x" + config.rightMultiplier + " | F8 disables", cx, 42, color);
+        if (BRIDGE.active()) ctx.drawCenteredTextWithShadow(mc.textRenderer, "PRACTICE | " + BRIDGE.status(), cx, 56, 0xffffcc44);
+        if (config.bridgeCoach) {
+            BridgeLessons.Lesson lesson = BridgeLessons.ALL[config.lesson];
+            ctx.drawCenteredTextWithShadow(mc.textRenderer, lesson.title() + " | Step " + (config.lessonStep + 1) + "/5", cx, 72, color);
+            int coachY = 85;
+            for (var text : mc.textRenderer.wrapLines(net.minecraft.text.Text.literal(lesson.steps()[config.lessonStep]), Math.max(100, ctx.getScaledWindowWidth() - 32))) {
+                ctx.drawCenteredTextWithShadow(mc.textRenderer, text, cx, coachY, 0xffdddddd); coachY += 10;
+            }
         }
         if (threat) ctx.drawCenteredTextWithShadow(mc.textRenderer, "OVERHEAD: armed player / projectile (not intent)", cx, 28, 0xffff7755);
         if (landing != null) {

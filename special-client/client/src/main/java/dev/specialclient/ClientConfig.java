@@ -12,10 +12,15 @@ public final class ClientConfig {
     private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("specialclient.json");
     public boolean hud = true, keystrokes = true, equipment = true, crosshair = false;
     public boolean projectile = false, overhead = false, sound = false;
+    public boolean clickBurst = false, bridgeCoach = false;
+    public int leftMultiplier = 1, rightMultiplier = 1, lesson = 0, lessonStep = 0;
     public int color = 0x00e5ff, crosshairGap = 4, crosshairLength = 5, hudX = 8, hudY = 8;
     public double warningRadius = 12;
 
     public void validate() {
+        leftMultiplier = ClickBurst.multiplier(leftMultiplier);
+        rightMultiplier = ClickBurst.multiplier(rightMultiplier);
+        lesson = BridgeLessons.lesson(lesson); lessonStep = BridgeLessons.step(lessonStep);
         color &= 0xffffff;
         crosshairGap = Math.max(0, Math.min(20, crosshairGap));
         crosshairLength = Math.max(1, Math.min(30, crosshairLength));
