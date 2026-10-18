@@ -96,10 +96,21 @@ def main() -> int:
     # keep the splash alive a minimum of 2.2s for brand presence
     remaining = max(0.0, 2.2 - (time.time() - t0))
 
+    def offer_companion():
+        if not service.config.get("companion_prompt_seen"):
+            service.config.set("companion_prompt_seen", True)
+            service.config.save()
+            from PySide6.QtWidgets import QMessageBox
+            if QMessageBox.question(window, "Optional AI companion",
+                    "Set up optional API chat now? You can skip and configure it later in Settings. "
+                    "No API key is required to launch Minecraft or use local practice commands.") == QMessageBox.Yes:
+                window.show_page("companion")
+
     def finish_splash():
         window.show()
         splash.close()
         splash.deleteLater()
+        QTimer.singleShot(500, offer_companion)
 
     if remaining > 0:
         QTimer.singleShot(int(remaining * 1000), finish_splash)

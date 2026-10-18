@@ -15,6 +15,7 @@ NAV = [
     ("capes", "Capes", "✦"),
     ("profiles", "Profiles", "◆"),
     ("settings", "Settings", "⚙"),
+    ("companion", "Companion", "✧"),
     ("logs", "Logs", "≡"),
 ]
 
@@ -69,6 +70,7 @@ class MainWindow(QWidget):
         from .profiles_page import ProfilesPage
         from .settings_page import SettingsPage
         from .logs_page import LogsPage
+        from .companion_page import CompanionPage
 
         self._pages["play"] = PlayPage(self)
         self._pages["mods"] = ModsPage(self)
@@ -77,6 +79,7 @@ class MainWindow(QWidget):
         self._pages["profiles"] = ProfilesPage(self)
         self._pages["settings"] = SettingsPage(self)
         self._pages["logs"] = LogsPage(self)
+        self._pages["companion"] = CompanionPage(self)
         for i, (key, _l, _i) in enumerate(NAV):
             self.stack.addWidget(self._pages[key])
 

@@ -31,7 +31,7 @@ public final class ModScreen extends Screen {
     }
     private void rebuild() {
         clearChildren(); addDrawableChild(search);
-        String[] cats = {"HUD", "Visuals", "Alerts", "Input", "Practice"};
+        String[] cats = {"HUD", "Visuals", "Alerts", "Input", "Practice", "Companion"};
         for (int i = 0; i < cats.length; i++) {
             String cat = cats[i];
             button((category.equals(cat) ? "> " : "") + cat, px + 8, py + 66 + i * 24, 94,
@@ -65,9 +65,10 @@ public final class ModScreen extends Screen {
             button("Right multiplier: x" + c.rightMultiplier, contentX, row, contentW, () -> { c.rightMultiplier = cycle(c.rightMultiplier); rebuild(); });
         }
         if (category.equals("Practice") && query.isEmpty()) practice();
+        if (category.equals("Companion")) button("Open chat + resource collection", contentX, row, contentW, () -> client.setScreen(new CompanionScreen()));
         button("Save + close", px + 8, py + ph - 26, 94, this::close);
         button("STOP [F8]", contentX, py + ph - 26, Math.min(100, contentW), () -> {
-            SpecialClient.BRIDGE.stop(client, "Stopped from menu"); c.clickBurst = false; feedback = "Automation stopped"; rebuild();
+            CompanionLink.stop(client); c.clickBurst = false; feedback = "Automation stopped"; rebuild();
         });
     }
     private int cycle(int value) { return value == 1 ? 2 : value == 2 ? 4 : value == 4 ? 8 : 1; }
@@ -85,7 +86,7 @@ public final class ModScreen extends Screen {
         // Lesson text is rendered in the remaining card; controls stay compact at high GUI scales.
         if (ph >= 340) row += 78;
         if (ph < 232) {
-            button("Start straight practice", contentX, row, contentW, () -> { close(); SpecialClient.BRIDGE.start(client); });
+            button("Start straight practice", contentX, row, contentW, () -> { close(); SpecialClient.startPractice(client); });
             return;
         }
         int fieldW = (contentW - 12) / 3;
@@ -104,7 +105,7 @@ public final class ModScreen extends Screen {
                 SpecialClient.BRIDGE.setDestination(new BlockPos(x, y, z)); feedback = "Waypoint set; air is allowed, placement still needs support";
             } catch (NumberFormatException e) { feedback = "Enter whole XYZ numbers within 1.20.1 world bounds"; }
         }); row += 22;
-        button("Start straight practice (singleplayer)", contentX, row, contentW, () -> { close(); SpecialClient.BRIDGE.start(client); });
+        button("Start straight practice (singleplayer)", contentX, row, contentW, () -> { close(); SpecialClient.startPractice(client); });
     }
     @Override public void render(DrawContext ctx, int mx, int my, float delta) {
         renderBackground(ctx);

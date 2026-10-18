@@ -120,7 +120,7 @@ class SettingsPage(QWidget):
         self.channel.setCurrentIndex(max(0, i))
         v4.addWidget(self.channel)
         v4.addWidget(dim_label(
-            "Updates download from a signed HTTPS manifest, verify every "
+            "Updates download from a trusted HTTPS manifest, verify every "
             "file's SHA-256 before applying, snapshot the current install "
             "first, and roll back automatically on failure. Major version "
             "upgrades always ask before applying. Offline, the launcher "
@@ -143,6 +143,10 @@ class SettingsPage(QWidget):
             "Microsoft/Xbox/Mojang endpoints. Offline sessions never touch "
             "Microsoft services."))
         outer.addWidget(c5)
+
+        companion = QPushButton("AI companion — optional API key, model and provider settings…")
+        companion.clicked.connect(lambda: self.win.show_page("companion"))
+        outer.addWidget(companion)
 
         # -- save / about -------------------------------------------------------------
         ab = QHBoxLayout()

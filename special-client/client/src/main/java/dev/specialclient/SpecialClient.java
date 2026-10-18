@@ -25,9 +25,10 @@ import java.util.Locale;
 public final class SpecialClient implements ClientModInitializer {
     public static ClientConfig config;
     public static final BridgePractice BRIDGE = new BridgePractice();
+    public static final ResourceCollector COLLECTOR = new ResourceCollector();
     private static final ClickBurst BURST = new ClickBurst();
     private static Object inputWorld;
-    private KeyBinding menu, prediction, warning, emergency, bridge, destination;
+    private KeyBinding menu, prediction, warning, emergency, bridge, destination, companion;
     private final ArrayDeque<Long> left = new ArrayDeque<>(), right = new ArrayDeque<>();
     private boolean leftDown, rightDown, threat;
     private int ticks, soundCooldown;
@@ -42,6 +43,7 @@ public final class SpecialClient implements ClientModInitializer {
         menu = key("menu", GLFW.GLFW_KEY_RIGHT_SHIFT);
         prediction = key("prediction", GLFW.GLFW_KEY_UNKNOWN);
         warning = key("warning", GLFW.GLFW_KEY_UNKNOWN);
+        companion = key("companion", GLFW.GLFW_KEY_UNKNOWN);
         emergency = key("emergency", GLFW.GLFW_KEY_F8);
         bridge = key("bridge", GLFW.GLFW_KEY_UNKNOWN);
         destination = key("destination", GLFW.GLFW_KEY_UNKNOWN);
@@ -55,7 +57,7 @@ public final class SpecialClient implements ClientModInitializer {
     /** Called ONLY from a physical GLFW mouse-button callback, never from the burst queue. */
     public static void physicalMouse(long window, int button, int action) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (config == null || !config.clickBurst || BRIDGE.active() || mc.player == null || mc.world == null
+        if (config == null || !config.clickBurst || (BRIDGE.active() || COLLECTOR.active()) || mc.player == null || mc.world == null
                 || mc.currentScreen != null || !mc.isWindowFocused() || mc.isPaused()
                 || window != mc.getWindow().getHandle() || action != GLFW.GLFW_PRESS) return;
         if (button == 0 && mc.options.attackKey.matchesMouse(0)) BURST.press(0, config.leftMultiplier);
@@ -64,18 +66,25 @@ public final class SpecialClient implements ClientModInitializer {
     private void inputTick(MinecraftClient mc) {
         if (inputWorld != mc.world) { BURST.clear(); inputWorld = mc.world; }
         while (emergency.wasPressed()) {
-            BRIDGE.stop(mc, "Emergency stop (F8)"); BURST.clear();
+            CompanionLink.stop(mc); BURST.clear();
             config.clickBurst = false; config.save();
         }
+        while (companion.wasPressed()) if (mc.currentScreen == null) mc.setScreen(new CompanionScreen());
+        CompanionLink.tick(mc);
         while (destination.wasPressed()) BRIDGE.pickDestination(mc);
-        while (bridge.wasPressed()) BRIDGE.start(mc);
+        while (bridge.wasPressed()) startPractice(mc);
+        COLLECTOR.tick(mc);
         BRIDGE.tick(mc);
-        if (!config.clickBurst || BRIDGE.active() || mc.player == null || mc.world == null
+        if (!config.clickBurst || (BRIDGE.active() || COLLECTOR.active()) || mc.player == null || mc.world == null
                 || mc.currentScreen != null || !mc.isWindowFocused() || mc.isPaused() || mc.player.isDead()) {
             BURST.clear(); return;
         }
         if (BURST.tick(0) && mc.options.attackKey.matchesMouse(0)) KeyBinding.onKeyPressed(InputUtil.Type.MOUSE.createFromCode(0));
         if (BURST.tick(1) && mc.options.useKey.matchesMouse(1)) KeyBinding.onKeyPressed(InputUtil.Type.MOUSE.createFromCode(1));
+    }
+    public static void startPractice(MinecraftClient mc) {
+        COLLECTOR.stop(mc, "Manual bridge practice selected");
+        BRIDGE.start(mc);
     }
     private void tick(MinecraftClient mc) {
         while (menu.wasPressed()) if (mc.currentScreen == null) mc.setScreen(new ModScreen());
@@ -170,6 +179,7 @@ public final class SpecialClient implements ClientModInitializer {
         }
         if (config.clickBurst) ctx.drawCenteredTextWithShadow(mc.textRenderer,
                 "PHYSICAL BURST L x" + config.leftMultiplier + " / R x" + config.rightMultiplier + " | F8 disables", cx, 42, color);
+        if (COLLECTOR.active()) ctx.drawCenteredTextWithShadow(mc.textRenderer, "COLLECT | " + COLLECTOR.status(), cx, 105, 0xff55ffaa);
         if (BRIDGE.active()) ctx.drawCenteredTextWithShadow(mc.textRenderer, "PRACTICE | " + BRIDGE.status(), cx, 56, 0xffffcc44);
         if (config.bridgeCoach) {
             BridgeLessons.Lesson lesson = BridgeLessons.ALL[config.lesson];
