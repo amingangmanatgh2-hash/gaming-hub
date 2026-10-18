@@ -26,6 +26,7 @@ public final class SpecialClient implements ClientModInitializer {
     public static ClientConfig config;
     public static final BridgePractice BRIDGE = new BridgePractice();
     private static final ClickBurst BURST = new ClickBurst();
+    private static Object inputWorld;
     private KeyBinding menu, prediction, warning, emergency, bridge, destination;
     private final ArrayDeque<Long> left = new ArrayDeque<>(), right = new ArrayDeque<>();
     private boolean leftDown, rightDown, threat;
@@ -61,6 +62,7 @@ public final class SpecialClient implements ClientModInitializer {
         if (button == 1 && mc.options.useKey.matchesMouse(1)) BURST.press(1, config.rightMultiplier);
     }
     private void inputTick(MinecraftClient mc) {
+        if (inputWorld != mc.world) { BURST.clear(); inputWorld = mc.world; }
         while (emergency.wasPressed()) {
             BRIDGE.stop(mc, "Emergency stop (F8)"); BURST.clear();
             config.clickBurst = false; config.save();

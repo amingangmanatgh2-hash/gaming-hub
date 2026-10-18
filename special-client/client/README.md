@@ -71,7 +71,8 @@ sneak bridge only**, not automatic godbridge/telly/diagonal/staircase.
    trainer rotates the view toward block faces, sneaks backward and uses vanilla
    `interactBlock` only after a real, in-reach block raycast; it waits for confirmation.
 6. **F8 or physical WASD/Space stops.** Menus, focus loss, pause, flight, missing
-   blocks/support, height/lateral drift, obstructions, rejection and timeout stop it.
+   blocks/support, height/lateral drift, damage, dimension changes, world border, obstructions,
+   rejection and timeout stop it.
 
 This is experimental: compile/unit tests do not prove movement safety. No fall
 prevention guarantee. No arbitrary air placement, teleport, freecam or pathfinding.

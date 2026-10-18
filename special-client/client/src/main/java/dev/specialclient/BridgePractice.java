@@ -17,6 +17,8 @@ public final class BridgePractice {
     private BlockPos support, destination, waiting;
     private Direction direction;
     private int age, waitTicks, placed;
+    private Object practiceWorld;
+    private float startingHealth;
     private String status = "Idle";
     public boolean active() { return active; }
     public String status() { return status; }
@@ -61,6 +63,7 @@ public final class BridgePractice {
         // Side-to-side drift could make a single-width route unsafe.
         double lateral = direction.getAxis() == Direction.Axis.X ? mc.player.getZ() - (support.getZ() + .5) : mc.player.getX() - (support.getX() + .5);
         if (Math.abs(lateral) > .12) { message(mc, "Center yourself on the starting block before starting."); return; }
+        practiceWorld = mc.world; startingHealth = mc.player.getHealth();
         active = true; age = waitTicks = placed = 0; waiting = null; status = "Approaching edge (F8 stop)";
     }
     public void stop(MinecraftClient mc, String reason) {
@@ -72,11 +75,11 @@ public final class BridgePractice {
     }
     public void tick(MinecraftClient mc) {
         if (!active) return;
-        if (!permitted(mc) || mc.player == null || mc.world == null || mc.interactionManager == null) { stop(mc, "Context changed; stopped"); return; }
+        if (!permitted(mc) || mc.player == null || mc.world == null || mc.world != practiceWorld || mc.interactionManager == null) { stop(mc, "Context changed; stopped"); return; }
         long window = mc.getWindow().getHandle();
         for (int key : new int[]{GLFW.GLFW_KEY_W, GLFW.GLFW_KEY_A, GLFW.GLFW_KEY_S, GLFW.GLFW_KEY_D, GLFW.GLFW_KEY_SPACE})
             if (GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS) { stop(mc, "Manual movement; stopped"); return; }
-        if (++age > 2400 || mc.player.getHealth() <= 0 || mc.player.getAbilities().flying || mc.player.isTouchingWater()
+        if (++age > 2400 || mc.player.getHealth() < startingHealth || mc.player.getAbilities().flying || mc.player.isTouchingWater()
                 || mc.player.hasVehicle() || !mc.player.isOnGround() || !safeHeldBlock(mc)) {
             stop(mc, "Safety stop: ground, blocks, timeout or player state"); return;
         }
@@ -96,7 +99,7 @@ public final class BridgePractice {
             }
         }
         BlockPos next = support.offset(direction);
-        if (!mc.world.isChunkLoaded(next) || !mc.world.getBlockState(next.up()).getCollisionShape(mc.world, next.up()).isEmpty()
+        if (!mc.world.getWorldBorder().contains(next) || !mc.world.isChunkLoaded(next) || !mc.world.getBlockState(next.up()).getCollisionShape(mc.world, next.up()).isEmpty()
                 || !mc.world.getBlockState(next.up(2)).getCollisionShape(mc.world, next.up(2)).isEmpty()) {
             stop(mc, "Unloaded route or head obstruction"); return;
         }
@@ -130,7 +133,7 @@ public final class BridgePractice {
     }
     private boolean safeHeldBlock(MinecraftClient mc) {
         if (!(mc.player.getMainHandStack().getItem() instanceof BlockItem item)) return false;
-        return !(item.getBlock() instanceof FallingBlock) && item.getBlock() != Blocks.TNT
+        return !(item.getBlock() instanceof FallingBlock) && item.getBlock() != Blocks.TNT && item.getBlock() != Blocks.MAGMA_BLOCK
                 && item.getBlock().getDefaultState().isFullCube(mc.world, mc.player.getBlockPos());
     }
     private void message(MinecraftClient mc, String text) { status = text; if (mc.player != null) mc.player.sendMessage(Text.literal(text), true); }
