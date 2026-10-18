@@ -1,0 +1,136 @@
+name: SPECIAL CLIENT builds
+on:
+  workflow_dispatch:
+  push:
+    paths: ['special-client/**', '.github/workflows/special-client.yml']
+  pull_request:
+    paths: ['special-client/**', '.github/workflows/special-client.yml']
+permissions:
+  contents: read
+jobs:
+  client-mod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.6'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test Python core on Linux (including POSIX permissions)
+        working-directory: special-client/launcher
+        run: |
+          python -m pip install ".[dev]" pyflakes
+          python ../tools/ci_run.py python -m pytest tests -v
+      - name: Verify live GitHub catalogue and latest official metadata
+        working-directory: special-client/launcher
+        run: python ../tools/ci_run.py python ../tools/check_live_catalog.py
+      - name: Build and test Fabric mod
+        working-directory: special-client/client
+        run: python ../tools/ci_run.py gradle --no-daemon build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SPECIAL_CLIENT_Fabric_1.20.1
+          path: special-client/client/build/libs/*.jar
+          if-no-files-found: error
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        working-directory: special-client/launcher
+        run: python -m pip install ".[gui,dev]" pyinstaller pyflakes
+      - name: Tests and lint
+        working-directory: special-client/launcher
+        run: |
+          python ../tools/ci_run.py python -m pytest tests -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python ../tools/ci_run.py python -m pyflakes special_client tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Smoke test all Qt pages offscreen
+        working-directory: special-client
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/ci_run.py python tools/gui_smoke.py
+      - name: Generate assets and package launcher
+        working-directory: special-client
+        run: |
+          python tools/make_assets.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/ci_run.py pyinstaller packaging/special_client.spec --noconfirm
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "dist/SPECIAL_CLIENT/SPECIAL_CLIENT_CLI.exe" --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path dist/SPECIAL_CLIENT -DestinationPath dist/SPECIAL_CLIENT_Portable.zip
+      - name: Build Windows installer
+        working-directory: special-client
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw 'Inno Setup 6 not installed on runner' }
+          python tools/ci_run.py $iscc packaging/innosetup/SPECIAL_CLIENT.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-FileHash dist/SPECIAL_CLIENT_Setup.exe -Algorithm SHA256 | Format-List | Out-File dist/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SPECIAL_CLIENT_Windows
+          path: |
+            special-client/dist/SPECIAL_CLIENT_Setup.exe
+            special-client/dist/SPECIAL_CLIENT_Portable.zip
+            special-client/dist/SHA256.txt
+          if-no-files-found: error
+  prerelease:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/8bcdca13-gaming-hub' && contains(github.event.head_commit.message, '[prerelease]')
+    needs: [windows, client-mod]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: SPECIAL_CLIENT_Windows
+          path: release-assets
+      - uses: actions/download-artifact@v4
+        with:
+          name: SPECIAL_CLIENT_Fabric_1.20.1
+          path: mod-assets
+      - name: Prepare verified release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp mod-assets/special-client-1.3.0-alpha.4.jar release-assets/
+          cp special-client/docs/RELEASE_NOTES.md release-assets/TESTING.md
+          cp special-client/docs/BRIDGE_GUIDE_FA.md release-assets/BRIDGE_GUIDE_FA.md
+          cp special-client/docs/COMPANION.md release-assets/COMPANION.md
+          cp special-client/docs/LAUNCHER_LITE.md release-assets/LAUNCHER_LITE.md
+          cd release-assets
+          test -s SPECIAL_CLIENT_Setup.exe
+          test -s SPECIAL_CLIENT_Portable.zip
+          test -s special-client-1.3.0-alpha.4.jar
+          sha256sum SPECIAL_CLIENT_Setup.exe SPECIAL_CLIENT_Portable.zip special-client-1.3.0-alpha.4.jar TESTING.md BRIDGE_GUIDE_FA.md COMPANION.md LAUNCHER_LITE.md > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+      - name: Publish experimental prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=special-client-v1.3.0-alpha.4
+          gh release create "$tag" \
+            release-assets/SPECIAL_CLIENT_Setup.exe \
+            release-assets/SPECIAL_CLIENT_Portable.zip \
+            release-assets/special-client-1.3.0-alpha.4.jar \
+            release-assets/SHA256SUMS.txt release-assets/TESTING.md release-assets/BRIDGE_GUIDE_FA.md release-assets/COMPANION.md release-assets/LAUNCHER_LITE.md \
+            --target "$GITHUB_SHA" --draft --prerelease \
+            --title "SPECIAL CLIENT 1.3.0-alpha.4 — Lite launcher, live catalogue and cosmetics" \
+            --notes-file special-client/docs/RELEASE_NOTES.md
+          gh release edit "$tag" --draft=false --prerelease --latest=false

@@ -1,0 +1,11 @@
+SPECIAL CLIENT — user data
+
+The Windows installer removes program files only. It never removes worlds,
+resource packs, game directories or launcher settings during uninstall.
+Launcher settings default to %USERPROFILE%\.special-client.
+The game directory can be changed in Settings. Client-specific state is under
+<game-dir>\special; in-game module settings are <game-dir>\config\specialclient.json.
+Back up your worlds before installing/updating mods. Repair is an explicit CLI
+or launcher action, not something automatically run by the installer.
+Use SPECIAL_CLIENT_CLI.exe --game-dir "C:\path\to\game" repair 1.20.1.
+Do not share auth files or logs containing access tokens.

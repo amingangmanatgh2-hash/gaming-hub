@@ -1,0 +1,9 @@
+{
+  "key.specialclient.menu": "Open SPECIAL CLIENT menu",
+  "key.specialclient.prediction": "Toggle projectile estimate",
+  "key.specialclient.warning": "Toggle overhead warning",
+  "key.specialclient.emergency": "STOP practice and disable click bursts",
+  "key.specialclient.bridge": "Start / stop singleplayer bridge practice",
+  "key.specialclient.destination": "Select bridge destination block",
+  "key.specialclient.companion": "Open private companion chat"
+}
