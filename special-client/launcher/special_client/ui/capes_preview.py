@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QWidget
 
 
@@ -132,7 +132,7 @@ class CapePreview(QWidget):
         body = tex[16:28, 16:24]
 
         for (sx, sy, z, shade, uv) in projected:
-            x0, x1, y0, y1 = uv
+            x0, y0, x1, y1 = uv
             # texture sub-rect (body region)
             tx0 = int(x0 * body.shape[1])
             tx1 = int(x1 * body.shape[1])
@@ -152,7 +152,7 @@ class CapePreview(QWidget):
                 continue
             # per-pixel barycentric test on the (near-)convex quad via edge fn
             p = np.stack(np.meshgrid(
-                np.arange(px0, px1), np.arange(py0, py1)), axis=-1).astype(float)
+                np.arange(px0, px1), np.arange(py0, py1)), axis=-1).reshape(-1, 2).astype(float)
             corners = np.stack([sx, sy], axis=1)
             inside = self._inside_quad(p, corners)
             if not inside.any():
@@ -164,15 +164,17 @@ class CapePreview(QWidget):
             ts = (qx * (tx1 - tx0) + tx0).astype(int)
             tt = np.clip(tt, 0, body.shape[0] - 1)
             ts = np.clip(ts, 0, body.shape[1] - 1)
-            cols = body[tt, ts]
-            cols = (cols * shade).astype(np.uint8)
-            a = (cols[:, 3] / 255.0)
-            idx = inside
-            yy, xx = (p[idx, 1] - py0).astype(int), (p[idx, 0] - px0).astype(int)
-            base = canvas[yy, xx]
-            mix = a[:, None]
-            canvas[yy, xx] = (cols * mix + base * (1 - mix)).astype(np.uint8)
-            canvas[yy, xx, 3] = np.maximum(base[:, 3], cols[:, 3])
+            cols = body[tt, ts].copy()
+            cols[:, :3] = (cols[:, :3] * shade).astype(np.uint8)
+            cols = cols[inside].astype(float)
+            yy, xx = p[inside, 1].astype(int), p[inside, 0].astype(int)
+            base = canvas[yy, xx].astype(float)
+            src_a, dst_a = cols[:, 3:4] / 255.0, base[:, 3:4] / 255.0
+            out_a = src_a + dst_a * (1 - src_a)
+            rgb = (cols[:, :3] * src_a + base[:, :3] * dst_a * (1 - src_a))
+            rgb /= np.maximum(out_a, 1e-9)
+            canvas[yy, xx, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
+            canvas[yy, xx, 3] = (out_a[:, 0] * 255).astype(np.uint8)
 
         # simple background: vertical gradient
         grad = np.linspace(0.0, 1.0, H)[:, None]
@@ -206,12 +208,12 @@ class CapePreview(QWidget):
 
     def _paint_qimage(self, qimg: QImage) -> None:
         self.update()
-        self._last = qimg.scaled(self.size(), Qt.SmoothTransformation)
+        self._last = qimg.scaled(self.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
     def paintEvent(self, ev) -> None:  # noqa: N802
         p = QPainter(self)
         if getattr(self, "_last", None) is not None:
             p.drawImage(0, 0, self._last)
         else:
-            p.fillRect(self.rect(), "#0b0d14")
+            p.fillRect(self.rect(), QColor("#0b0d14"))
         p.end()
