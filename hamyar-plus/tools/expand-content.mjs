@@ -236,6 +236,42 @@ export function expandCatalog({ subjects, lessons }) {
       if (cards.length) { lesson.qa.push(...cards); addedQa += cards.length; }
     }
 
+    // ۲.۶) بخش‌بندی صفحه‌ای فصل: «فعالیت»، «کار در کلاس» و «تمرین» با پاسخ جدا (سبک گام‌به‌گام صفحه‌به‌صفحه)
+    for (const lesson of mine) {
+      const pr = mulberry32(hash(lesson.id + '-pages'));
+      const seen = new Set(lesson.qa.map((x) => x.q));
+      const take = (items) => items.filter((x) => x && x.q && x.a && !seen.has(x.q)).map((x) => { seen.add(x.q); return x; });
+      const strip = (x) => ({ ...x, q: x.q.replace(/^تمرین( علوم| فیزیک)?: /, '') });
+      const originals = lesson.qa.filter((x) => !/^(تمرین:|تمرین علوم:|تمرین فیزیک:|فلش‌کارت|درست یا)/.test(x.q));
+      const drills = (n) => (MATHY.includes(base) ? mathDrills(grade, pr, n) : scienceDrills(grade, pr, n)).map(strip);
+      const numeric = MATHY.includes(base) || base === 'science' || base.startsWith('physics');
+      const bank = bankFor(base, grade).map(([q, a, x]) => ({ q, a, x: x || '' }));
+      const bankPick = (n) => { const out = []; const start = Math.floor(pr() * Math.max(1, bank.length)); for (let i = 0; i < bank.length && out.length < n; i++) out.push(bank[(start + i) % bank.length]); return out; };
+      const pointPrompts = (lesson.points || []).slice(0, 2).map((p) => ({
+        q: `این نکتهٔ درس را با بیان خودت و با یک مثال توضیح بده: «${p}»`,
+        a: p, x: lesson.summary,
+      }));
+      const wordCloze = (() => {
+        for (const p of lesson.points || []) {
+          const words = p.split(/\s+/).filter((w) => w.length >= 5 && !/[۰-۹0-9]/.test(w));
+          if (!words.length) continue;
+          const w = words[Math.floor(pr() * words.length)];
+          return { q: `جای خالی را با کلمهٔ مناسب پر کن: ${p.replace(w, '……')}`, a: w, x: `جملهٔ کامل: ${p}` };
+        }
+        return null;
+      })();
+
+      const sections = [
+        { t: 'فعالیت', qa: take(numeric ? drills(2) : [...pointPrompts.slice(0, 1), originals[0]].filter(Boolean).slice(0, 2)) },
+        { t: 'کار در کلاس', qa: take(numeric ? drills(2) : bankPick(2)) },
+        { t: 'تمرین', qa: take(numeric ? drills(3) : [wordCloze, originals[1], ...bankPick(1)].filter(Boolean).slice(0, 3)) },
+      ].filter((s) => s.qa.length);
+      if (sections.length) {
+        lesson.pages = sections;
+        addedQa += sections.reduce((n, s) => n + s.qa.length, 0);
+      }
+    }
+
     // ۳) درس تمرین و نمونه‌سوال بیشتر
     const extraQa = MATHY.includes(base)
       ? mathDrills(grade, r, 20)

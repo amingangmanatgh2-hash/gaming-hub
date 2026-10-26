@@ -98,7 +98,7 @@
       const subject = byId.subject.get(l.subject);
       let sc = score(l.title) * 4 + score(subject.title) * 3 + score(l.summary) * 2;
       let hitQa = null;
-      for (const item of l.qa) { const s = score(item.q) * 3 + score(item.a); if (s) { sc += s; hitQa = item; break; } }
+      for (const item of allQa(l)) { const s = score(item.q) * 3 + score(item.a); if (s) { sc += s; hitQa = item; break; } }
       if (sc) out.push({ lesson: l, subject, sc, hitQa });
     }
     return out.sort((a, b) => b.sc - a.sc).slice(0, limit);
@@ -120,17 +120,20 @@
   $('#searchForm').addEventListener('submit', (e) => { e.preventDefault(); if (searchInput.value.trim()) location.hash = '#/search/' + encodeURIComponent(searchInput.value.trim()); live.hidden = true; });
 
   /* ---------- کامپوننت‌ها ---------- */
+  const pagesQa = (l) => (l.pages || []).flatMap((x) => x.qa);
+  const allQa = (l) => [...l.qa, ...pagesQa(l)];
+  const qn = (l) => l.qa.length + pagesQa(l).length;
   const lessonCard = (l) => {
     const s = byId.subject.get(l.subject);
     return `<a class="card" style="--accent:${s.color}" href="#/lesson/${l.id}">
       <div class="emoji">${s.emoji}</div><h3>${esc(l.title)} ${done.has(l.id) ? '✅' : ''}</h3>
-      <p>${esc(byId.grade.get(l.grade).title)} · ${esc(s.title)} · ${fa(l.qa.length)} پرسش و پاسخ</p></a>`;
+      <p>${esc(byId.grade.get(l.grade).title)} · ${esc(s.title)} · ${fa(qn(l))} پرسش و پاسخ</p></a>`;
   };
 
   /* ---------- نماها ---------- */
   const views = {};
   views.home = () => {
-    const totalQa = CAT.lessons.reduce((n, l) => n + l.qa.length, 0);
+    const totalQa = CAT.lessons.reduce((n, l) => n + qn(l), 0);
     const myGrade = store.get('myGrade', 0);
     const recent = store.get('recent', []).map((id) => byId.lesson.get(id)).filter(Boolean);
     const favList = [...favs].map((id) => byId.lesson.get(id)).filter(Boolean).slice(0, 4);
@@ -192,7 +195,7 @@
       <div class="crumbs"><a href="#/">خانه</a> ← <a href="#/grade/${g.id}">${esc(g.title)}</a> ← ${esc(s.title)}</div>
       <div class="panel" style="border-top:5px solid ${s.color}"><h1>${s.emoji} گام‌به‌گام ${esc(s.title)} ${esc(g.title.replace('پایه ', ''))}</h1>
       <p class="muted">فصل یا درس را انتخاب کن؛ داخل هر فصل خلاصهٔ درس، نکات مهم و جواب همهٔ پرسش‌ها با توضیح هست.</p></div>
-      <div class="list">${s.lessons.map((id) => { const l = byId.lesson.get(id); return `<a class="list-item" href="#/lesson/${l.id}"><span><b>${fa(l.no)}. ${esc(l.title)}</b><small>${fa(l.qa.length)} پرسش و پاسخ ${done.has(l.id) ? '· ✅ خوانده شد' : ''}</small></span><span>←</span></a>`; }).join('')}</div>
+      <div class="list">${s.lessons.map((id) => { const l = byId.lesson.get(id); return `<a class="list-item" href="#/lesson/${l.id}"><span><b>${fa(l.no)}. ${esc(l.title)}</b><small>${fa(qn(l))} پرسش و پاسخ${l.pages ? ' · 📄 فعالیت، کار در کلاس و تمرین' : ''} ${done.has(l.id) ? '· ✅ خوانده شد' : ''}</small></span><span>←</span></a>`; }).join('')}</div>
       <div class="row-actions"><a class="btn primary" href="#/quiz/${s.grade}/${s.id}">🎯 آزمون از همین درس</a></div>
     </div>`;
   };
@@ -219,6 +222,7 @@
         <h2 class="sec">✍️ پرسش و پاسخ (گام‌به‌گام)</h2>
         <p class="muted">روی هر پرسش بزن تا جواب و توضیحش باز بشه. اول خودت حدس بزن، بعد ببین؛ اینجوری بهتر یاد می‌گیری 😉</p>
         ${l.qa.map((item, i) => `<details class="qa" ${i === 0 ? 'open' : ''}><summary>${esc(item.q)}</summary><div class="ans"><p class="a">${esc(item.a)}</p>${item.x ? `<p class="why">${esc(item.x)}</p>` : ''}</div></details>`).join('') || '<p class="empty">برای این فصل به‌زودی پرسش‌های بیشتری اضافه می‌کنیم.</p>'}
+        ${(l.pages || []).length ? `<h2 class="sec">📄 پاسخ‌های صفحه‌به‌صفحهٔ این فصل</h2><p class="muted">درست مثل کتاب، بخش‌به‌بخش جلو برو: اول فعالیت، بعد کار در کلاس و در پایان تمرین‌ها.</p>` + l.pages.map((sec, si) => `<h3 style="margin:18px 0 6px">${si === 0 ? '🧩' : si === 1 ? '✏️' : '🏠'} ${esc(sec.t)}</h3>` + sec.qa.map((item) => `<details class="qa"><summary>${esc(item.q)}</summary><div class="ans"><p class="a">${esc(item.a)}</p>${item.x ? `<p class="why">${esc(item.x)}</p>` : ''}</div></details>`).join('')).join('') : ''}
       </article>
       <div class="row-actions">
         ${prev ? `<a class="btn" href="#/lesson/${prev}">→ فصل قبلی</a>` : ''}
@@ -247,7 +251,7 @@
   /* ---------- آزمون ---------- */
   let quiz = null;
   views.quiz = (gid, sid) => {
-    let pool = CAT.lessons.flatMap((l) => l.qa.map((item) => ({ ...item, lesson: l })));
+    let pool = CAT.lessons.flatMap((l) => allQa(l).map((item) => ({ ...item, lesson: l })));
     if (gid) pool = pool.filter((x) => x.lesson.grade === +gid);
     if (sid) pool = pool.filter((x) => x.lesson.subject === sid);
     if (!pool.length) return '<div class="empty">برای این انتخاب هنوز سوالی نداریم.</div>';
@@ -290,7 +294,7 @@
     </div>
     <div class="panel">
       <h3>📊 وضعیت بانک محتوا</h3>
-      <p class="muted">نسخهٔ محتوا: ${fa(CAT.version)} · آخرین به‌روزرسانی: ${fa(CAT.updatedAt)} · ${fa(CAT.lessons.length)} فصل و ${fa(CAT.lessons.reduce((n, l) => n + l.qa.length, 0))} پرسش و پاسخ · حالت اجرا: ${esc(window.HAMYAR_CONFIG?.appMode || 'web')} · نسخهٔ برنامه: ${fa(window.HAMYAR_CONFIG?.version || '۱/۰/۰')}</p>
+      <p class="muted">نسخهٔ محتوا: ${fa(CAT.version)} · آخرین به‌روزرسانی: ${fa(CAT.updatedAt)} · ${fa(CAT.lessons.length)} فصل و ${fa(CAT.lessons.reduce((n, l) => n + qn(l), 0))} پرسش و پاسخ · حالت اجرا: ${esc(window.HAMYAR_CONFIG?.appMode || 'web')} · نسخهٔ برنامه: ${fa(window.HAMYAR_CONFIG?.version || '۱/۰/۰')}</p>
       <div class="row-actions"><button class="btn" id="syncNow">🔄 الان با سایت همگام شو</button><button class="btn bad" id="resetAll">🗑️ پاک کردن پیشرفت و نشان‌ها</button></div>
       <p class="muted">📱 روی گوشی هم می‌توانی از منوی مرورگر «نصب برنامه / Add to Home Screen» را بزنی تا مثل یک اپ روی صفحه‌ات بیاید.</p>
     </div></div>`;

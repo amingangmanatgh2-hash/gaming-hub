@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { handleApi, catalogStats } from '../worker/api.js';
+import { fetchLiveCatalog, assertCatalog, checkOrigin } from '../tools/fetch-live-catalog.mjs';
 
 const catalog = JSON.parse(readFileSync(new URL('../public/data/catalog.json', import.meta.url), 'utf8'));
 const require = createRequire(import.meta.url);
@@ -14,8 +15,8 @@ test('کاتالوگ: هر ۱۲ پایه و حداقل‌های محتوا', () 
   assert.deepEqual(catalog.grades.map((g) => g.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const stats = catalogStats(catalog);
   assert.ok(stats.subjects >= 80, 'درس‌های کافی نیست: ' + stats.subjects);
-  assert.ok(stats.lessons >= 300, 'فصل‌های کافی نیست: ' + stats.lessons);
-  assert.ok(stats.qa >= 2000, 'پرسش‌های کافی نیست: ' + stats.qa);
+  assert.ok(stats.lessons >= 350, 'فصل‌های کافی نیست: ' + stats.lessons);
+  assert.ok(stats.qa >= 3000, 'پرسش‌های کافی نیست: ' + stats.qa);
   for (const g of catalog.grades) assert.ok(g.subjects.length >= 5, `پایهٔ ${g.id} درس کم دارد`);
 });
 
@@ -81,6 +82,36 @@ test('fetchBootstrap: پاسخ سالم/خراب/شبکهٔ قطع', async () =>
   assert.equal(down.ok, false);
   const badOrigin = await fetchBootstrap('http://a.dev', { fetchImpl: async () => good });
   assert.equal(badOrigin.ok, false);
+});
+
+test('بخش‌بندی صفحه‌ای: فعالیت، کار در کلاس و تمرین برای فصل‌ها', () => {
+  const withPages = catalog.lessons.filter((l) => Array.isArray(l.pages) && l.pages.length >= 2);
+  assert.ok(withPages.length >= 150, 'فصل‌های صفحه‌بندی‌شده کم است: ' + withPages.length);
+  for (const l of withPages) for (const sec of l.pages) {
+    assert.ok(['فعالیت', 'کار در کلاس', 'تمرین'].includes(sec.t), 'عنوان بخش نامعتبر: ' + sec.t);
+    for (const item of sec.qa) { assert.ok(item.q && item.a); }
+  }
+  assert.ok(catalog.lessons.some((l) => l.title.includes('بخش‌پذیری')));
+  assert.ok(catalog.lessons.some((l) => l.title.includes('فشار و آثار آن')));
+});
+
+test('هستهٔ زندهٔ سایت: واکشی و اعتبارسنجی کاتالوگ برای تزریق به اپ', async () => {
+  assert.equal(checkOrigin('https://hamyar-plus.pages.dev/'), 'https://hamyar-plus.pages.dev');
+  assert.equal(checkOrigin('http://127.0.0.1:8899'), 'http://127.0.0.1:8899');
+  assert.throws(() => checkOrigin('https://x.dev/app'));
+  assert.throws(() => assertCatalog({ app: 'other', grades: [], subjects: [], lessons: [] }));
+  const routes = {
+    '/api/health': { ok: true, app: 'hamyar-plus', version: 4 },
+    '/api/catalog': catalog,
+  };
+  const fakeFetch = async (url) => {
+    const path = new URL(url).pathname;
+    if (!routes[path]) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => routes[path] };
+  };
+  const got = await fetchLiveCatalog('https://hamyar-plus.pages.dev', { fetchImpl: fakeFetch });
+  assert.equal(got.grades.length, 12);
+  await assert.rejects(() => fetchLiveCatalog('https://hamyar-plus.pages.dev', { fetchImpl: async () => { throw new Error('down'); } }));
 });
 
 test('بانک آفلاین پرحجم ولی بهینه است (کل کاتالوگ زیر ۳ مگابایت)', () => {

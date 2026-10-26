@@ -1,7 +1,7 @@
 {
   "name": "hamyar-plus-desktop",
   "productName": "همیار پلاس",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "همیار پلاس — جواب درس‌ها و گام‌به‌گام پایه‌های ۱ تا ۱۲ برای ویندوز؛ آنلاین از سایت، آفلاین لوکال",
   "private": true,
   "main": "main.cjs",

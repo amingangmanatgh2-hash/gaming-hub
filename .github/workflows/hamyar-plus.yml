@@ -1,34 +1,46 @@
-name: همیار پلاس — تست، APK، EXE و انتشار
+name: همیار پلاس — خط لولهٔ کامل خودکار (دپلوی ☁️ → هستهٔ سایت داخل APK/EXE → ریلیز)
+
+# گردش کاملاً خودکار:
+# ۱) تست  ۲) دپلوی Cloudflare (اگر سکرت‌ها باشند) و گرفتن نشانی واقعی سایت
+# ۳) واکشی هستهٔ زندهٔ همان سایت (/api/catalog) و جاگذاری‌اش داخل APK و EXE + سوار کردن نشانی سایت
+# ۴) انتشار خودکار GitHub Release
+# بدون سکرت Cloudflare هم خط لوله کامل اجرا می‌شود: اپ‌ها کاملاً لوکال ساخته و ریلیز می‌شوند
+# و هر وقت سکرت‌ها را گذاشتید از پوش بعدی همه‌چیز خودکار به سایت وصل می‌شود.
 
 on:
-  workflow_dispatch:
-    inputs:
-      site_origin:
-        description: 'آدرس سایت Cloudflare بعد از دپلوی (اختیاری؛ خالی = کاملاً لوکال + قابل تنظیم از داخل اپ)'
-        type: string
-        required: false
-        default: ''
-      make_release:
-        description: 'ساخت/به‌روزرسانی GitHub Release'
-        type: boolean
-        required: false
-        default: true
-      deploy_cloudflare:
-        description: 'دپلوی سایت روی Cloudflare Workers (نیازمند سکرت‌های CLOUDFLARE_API_TOKEN و CLOUDFLARE_ACCOUNT_ID)'
-        type: boolean
-        required: false
-        default: false
   push:
     branches: ['arena/aa771355-gaming-hub']
     paths:
       - 'hamyar-plus/**'
       - '.github/workflows/hamyar-plus.yml'
+  workflow_dispatch:
+    inputs:
+      site_origin:
+        description: 'نشانی سایتِ از قبل دپلوی‌شده (اختیاری؛ اگر دپلوی خودکار انجام شود نشانی تازه جایگزین می‌شود)'
+        type: string
+        required: false
+        default: ''
+      deploy_cloudflare:
+        description: 'دپلوی خودکار روی Cloudflare (در صورت وجود سکرت‌ها)'
+        type: boolean
+        required: false
+        default: true
+      make_release:
+        description: 'انتشار GitHub Release'
+        type: boolean
+        required: false
+        default: true
+  # بعد از دپلوی دستی روی Pages/Workers هم می‌توانید با یک فراخوانی API همین خط لوله را صدا بزنید:
+  #   POST /repos/{owner}/{repo}/dispatches  {"event_type":"cloudflare-deployed","client_payload":{"site_origin":"https://..."}}
+  repository_dispatch:
+    types: [cloudflare-deployed]
 
 permissions:
   contents: write
 
-env:
-  HAMYAR_SITE_ORIGIN: ${{ inputs.site_origin || vars.HAMYAR_SITE_ORIGIN || '' }}
+concurrency:
+  group: hamyar-plus-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -42,61 +54,85 @@ jobs:
       - name: ساخت کاتالوگ و اجرای تست‌ها
         working-directory: hamyar-plus
         run: npm test
-      - name: سینک نسخهٔ لوکال داخل اپ‌ها (بررسی)
-        working-directory: hamyar-plus
-        run: node tools/sync-assets.mjs
 
   deploy-cloudflare:
-    name: دپلوی Cloudflare Workers (اختیاری)
+    name: دپلوی خودکار Cloudflare Workers
     needs: test
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_cloudflare }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       worker_origin: ${{ steps.publish.outputs.deployment-url }}
+      deployed: ${{ steps.gate.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - name: بررسی سکرت‌های Cloudflare
+      - name: دروازهٔ دپلوی (فقط وقتی سکرت‌ها هستند و کاربر خاموشش نکرده)
+        id: gate
         env:
           API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WANTED: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_cloudflare }}
         run: |
-          if [ -z "$API_TOKEN" ] || [ -z "$ACCOUNT_ID" ]; then
-            echo '::error::اول CLOUDFLARE_API_TOKEN و CLOUDFLARE_ACCOUNT_ID را در GitHub Secrets بگذارید.'
-            exit 1
+          if [ "$WANTED" = "true" ] && [ -n "$API_TOKEN" ] && [ -n "$ACCOUNT_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "☁️ سکرت‌های Cloudflare موجود است؛ دپلوی خودکار انجام می‌شود." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "📦 دپلوی Cloudflare انجام نشد (سکرت‌های CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID نیست یا خاموش شده). اپ‌ها کاملاً لوکال ساخته و ریلیز می‌شوند؛ بعداً با گذاشتن سکرت‌ها همه‌چیز خودکار وصل می‌شود." >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: ساخت بانک محتوا
+        if: ${{ steps.gate.outputs.enabled == 'true' }}
         working-directory: hamyar-plus
         run: node tools/build-catalog.mjs
-      - name: دپلوی Worker + سایت
+      - name: دپلوی Worker + سایت (public/)
         id: publish
+        if: ${{ steps.gate.outputs.enabled == 'true' }}
+        continue-on-error: true
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: hamyar-plus
           command: deploy
-      - name: بررسی سلامتی سایت دپلوی‌شده
+      - name: گزارش نتیجهٔ دپلوی و بررسی سلامتی سایت
+        if: ${{ steps.gate.outputs.enabled == 'true' }}
+        env:
+          OUTCOME: ${{ steps.publish.outcome }}
+          URL: ${{ steps.publish.outputs.deployment-url }}
         run: |
-          echo "سایت همیار پلاس: ${{ steps.publish.outputs.deployment-url }}" >> "$GITHUB_STEP_SUMMARY"
-          curl -fsS "${{ steps.publish.outputs.deployment-url }}/api/health"
+          if [ "$OUTCOME" != "success" ] || [ -z "$URL" ]; then
+            echo "::warning::دپلوی Cloudflare موفق نبود؛ خط لوله با نسخهٔ لوکال ادامه می‌دهد. خروجی گام دپلوی را بررسی کنید."
+            echo "⚠️ دپلوی ناموفق بود؛ اپ‌ها بدون نشانی سایتِ تازه ساخته می‌شوند." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "☁️ سایت همیار پلاس دپلوی شد: $URL" >> "$GITHUB_STEP_SUMMARY"
+          for i in $(seq 1 12); do
+            if curl -fsS "$URL/api/health"; then echo; echo "✅ /api/health سالم است"; break; fi
+            echo "منتظر آماده‌شدن سایت… ($i/12)"; sleep 5
+          done
 
   android:
-    name: APK اندروید (نصب‌پذیر)
-    needs: test
+    name: APK اندروید (هستهٔ زندهٔ سایت داخل اپ)
+    needs: [test, deploy-cloudflare]
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      HAMYAR_SITE_ORIGIN: ${{ needs.deploy-cloudflare.outputs.worker_origin || inputs.site_origin || github.event.client_payload.site_origin || vars.HAMYAR_SITE_ORIGIN || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - name: ساخت کاتالوگ + گذاشتن نسخهٔ لوکال و آدرس سایت داخل APK
+      - name: ساخت کاتالوگ لوکال
         working-directory: hamyar-plus
-        run: |
-          node tools/build-catalog.mjs
-          node tools/sync-assets.mjs
+        run: node tools/build-catalog.mjs
+      - name: گرفتن هستهٔ زندهٔ سایت دپلوی‌شده و نشاندنش داخل اپ
+        if: ${{ env.HAMYAR_SITE_ORIGIN != '' }}
+        working-directory: hamyar-plus
+        run: node tools/fetch-live-catalog.mjs "$HAMYAR_SITE_ORIGIN"
+      - name: جاگذاری نسخهٔ لوکال (هستهٔ Pages) + نشانی سایت داخل APK
+        working-directory: hamyar-plus
+        run: node tools/sync-assets.mjs
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
@@ -114,18 +150,20 @@ jobs:
             echo "::error::$(tail -n 25 /tmp/hamyar-gradle.log | tr '\n' ' ')"
             exit 1
           }
-      - name: بررسی امضا، نسخهٔ لوکال داخلی و آدرس سایت
+      - name: راستی‌آزمایی APK (امضا، هستهٔ داخلی، نشانی سایت)
         run: |
           APK=hamyar-plus/clients/android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 5
-          unzip -l "$APK" | grep -q "assets/www/data/catalog.js" || { echo "::error::catalog.js داخل APK نیست (نسخهٔ لوکال ناقص است)"; exit 1; }
+          unzip -l "$APK" | grep -q "assets/www/data/catalog.js" || { echo "::error::catalog.js داخل APK نیست"; exit 1; }
           unzip -l "$APK" | grep -q "assets/www/index.html" || { echo "::error::index.html داخل APK نیست"; exit 1; }
+          unzip -p "$APK" assets/www/config.js
           if [ -n "$HAMYAR_SITE_ORIGIN" ]; then
             grep -Fq "\"$HAMYAR_SITE_ORIGIN\"" hamyar-plus/clients/android/app/build/generated/source/buildConfig/debug/com/hamyarplus/app/BuildConfig.java
-            echo "آدرس سایت داخل APK سوار شد: $HAMYAR_SITE_ORIGIN"
+            unzip -p "$APK" assets/www/config.js | grep -Fq "$HAMYAR_SITE_ORIGIN"
+            echo "📱 APK وابسته به سایت ساخته شد: $HAMYAR_SITE_ORIGIN (آنلاین از سایت، آفلاین از هستهٔ داخلی)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "حالت کاملاً لوکال (بدون سایت پیش‌فرض)"
+            echo "📱 APK کاملاً لوکال ساخته شد (نشانی سایت از تنظیمات داخل اپ قابل ورود است)" >> "$GITHUB_STEP_SUMMARY"
           fi
           cp "$APK" HamyarPlus-Android.apk
           ls -lh HamyarPlus-Android.apk
@@ -137,10 +175,12 @@ jobs:
           retention-days: 30
 
   windows:
-    name: EXE ویندوز (نصب‌کننده)
-    needs: test
+    name: EXE ویندوز (هستهٔ زندهٔ سایت داخل اپ)
+    needs: [test, deploy-cloudflare]
     runs-on: windows-latest
     timeout-minutes: 25
+    env:
+      HAMYAR_SITE_ORIGIN: ${{ needs.deploy-cloudflare.outputs.worker_origin || inputs.site_origin || github.event.client_payload.site_origin || vars.HAMYAR_SITE_ORIGIN || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -148,11 +188,16 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: hamyar-plus/clients/desktop/package-lock.json
-      - name: ساخت کاتالوگ + گذاشتن نسخهٔ لوکال و آدرس سایت داخل برنامه
+      - name: ساخت کاتالوگ لوکال
         working-directory: hamyar-plus
-        run: |
-          node tools/build-catalog.mjs
-          node tools/sync-assets.mjs
+        run: node tools/build-catalog.mjs
+      - name: گرفتن هستهٔ زندهٔ سایت دپلوی‌شده و نشاندنش داخل اپ
+        if: ${{ env.HAMYAR_SITE_ORIGIN != '' }}
+        working-directory: hamyar-plus
+        run: node tools/fetch-live-catalog.mjs "$env:HAMYAR_SITE_ORIGIN"
+      - name: جاگذاری نسخهٔ لوکال + نشانی سایت داخل برنامه
+        working-directory: hamyar-plus
+        run: node tools/sync-assets.mjs
       - name: نصب وابستگی‌های دسکتاپ
         working-directory: hamyar-plus/clients/desktop
         run: npm ci --no-audit --no-fund
@@ -170,9 +215,9 @@ jobs:
           retention-days: 30
 
   release:
-    name: انتشار GitHub Release
-    needs: [android, windows]
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.make_release) }}
+    name: انتشار خودکار GitHub Release
+    needs: [deploy-cloudflare, android, windows]
+    if: ${{ github.event_name == 'push' || github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.make_release) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -191,42 +236,37 @@ jobs:
         run: |
           cd hamyar-plus && node tools/build-catalog.mjs && cd ..
           mkdir -p site/hamyar-plus
-          cp -r hamyar-plus/public hamyar-plus/worker hamyar-plus/functions hamyar-plus/wrangler.toml hamyar-plus/package.json hamyar-plus/README.md site/hamyar-plus/ 2>/dev/null || cp -r hamyar-plus/public hamyar-plus/worker hamyar-plus/functions hamyar-plus/wrangler.toml hamyar-plus/package.json site/hamyar-plus/
+          cp -r hamyar-plus/public hamyar-plus/worker hamyar-plus/functions hamyar-plus/wrangler.toml hamyar-plus/package.json hamyar-plus/README.md site/hamyar-plus/
           cd site && zip -qr ../rel/HamyarPlus-Site-Cloudflare.zip hamyar-plus && cd ..
           ls -lh rel/
-      - name: ساخت/به‌روزرسانی ریلیز
+      - name: انتشار/به‌روزرسانی ریلیز
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: hamyar-plus-v1.1.0
-          name: 'همیار پلاس v1.1.0 — بانک آفلاین کامل‌تر — جواب درس‌های پایهٔ ۱ تا ۱۲ 📚'
+          tag_name: hamyar-plus-v1.2.0
+          name: 'همیار پلاس v1.2.0 — کامل: صفحه‌به‌صفحه + خط لولهٔ خودکار Cloudflare 📚'
           body: |
             ## همیار پلاس چیه؟
-            جواب فعالیت‌ها، تمرین‌ها و گام‌به‌گام همهٔ درس‌های **پایهٔ اول تا دوازدهم** — مثل همیار، ولی پیشرفته‌تر: جستجوی سراسری، آزمون از خودت، پیگیری پیشرفت، نشان‌کردن درس‌ها و حالت تاریک. بدون تبلیغ و اضافه‌کاری.
+            جواب فعالیت‌ها، تمرین‌ها و گام‌به‌گام همهٔ درس‌های **پایهٔ اول تا دوازدهم** — مثل همیار، ولی کامل‌تر و بدون تبلیغ: جستجوی سراسری، **پاسخ‌های صفحه‌به‌صفحه (فعالیت، کار در کلاس، تمرین)**، جمع‌بندی شب امتحان، فلش‌کارت و آزمون از خودت.
 
-            ## تازه‌های نسخهٔ ۱٫۱٫۰ 🎉
-            - بانک آفلاین **چهار برابر بزرگ‌تر**: ۳۴۹ فصل و **۲۰۷۵ پرسش‌وپاسخ** (به‌جای ۳۴۸ نسخهٔ اول)
-            - برای هر ۹۰ درس: فصل «جمع‌بندی و نکات طلایی شب امتحان» + «تمرین و نمونه‌سوال بیشتر» و تمرین محاسباتی با راه‌حل در فصل‌های ریاضی
-            - اندروید: اسپلش بومی، آیکون استاندارد همهٔ تراکم‌ها، دکمهٔ معرفی به دوستان و مدیریت دانلود فایل‌ها
+            ## تازه‌های v1.2.0 🎉
+            - **۳۵۹ فصل و بیش از ۳۲۰۰ پرسش‌وپاسخ با توضیح** (بانک آفلاین v4)
+            - هر فصل، بخش‌های جداگانهٔ «فعالیت / کار در کلاس / تمرین» با پاسخ دارد — درست مثل خود کتاب 📄
+            - فصل‌های عمیق‌تر برای پایه‌های ششم و نهم (بخش‌پذیری، اندازه‌گیری، زمین پویا، اثبات در هندسه، فشار، منظومهٔ شمسی و…)
+            - **خط لولهٔ کاملاً خودکار:** دپلوی Cloudflare ← هستهٔ زندهٔ سایت (`/api/catalog`) + نشانی سایت داخل APK/EXE ← همین ریلیز! 🤖
+            - سایت دپلوی‌شدهٔ این بیلد: ${{ needs.deploy-cloudflare.outputs.worker_origin }}
 
             ## دانلود و نصب
             | پلتفرم | فایل |
             |---|---|
-            | 📱 اندروید | `HamyarPlus-Android.apk` (نصب‌پذیر؛ امضاشده با کلید دیباگ) |
-            | 🪟 ویندوز | `HamyarPlus-Setup-1.1.0.exe` (نصب‌کنندهٔ NSIS) |
-            | ☁️ سایت | `HamyarPlus-Site-Cloudflare.zip` برای دپلوی روی Cloudflare Workers/Pages |
+            | 📱 اندروید | `HamyarPlus-Android.apk` (نصب‌پذیر، امضای دیباگ) |
+            | 🪟 ویندوز | `HamyarPlus-Setup-1.2.0.exe` (نصب‌کنندهٔ NSIS) |
+            | ☁️ سایت | `HamyarPlus-Site-Cloudflare.zip` (دپلوی روی Workers/Pages) |
 
-            ## آنلاین یا آفلاین؟ هر دو! 🔁
-            - اپ‌ها اول سایت را چک می‌کنند؛ اگر در دسترس بود، نسخهٔ **آنلاین و تازهٔ سایت** باز می‌شود.
-            - اینترنت نبود یا سایت پایین بود؟ **بانک کامل لوکال** (۳۴۹ فصل و ۲۰۷۵ پرسش‌وپاسخ با توضیح، جمع‌بندی شب امتحان و تمرین هر درس) داخل خود اپ بالا می‌آید — هیچ‌وقت دست خالی نمی‌مانی.
-            - وقتی شبکه برگردد، اپ خودش به حالت آنلاین برمی‌گردد و بانک سوال را از سایت تازه می‌کند.
-            - آدرس سایت از داخل اپ (تنظیمات) هم قابل تغییر است.
+            ## آنلاین یا آفلاین؟ هر دو 🔁
+            اپ اول سایت را چک می‌کند؛ در دسترس بود نسخهٔ **آنلاینِ تازه** باز می‌شود، نبود **هستهٔ کامل داخل خود اپ** (همان هستهٔ سایت) بالا می‌آید و با برگشت شبکه خودش آنلاین و به‌روز می‌شود. نشانی سایت از تنظیمات داخل اپ هم قابل تغییر است.
 
-            ## دپلوی سایت روی Cloudflare (یک دستور)
-            ```bash
-            cd hamyar-plus
-            npm run deploy        # Workers — یا: npm run deploy:pages
-            ```
-            بعد از دپلوی، ورک‌فلو را با ورودی `site_origin` دوباره اجرا کنید تا APK و EXE جدید با آدرس واقعی سایت‌تان ساخته شوند.
+            ## خودکارسازی کامل دپلوی
+            کافی است **یک بار** سکرت‌های `CLOUDFLARE_API_TOKEN` و `CLOUDFLARE_ACCOUNT_ID` را در GitHub بگذارید؛ از آن به بعد هر تغییری خودکار: دپلوی سایت ← ساخت APK/EXE وابسته به همان سایت ← ریلیز تازه. بدون سکرت هم اپ‌ها کاملاً لوکال کار می‌کنند.
           files: |
             rel/HamyarPlus-Android.apk
             rel/HamyarPlus-Setup-*.exe

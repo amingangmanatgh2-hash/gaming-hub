@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import g16 from '../content/grades-1-6.mjs';
 import g79 from '../content/grades-7-9.mjs';
 import g1012 from '../content/grades-10-12.mjs';
+import deep from '../content/deep-6-9.mjs';
 import { expandCatalog } from './expand-content.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -86,7 +87,16 @@ const REQUIRED = {
   12: ['farsi12', 'english12', 'dini'],
 };
 
-const source = [...g16, ...g79, ...g1012];
+// ادغام فصل‌های عمیق (deep) با درس‌های هم‌شناسهٔ همان پایه
+const source = [...g16, ...g79, ...g1012].map((g) => ({ grade: g.grade, subjects: [...g.subjects] }));
+for (const dg of deep) {
+  const target = source.find((g) => g.grade === dg.grade);
+  if (!target) continue;
+  for (const ds of dg.subjects) {
+    const idx = target.subjects.findIndex((s) => s.id === ds.id);
+    if (idx >= 0) target.subjects[idx] = { ...target.subjects[idx], lessons: [...target.subjects[idx].lessons, ...ds.lessons] };
+  }
+}
 const grades = [], subjects = [], lessons = [];
 let qaTotal = 0;
 
@@ -117,11 +127,11 @@ for (const g of source) {
 
 // لایهٔ تکمیلی v1.1: جمع‌بندی هر درس + تمرین و نمونه‌سوال بیشتر + تمرین‌های محاسباتی ریاضی
 const expanded = expandCatalog({ grades, subjects, lessons });
-qaTotal = lessons.reduce((n, l) => n + l.qa.length, 0);
+qaTotal = lessons.reduce((n, l) => n + l.qa.length + (l.pages || []).reduce((m, p) => m + p.qa.length, 0), 0);
 console.log(`➕ لایهٔ تکمیلی: ${expanded.addedLessons} فصل و ${expanded.addedQa} پرسش اضافه شد`);
 
 grades.sort((a, b) => a.id - b.id);
-const catalog = { app: 'hamyar-plus', version: 3, updatedAt: '2026-10-26', grades, subjects, lessons };
+const catalog = { app: 'hamyar-plus', version: 4, updatedAt: '2026-10-26', grades, subjects, lessons };
 
 // اعتبارسنجی سخت‌گیرانه
 const errors = [];

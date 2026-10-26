@@ -5,5 +5,5 @@
 window.HAMYAR_CONFIG = {
   siteOrigin: '', // مثال: 'https://hamyar-plus.pages.dev'
   appMode: 'web', // در اپ‌های بومی: 'android' یا 'desktop'
-  version: '1.1.0',
+  version: '1.2.0',
 };

@@ -21,7 +21,7 @@ export function catalogStats(catalog) {
     grades: catalog.grades.length,
     subjects: catalog.subjects.length,
     lessons: catalog.lessons.length,
-    qa: catalog.lessons.reduce((n, l) => n + l.qa.length, 0),
+    qa: catalog.lessons.reduce((n, l) => n + l.qa.length + (l.pages || []).reduce((m, x) => m + x.qa.length, 0), 0),
   };
 }
 
@@ -67,7 +67,7 @@ export function handleApi(request, catalog) {
     const subjectOf = new Map(catalog.subjects.map((s) => [s.id, s]));
     const results = [];
     for (const l of catalog.lessons) {
-      const hay = [l.title, l.summary, ...(l.points || []), ...l.qa.flatMap((x) => [x.q, x.a])].join(' ').toLowerCase();
+      const hay = [l.title, l.summary, ...(l.points || []), ...l.qa.flatMap((x) => [x.q, x.a]), ...(l.pages || []).flatMap((sec) => [sec.t, ...sec.qa.flatMap((x) => [x.q, x.a])])].join(' ').toLowerCase();
       if (!hay.includes(q)) continue;
       const s = subjectOf.get(l.subject);
       results.push({ lesson: l.id, title: l.title, grade: l.grade, subject: s?.title || '', subjectId: l.subject });
