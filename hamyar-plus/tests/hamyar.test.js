@@ -15,7 +15,7 @@ test('کاتالوگ: هر ۱۲ پایه و حداقل‌های محتوا', () 
   const stats = catalogStats(catalog);
   assert.ok(stats.subjects >= 80, 'درس‌های کافی نیست: ' + stats.subjects);
   assert.ok(stats.lessons >= 300, 'فصل‌های کافی نیست: ' + stats.lessons);
-  assert.ok(stats.qa >= 1400, 'پرسش‌های کافی نیست: ' + stats.qa);
+  assert.ok(stats.qa >= 2000, 'پرسش‌های کافی نیست: ' + stats.qa);
   for (const g of catalog.grades) assert.ok(g.subjects.length >= 5, `پایهٔ ${g.id} درس کم دارد`);
 });
 

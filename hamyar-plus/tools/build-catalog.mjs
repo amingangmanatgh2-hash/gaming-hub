@@ -121,7 +121,7 @@ qaTotal = lessons.reduce((n, l) => n + l.qa.length, 0);
 console.log(`➕ لایهٔ تکمیلی: ${expanded.addedLessons} فصل و ${expanded.addedQa} پرسش اضافه شد`);
 
 grades.sort((a, b) => a.id - b.id);
-const catalog = { app: 'hamyar-plus', version: 2, updatedAt: '2026-10-26', grades, subjects, lessons };
+const catalog = { app: 'hamyar-plus', version: 3, updatedAt: '2026-10-26', grades, subjects, lessons };
 
 // اعتبارسنجی سخت‌گیرانه
 const errors = [];

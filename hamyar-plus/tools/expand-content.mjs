@@ -64,6 +64,22 @@ function mathDrills(grade, r, count = 8) {
   return out;
 }
 
+/* ---------------- تمرین‌های محاسباتی علوم و فیزیک (با راه‌حل) ---------------- */
+function scienceDrills(grade, r, count = 6) {
+  const out = []; const f = faNum;
+  const add = (q, a, x) => out.push({ q, a, x: x || '' });
+  for (let i = 0; i < count; i++) {
+    const k = i % 5;
+    if (k === 0) { const m = rnd(r, 2, 9); add(`تمرین علوم: ${f(m)} متر چند سانتی‌متر است؟`, `${f(m * 100)} سانتی‌متر`, 'هر متر برابر ۱۰۰ سانتی‌متر است.'); }
+    else if (k === 1) { const kg = rnd(r, 2, 8); add(`تمرین علوم: ${f(kg)} کیلوگرم چند گرم است؟`, `${f(kg * 1000)} گرم`, 'هر کیلوگرم برابر ۱۰۰۰ گرم است.'); }
+    else if (k === 2) { const v = pick(r, [5, 10, 12, 15, 20, 25, 30]), t = rnd(r, 2, 6); add(`تمرین علوم: جسمی ${f(v * t)} متر را در ${f(t)} ثانیه می‌رود؛ تندی‌اش چند متر بر ثانیه است؟`, `${f(v)} متر بر ثانیه`, 'تندی = مسافت ÷ زمان'); }
+    else if (k === 3 && grade >= 6) { const rho = pick(r, [1, 2, 3, 4, 5, 8]), vol = pick(r, [10, 20, 25, 50]); add(`تمرین علوم: چگالی جسمی ${f(rho)} گرم بر سانتی‌مترمکعب و حجمش ${f(vol)} سانتی‌مترمکعب است؛ جرم آن؟`, `${f(rho * vol)} گرم`, 'جرم = چگالی × حجم'); }
+    else if (k === 4 && grade >= 7) { const cur = rnd(r, 2, 6), res = rnd(r, 2, 10); add(`تمرین فیزیک: جریانی ${f(cur)} آمپر از مقاومتی ${f(res)} اهمی می‌گذرد؛ اختلاف پتانسیل دوسر آن؟`, `${f(cur * res)} ولت`, 'قانون اهم: V = I × R'); }
+    else { const h = rnd(r, 1, 3); add(`تمرین علوم: ${f(h)} ساعت چند دقیقه است؟`, `${f(h * 60)} دقیقه`, 'هر ساعت ۶۰ دقیقه است.'); }
+  }
+  return out;
+}
+
 /* ---------------- بانک‌های تکمیلی موضوعی ---------------- */
 const BANKS = {
   english: [
@@ -166,10 +182,12 @@ export function expandCatalog({ subjects, lessons }) {
     if (!mine.length) continue;
     const r = mulberry32(hash(subject.id));
 
-    // ۱) تمرین محاسباتی داخل خود فصل‌های ریاضی
-    if (MATHY.includes(base)) {
+    // ۱) تمرین محاسباتی داخل خود فصل‌های ریاضی، علوم و فیزیک
+    if (MATHY.includes(base) || base === 'science' || base.startsWith('physics')) {
       for (const lesson of mine) {
-        const drills = mathDrills(grade, mulberry32(hash(lesson.id)), 6);
+        const drills = MATHY.includes(base)
+          ? mathDrills(grade, mulberry32(hash(lesson.id)), 10)
+          : scienceDrills(grade, mulberry32(hash(lesson.id)), 6);
         lesson.qa.push(...drills);
         addedQa += drills.length;
       }
@@ -197,10 +215,33 @@ export function expandCatalog({ subjects, lessons }) {
       reviewQa,
     );
 
+    // ۲.۵) فلش‌کارت جای‌خالی و درست/نادرست از روی نکات عددی خود فصل‌ها
+    const toEn = (s) => String(s).replace(/[۰-۹]/g, (d) => FA.indexOf(d));
+    for (const lesson of mine) {
+      const lr = mulberry32(hash(lesson.id + '-flash'));
+      const cards = [];
+      for (const point of lesson.points || []) {
+        const m = point.match(/[۰-۹0-9]+/);
+        if (!m || cards.length >= 4) continue;
+        const numFa = m[0];
+        const cloze = point.replace(numFa, '……');
+        if (lr() < 0.55) {
+          cards.push({ q: `فلش‌کارت (جای خالی): ${cloze} — عدد گمشده چند است؟`, a: numFa, x: `جملهٔ کامل: ${point}` });
+        } else {
+          const n = parseInt(toEn(numFa), 10);
+          const wrong = faNum(n >= 10 ? n + pick(lr, [1, 2, 5, 10]) : n + 1);
+          cards.push({ q: `درست یا نادرست؟ ${point.replace(numFa, wrong)}`, a: 'نادرست ❌', x: `شکل درست: ${point}` });
+        }
+      }
+      if (cards.length) { lesson.qa.push(...cards); addedQa += cards.length; }
+    }
+
     // ۳) درس تمرین و نمونه‌سوال بیشتر
     const extraQa = MATHY.includes(base)
-      ? mathDrills(grade, r, 12)
-      : bankFor(base, grade).map(([q, a, x]) => ({ q, a, x: x || '' }));
+      ? mathDrills(grade, r, 20)
+      : (base === 'science' || base.startsWith('physics'))
+        ? [...scienceDrills(grade, r, 10), ...bankFor(base, grade).map(([q, a, x]) => ({ q, a, x: x || '' }))]
+        : bankFor(base, grade).map(([q, a, x]) => ({ q, a, x: x || '' }));
     addLesson(
       'تمرین و نمونه‌سوال بیشتر',
       `بانک تمرین تکمیلی درس ${subject.title} برای تثبیت یادگیری: اول روی کاغذ حل کن، بعد جواب را باز کن و راه‌حل را با کار خودت مقایسه کن.`,
