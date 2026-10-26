@@ -92,6 +92,11 @@ public final class MainActivity extends Activity {
         settings.setText("نشانی سایت"); settings.setTextSize(11);
         settings.setOnClickListener(v -> askForOrigin());
         toolbar.addView(settings, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)));
+        Button share = new Button(this);
+        share.setText("📤"); share.setTextSize(13);
+        share.setContentDescription("معرفی همیار پلاس به دوستان");
+        share.setOnClickListener(v -> shareApp());
+        toolbar.addView(share, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)));
         root.addView(toolbar);
 
         statusText = new TextView(this);
@@ -136,8 +141,22 @@ public final class MainActivity extends Activity {
                 if (onlineMode) loadLocal("گواهی HTTPS سایت معتبر نبود؛ نسخهٔ لوکال فعال شد 📦");
             }
         });
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            // دانلودها (مثل PDF یا فایل) بیرون از WebView با مرورگر/دانلودمنیجر گوشی انجام شوند
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+            catch (Exception e) { Toast.makeText(this, "دانلود این فایل ممکن نشد.", Toast.LENGTH_SHORT).show(); }
+        });
         root.addView(webView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
         setContentView(root);
+    }
+
+    private void shareApp() {
+        String link = !origin.isEmpty() ? "\n" + origin : "";
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, "همیار پلاس — جواب درس‌های پایهٔ ۱ تا ۱۲");
+        send.putExtra(Intent.EXTRA_TEXT, "📚 همیار پلاس: جواب و گام‌به‌گام همهٔ درس‌های پایهٔ اول تا دوازدهم + آزمون و جستجو — حتی بدون اینترنت!" + link);
+        startActivity(Intent.createChooser(send, "معرفی همیار پلاس به دوستان"));
     }
 
     /** تصمیم آغازین: اول سایت را امتحان کن؛ نشد لوکال. */

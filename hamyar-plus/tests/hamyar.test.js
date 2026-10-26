@@ -14,8 +14,8 @@ test('کاتالوگ: هر ۱۲ پایه و حداقل‌های محتوا', () 
   assert.deepEqual(catalog.grades.map((g) => g.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const stats = catalogStats(catalog);
   assert.ok(stats.subjects >= 80, 'درس‌های کافی نیست: ' + stats.subjects);
-  assert.ok(stats.lessons >= 150, 'فصل‌های کافی نیست: ' + stats.lessons);
-  assert.ok(stats.qa >= 300, 'پرسش‌های کافی نیست: ' + stats.qa);
+  assert.ok(stats.lessons >= 300, 'فصل‌های کافی نیست: ' + stats.lessons);
+  assert.ok(stats.qa >= 1400, 'پرسش‌های کافی نیست: ' + stats.qa);
   for (const g of catalog.grades) assert.ok(g.subjects.length >= 5, `پایهٔ ${g.id} درس کم دارد`);
 });
 
@@ -83,7 +83,7 @@ test('fetchBootstrap: پاسخ سالم/خراب/شبکهٔ قطع', async () =>
   assert.equal(badOrigin.ok, false);
 });
 
-test('نسخهٔ لوکال اپ واقعاً سبک است (کل کاتالوگ زیر ۱ مگابایت)', () => {
+test('بانک آفلاین پرحجم ولی بهینه است (کل کاتالوگ زیر ۳ مگابایت)', () => {
   const raw = readFileSync(new URL('../public/data/catalog.json', import.meta.url));
-  assert.ok(raw.length < 1024 * 1024, 'کاتالوگ سنگین شده: ' + raw.length);
+  assert.ok(raw.length < 3 * 1024 * 1024, 'کاتالوگ سنگین شده: ' + raw.length);
 });

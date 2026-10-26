@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import g16 from '../content/grades-1-6.mjs';
 import g79 from '../content/grades-7-9.mjs';
 import g1012 from '../content/grades-10-12.mjs';
+import { expandCatalog } from './expand-content.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GRADE_NAMES = ['', 'پایه اول', 'پایه دوم', 'پایه سوم', 'پایه چهارم', 'پایه پنجم', 'پایه ششم', 'پایه هفتم', 'پایه هشتم', 'پایه نهم', 'پایه دهم', 'پایه یازدهم', 'پایه دوازدهم'];
@@ -114,8 +115,13 @@ for (const g of source) {
   grades.push(grade);
 }
 
+// لایهٔ تکمیلی v1.1: جمع‌بندی هر درس + تمرین و نمونه‌سوال بیشتر + تمرین‌های محاسباتی ریاضی
+const expanded = expandCatalog({ grades, subjects, lessons });
+qaTotal = lessons.reduce((n, l) => n + l.qa.length, 0);
+console.log(`➕ لایهٔ تکمیلی: ${expanded.addedLessons} فصل و ${expanded.addedQa} پرسش اضافه شد`);
+
 grades.sort((a, b) => a.id - b.id);
-const catalog = { app: 'hamyar-plus', version: 1, updatedAt: '2026-10-26', grades, subjects, lessons };
+const catalog = { app: 'hamyar-plus', version: 2, updatedAt: '2026-10-26', grades, subjects, lessons };
 
 // اعتبارسنجی سخت‌گیرانه
 const errors = [];

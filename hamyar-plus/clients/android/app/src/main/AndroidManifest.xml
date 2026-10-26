@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <application android:label="همیار پلاس | جواب درس‌های ۱ تا ۱۲" android:icon="@drawable/hamyar_icon"
-        android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="false"
+    <application android:label="همیار پلاس | جواب درس‌های ۱ تا ۱۲" android:icon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme" android:usesCleartextTraffic="false"
         android:allowBackup="true" android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
