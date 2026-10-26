@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c5cff"/>
+      <stop offset="0.55" stop-color="#5a8cff"/>
+      <stop offset="1" stop-color="#00d4a6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#g)"/>
+  <!-- کتاب باز -->
+  <path d="M256 118c-34-26-84-34-150-22v252c66-12 116-4 150 22 34-26 84-34 150-22V96c-66-12-116-4-150 22z" fill="#ffffff"/>
+  <path d="M256 118v252" stroke="#dfe6ff" stroke-width="10"/>
+  <path d="M138 152c38-6 66-2 92 12M138 206c38-6 66-2 92 12M138 260c38-6 66-2 92 12M282 164c26-14 54-18 92-12M282 218c26-14 54-18 92-12M282 272c26-14 54-18 92-12" stroke="#7c5cff" stroke-width="15" stroke-linecap="round" fill="none" opacity="0.55"/>
+  <!-- پلاس طلایی -->
+  <circle cx="392" cy="378" r="66" fill="#ffb020"/>
+  <path d="M392 338v80M352 378h80" stroke="#7a4a00" stroke-width="22" stroke-linecap="round"/>
+</svg>

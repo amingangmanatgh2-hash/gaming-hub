@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>همیار پلاس | جواب درس‌ها و گام‌به‌گام پایه‌های ۱ تا ۱۲</title>
+<meta name="description" content="همیار پلاس: جواب فعالیت‌ها، تمرین‌ها و گام‌به‌گام همهٔ درس‌های پایهٔ اول تا دوازدهم — با جستجو، آزمون، علاقه‌مندی و حالت آفلاین کامل">
+<meta name="theme-color" content="#0b1026">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="data/catalog.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#/" aria-label="همیار پلاس — خانه">
+    <img src="icon-192.png" alt="" width="38" height="38" class="brand-icon">
+    <span class="brand-text">همیار <b>پلاس</b><small>جواب همهٔ درس‌ها، از اول تا دوازدهم</small></span>
+  </a>
+  <div class="top-actions">
+    <span id="netBadge" class="net-badge local" title="وضعیت اتصال">📦 لوکال</span>
+    <button id="themeBtn" class="icon-btn" type="button" title="حالت روشن/تاریک" aria-label="تغییر پوسته">🌙</button>
+    <a class="icon-btn" href="#/favorites" title="علاقه‌مندی‌ها" aria-label="علاقه‌مندی‌ها">⭐</a>
+    <a class="icon-btn" href="#/settings" title="تنظیمات" aria-label="تنظیمات">⚙️</a>
+  </div>
+</header>
+
+<section class="searchbar wrap">
+  <form id="searchForm" role="search">
+    <input id="searchInput" type="search" placeholder="🔎 چی رو نمی‌دونی؟ مثلاً: فیثاغورس، کسوف، جواب صفحهٔ..." autocomplete="off" aria-label="جستجو در همهٔ درس‌ها و پاسخ‌ها">
+    <button type="submit">بگرد</button>
+  </form>
+  <div id="liveResults" class="live-results" hidden></div>
+</section>
+
+<main id="view" class="wrap" tabindex="-1"></main>
+
+<footer class="footer wrap">
+  <p><b>همیار پلاس</b> — ساخته‌شده برای دانش‌آموزان ایران 🇮🇷 · کاملاً آفلاین کار می‌کند؛ هر وقت اینترنت آمد خودش با سایت به‌روز می‌شود.</p>
+  <p class="muted">پایه‌های ۱ تا ۱۲ · گام‌به‌گام · پاسخ تمرین و فعالیت · آزمون از خودت · بدون تبلیغ و شلوغ‌کاری</p>
+</footer>
+
+<nav class="bottom-nav" aria-label="ناوبری اصلی">
+  <a href="#/" data-nav="home">🏠<span>خانه</span></a>
+  <a href="#/grades" data-nav="grades">🎒<span>پایه‌ها</span></a>
+  <a href="#/quiz" data-nav="quiz">🎯<span>آزمون</span></a>
+  <a href="#/favorites" data-nav="favorites">⭐<span>نشان‌ها</span></a>
+  <a href="#/settings" data-nav="settings">⚙️<span>تنظیمات</span></a>
+</nav>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>

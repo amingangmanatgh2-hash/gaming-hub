@@ -1,0 +1,28 @@
+{
+  "name": "hamyar-plus-desktop",
+  "productName": "همیار پلاس",
+  "version": "1.0.0",
+  "description": "همیار پلاس — جواب درس‌ها و گام‌به‌گام پایه‌های ۱ تا ۱۲ برای ویندوز؛ آنلاین از سایت، آفلاین لوکال",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "node make-build-config.cjs && electron-builder --win nsis --x64",
+    "dist:portable": "node make-build-config.cjs && electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.hamyarplus.desktop",
+    "productName": "همیار پلاس",
+    "asar": true,
+    "files": ["main.cjs", "endpoint.cjs", "preload.cjs", "setup.html", "setup.js", "build-config.json", "app/**", "icon.ico", "package.json"],
+    "directories": { "output": "release" },
+    "win": { "icon": "icon.ico", "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "artifactName": "HamyarPlus-Setup-${version}.${ext}", "createDesktopShortcut": true },
+    "portable": { "artifactName": "HamyarPlus-Portable-${version}.${ext}" },
+    "publish": null
+  }
+}

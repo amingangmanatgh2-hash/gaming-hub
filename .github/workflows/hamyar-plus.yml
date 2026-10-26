@@ -1,0 +1,229 @@
+name: همیار پلاس — تست، APK، EXE و انتشار
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_origin:
+        description: 'آدرس سایت Cloudflare بعد از دپلوی (اختیاری؛ خالی = کاملاً لوکال + قابل تنظیم از داخل اپ)'
+        type: string
+        required: false
+        default: ''
+      make_release:
+        description: 'ساخت/به‌روزرسانی GitHub Release'
+        type: boolean
+        required: false
+        default: true
+      deploy_cloudflare:
+        description: 'دپلوی سایت روی Cloudflare Workers (نیازمند سکرت‌های CLOUDFLARE_API_TOKEN و CLOUDFLARE_ACCOUNT_ID)'
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: ['arena/aa771355-gaming-hub']
+    paths:
+      - 'hamyar-plus/**'
+      - '.github/workflows/hamyar-plus.yml'
+
+permissions:
+  contents: write
+
+env:
+  HAMYAR_SITE_ORIGIN: ${{ inputs.site_origin || vars.HAMYAR_SITE_ORIGIN || '' }}
+
+jobs:
+  test:
+    name: تست بانک محتوا و API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: ساخت کاتالوگ و اجرای تست‌ها
+        working-directory: hamyar-plus
+        run: npm test
+      - name: سینک نسخهٔ لوکال داخل اپ‌ها (بررسی)
+        working-directory: hamyar-plus
+        run: node tools/sync-assets.mjs
+
+  deploy-cloudflare:
+    name: دپلوی Cloudflare Workers (اختیاری)
+    needs: test
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_cloudflare }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      worker_origin: ${{ steps.publish.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: بررسی سکرت‌های Cloudflare
+        env:
+          API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$API_TOKEN" ] || [ -z "$ACCOUNT_ID" ]; then
+            echo '::error::اول CLOUDFLARE_API_TOKEN و CLOUDFLARE_ACCOUNT_ID را در GitHub Secrets بگذارید.'
+            exit 1
+          fi
+      - name: ساخت بانک محتوا
+        working-directory: hamyar-plus
+        run: node tools/build-catalog.mjs
+      - name: دپلوی Worker + سایت
+        id: publish
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: hamyar-plus
+          command: deploy
+      - name: بررسی سلامتی سایت دپلوی‌شده
+        run: |
+          echo "سایت همیار پلاس: ${{ steps.publish.outputs.deployment-url }}" >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS "${{ steps.publish.outputs.deployment-url }}/api/health"
+
+  android:
+    name: APK اندروید (نصب‌پذیر)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: ساخت کاتالوگ + گذاشتن نسخهٔ لوکال و آدرس سایت داخل APK
+        working-directory: hamyar-plus
+        run: |
+          node tools/build-catalog.mjs
+          node tools/sync-assets.mjs
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - name: بررسی Android SDK
+        run: |
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+      - name: بیلد APK
+        working-directory: hamyar-plus/clients/android
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon 2>&1 | tee /tmp/hamyar-gradle.log || {
+            echo "::error::$(tail -n 25 /tmp/hamyar-gradle.log | tr '\n' ' ')"
+            exit 1
+          }
+      - name: بررسی امضا، نسخهٔ لوکال داخلی و آدرس سایت
+        run: |
+          APK=hamyar-plus/clients/android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 5
+          unzip -l "$APK" | grep -q "assets/www/data/catalog.js" || { echo "::error::catalog.js داخل APK نیست (نسخهٔ لوکال ناقص است)"; exit 1; }
+          unzip -l "$APK" | grep -q "assets/www/index.html" || { echo "::error::index.html داخل APK نیست"; exit 1; }
+          if [ -n "$HAMYAR_SITE_ORIGIN" ]; then
+            grep -Fq "\"$HAMYAR_SITE_ORIGIN\"" hamyar-plus/clients/android/app/build/generated/source/buildConfig/debug/com/hamyarplus/app/BuildConfig.java
+            echo "آدرس سایت داخل APK سوار شد: $HAMYAR_SITE_ORIGIN"
+          else
+            echo "حالت کاملاً لوکال (بدون سایت پیش‌فرض)"
+          fi
+          cp "$APK" HamyarPlus-Android.apk
+          ls -lh HamyarPlus-Android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HamyarPlus-Android-APK
+          path: HamyarPlus-Android.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: EXE ویندوز (نصب‌کننده)
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: hamyar-plus/clients/desktop/package-lock.json
+      - name: ساخت کاتالوگ + گذاشتن نسخهٔ لوکال و آدرس سایت داخل برنامه
+        working-directory: hamyar-plus
+        run: |
+          node tools/build-catalog.mjs
+          node tools/sync-assets.mjs
+      - name: نصب وابستگی‌های دسکتاپ
+        working-directory: hamyar-plus/clients/desktop
+        run: npm ci --no-audit --no-fund
+      - name: ساخت نصب‌کنندهٔ ویندوز
+        working-directory: hamyar-plus/clients/desktop
+        run: npm run dist
+      - name: بررسی بستهٔ نهایی
+        working-directory: hamyar-plus/clients/desktop
+        run: node verify-build.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HamyarPlus-Windows-Setup
+          path: hamyar-plus/clients/desktop/release/HamyarPlus-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: انتشار GitHub Release
+    needs: [android, windows]
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.make_release) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: HamyarPlus-Android-APK
+          path: rel
+      - uses: actions/download-artifact@v4
+        with:
+          name: HamyarPlus-Windows-Setup
+          path: rel
+      - name: ساخت بستهٔ سایت برای دپلوی دستی روی Cloudflare
+        run: |
+          cd hamyar-plus && node tools/build-catalog.mjs && cd ..
+          mkdir -p site/hamyar-plus
+          cp -r hamyar-plus/public hamyar-plus/worker hamyar-plus/functions hamyar-plus/wrangler.toml hamyar-plus/package.json hamyar-plus/README.md site/hamyar-plus/ 2>/dev/null || cp -r hamyar-plus/public hamyar-plus/worker hamyar-plus/functions hamyar-plus/wrangler.toml hamyar-plus/package.json site/hamyar-plus/
+          cd site && zip -qr ../rel/HamyarPlus-Site-Cloudflare.zip hamyar-plus && cd ..
+          ls -lh rel/
+      - name: ساخت/به‌روزرسانی ریلیز
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: hamyar-plus-v1.0.0
+          name: 'همیار پلاس v1.0.0 — جواب درس‌های پایهٔ ۱ تا ۱۲ 📚'
+          body: |
+            ## همیار پلاس چیه؟
+            جواب فعالیت‌ها، تمرین‌ها و گام‌به‌گام همهٔ درس‌های **پایهٔ اول تا دوازدهم** — مثل همیار، ولی پیشرفته‌تر: جستجوی سراسری، آزمون از خودت، پیگیری پیشرفت، نشان‌کردن درس‌ها و حالت تاریک. بدون تبلیغ و اضافه‌کاری.
+
+            ## دانلود و نصب
+            | پلتفرم | فایل |
+            |---|---|
+            | 📱 اندروید | `HamyarPlus-Android.apk` (نصب‌پذیر؛ امضاشده با کلید دیباگ) |
+            | 🪟 ویندوز | `HamyarPlus-Setup-1.0.0.exe` (نصب‌کنندهٔ NSIS) |
+            | ☁️ سایت | `HamyarPlus-Site-Cloudflare.zip` برای دپلوی روی Cloudflare Workers/Pages |
+
+            ## آنلاین یا آفلاین؟ هر دو! 🔁
+            - اپ‌ها اول سایت را چک می‌کنند؛ اگر در دسترس بود، نسخهٔ **آنلاین و تازهٔ سایت** باز می‌شود.
+            - اینترنت نبود یا سایت پایین بود؟ **نسخهٔ سبک لوکال** (زیر ۱ مگابایت دادهٔ آموزشی) داخل خود اپ بالا می‌آید — هیچ‌وقت دست خالی نمی‌مانی.
+            - وقتی شبکه برگردد، اپ خودش به حالت آنلاین برمی‌گردد و بانک سوال را از سایت تازه می‌کند.
+            - آدرس سایت از داخل اپ (تنظیمات) هم قابل تغییر است.
+
+            ## دپلوی سایت روی Cloudflare (یک دستور)
+            ```bash
+            cd hamyar-plus
+            npm run deploy        # Workers — یا: npm run deploy:pages
+            ```
+            بعد از دپلوی، ورک‌فلو را با ورودی `site_origin` دوباره اجرا کنید تا APK و EXE جدید با آدرس واقعی سایت‌تان ساخته شوند.
+          files: |
+            rel/HamyarPlus-Android.apk
+            rel/HamyarPlus-Setup-*.exe
+            rel/HamyarPlus-Site-Cloudflare.zip
+          fail_on_unmatched_files: true

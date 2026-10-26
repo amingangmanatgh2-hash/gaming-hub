@@ -1,0 +1,19 @@
+{
+  "name": "hamyar-plus",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "همیار پلاس — جواب درس‌ها و گام‌به‌گام پایه‌های ۱ تا ۱۲؛ سایت Cloudflare + اپ اندروید و ویندوز (آنلاین از سایت، آفلاین لوکال)",
+  "license": "MIT",
+  "scripts": {
+    "catalog": "node tools/build-catalog.mjs",
+    "sync": "node tools/build-catalog.mjs && node tools/sync-assets.mjs",
+    "dev": "node tools/build-catalog.mjs && node tools/dev-server.mjs",
+    "test": "node tools/build-catalog.mjs && node --test tests/*.test.js",
+    "deploy": "node tools/build-catalog.mjs && npx -y wrangler deploy",
+    "deploy:pages": "node tools/build-catalog.mjs && npx -y wrangler pages deploy public --project-name hamyar-plus",
+    "android:prep": "node tools/sync-assets.mjs",
+    "desktop:prep": "node tools/sync-assets.mjs"
+  },
+  "engines": { "node": ">=20" }
+}

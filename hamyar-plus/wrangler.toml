@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────
+#  همیار پلاس روی Cloudflare Workers (+ دارایی‌های استاتیک)
+#  دپلوی:  از پوشهٔ hamyar-plus اجرا کنید:  npm run deploy
+#  یا دستی:  node tools/build-catalog.mjs && npx wrangler deploy
+# ─────────────────────────────────────────────────────────────
+name = "hamyar-plus"
+main = "worker/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# سایت استاتیک (همان فایل‌هایی که داخل APK و EXE هم می‌رود)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[observability]
+enabled = true
