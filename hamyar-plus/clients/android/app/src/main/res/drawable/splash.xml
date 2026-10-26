@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- صفحهٔ اسپلش native هنگام بالا آمدن اپ، پیش از بارگذاری WebView -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <color android:color="#0B1026" />
+    </item>
+    <item>
+        <bitmap android:src="@drawable/hamyar_icon" android:gravity="center" />
+    </item>
+</layer-list>

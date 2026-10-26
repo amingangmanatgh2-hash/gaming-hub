@@ -1,0 +1,16 @@
+{
+  "name": "همیار پلاس | جواب درس‌های پایهٔ ۱ تا ۱۲",
+  "short_name": "همیار پلاس",
+  "description": "گام‌به‌گام و پاسخ تمرین‌ها و فعالیت‌های پایه‌های اول تا دوازدهم — آنلاین از سایت، آفلاین لوکال",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1026",
+  "theme_color": "#0b1026",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

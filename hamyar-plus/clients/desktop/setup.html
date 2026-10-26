@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>نشانی سایت همیار پلاس</title>
+<style>
+body{font-family:Tahoma,sans-serif;background:#0b1026;color:#f2f4ff;display:grid;place-items:center;min-height:100vh;margin:0;padding:20px}
+.card{background:#161d42;border:1px solid #2a3370;border-radius:18px;padding:28px;max-width:520px;width:100%}
+h1{font-size:1.3rem;margin:0 0 8px} p{color:#a8b0d8;line-height:2}
+input{width:100%;box-sizing:border-box;padding:12px;border-radius:11px;border:1px solid #2a3370;background:#111736;color:#fff;direction:ltr;text-align:left;margin:10px 0}
+button{padding:11px 18px;border-radius:11px;border:0;background:linear-gradient(120deg,#7c5cff,#5a8cff);color:#fff;font-weight:700;cursor:pointer}
+button.ghost{background:#111736;border:1px solid #2a3370;color:#f2f4ff}
+.row{display:flex;gap:8px;flex-wrap:wrap}#msg{min-height:2em}
+</style></head>
+<body><div class="card">
+<h1>☁️ نشانی سایت همیار پلاس</h1>
+<p>اگر سایت را روی Cloudflare نصب کرده‌ای، نشانی‌اش را وارد کن تا برنامه از سایت بالا بیاید و بانک سوال‌ها خودکار به‌روز شود. خالی بگذاری، برنامه کاملاً لوکال و آفلاین کار می‌کند.</p>
+<input id="origin" type="url" placeholder="https://hamyar-plus.pages.dev">
+<div class="row"><button id="save">ذخیره و اتصال</button><button class="ghost" id="local">ادامه با نسخهٔ لوکال 📦</button></div>
+<p id="msg" role="status"></p>
+</div>
+<script src="setup.js"></script>
+</body></html>
