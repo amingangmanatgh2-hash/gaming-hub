@@ -202,8 +202,9 @@ jobs:
           cd phantom-ops-x
           node tools/gen-manifest.mjs
           cd ..
-          (cd phantom-ops-x/app && zip -qr ../PhantomOpsX-web-ultra.zip .)
+          (cd phantom-ops-x/app && zip -qr "$GITHUB_WORKSPACE/PhantomOpsX-web-ultra.zip" .)
           mv PhantomOpsX-web-ultra.zip dist/
+          ls -la dist
           mv dist/app-debug.apk dist/PhantomOpsX-Ultra-debug.apk
           cd dist && sha256sum phantom-ultra-v1.0.0.zip PhantomOpsX-Ultra-debug.apk PhantomOpsX-web-ultra.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Publish release

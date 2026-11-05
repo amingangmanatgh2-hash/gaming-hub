@@ -7,10 +7,12 @@ tools/reel/render.c.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import struct
 import sys
+import zipfile
 
 import numpy as np
 from PIL import Image
@@ -32,8 +34,8 @@ ROLE = {'u:carbon': (1.0, 1.0, 1.0), 'u:steel': (1.0, 1.0, 1.0), 'u:neon': (1.0,
 EMIS_SCALE = {'u:neon': 1.0, 'u:hull': 0.55}
 
 
-def load_rgba(path, size=None):
-    im = Image.open(path).convert('RGBA')
+def load_rgba(data, size=None):
+    im = Image.open(io.BytesIO(data) if isinstance(data, (bytes, bytearray)) else data).convert('RGBA')
     if size and im.size != (size, size):
         im = im.resize((size, size), Image.LANCZOS)
     arr = np.asarray(im, dtype=np.uint8)
@@ -42,13 +44,22 @@ def load_rgba(path, size=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--pack', required=True)
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument('--pack', help='extracted pack directory')
+    src.add_argument('--zip', help='pack archive (.zip)')
     ap.add_argument('--out', required=True)
     ap.add_argument('--tex-size', type=int, default=1024)
     args = ap.parse_args()
 
-    with open(os.path.join(args.pack, 'pack.json'), encoding='utf-8') as fh:
-        manifest = json.load(fh)
+    if args.zip:
+        zf = zipfile.ZipFile(args.zip)
+        reader = lambda rel: zf.read(rel)  # noqa: E731
+        manifest = json.loads(reader('pack.json'))
+        print(f'pack: {args.zip}')
+    else:
+        reader = lambda rel: open(os.path.join(args.pack, rel), 'rb').read()  # noqa: E731
+        with open(os.path.join(args.pack, 'pack.json'), encoding='utf-8') as fh:
+            manifest = json.load(fh)
 
     keys = ['albedo', 'normal', 'mr', 'emissive']
     tex_bytes = []
@@ -58,14 +69,12 @@ def main():
         for key in keys:
             if key not in entry:
                 continue
-            path = os.path.join(args.pack, 'textures', entry[key])
-            w, h, raw = load_rgba(path, args.tex_size)
+            w, h, raw = load_rgba(reader(entry[key]), args.tex_size)
             tex_index[(set_name, key)] = len(tex_bytes)
             tex_bytes.append((w, h, 1 if key == 'albedo' else 0, raw))
             print(f'  tex {set_name}_{key} {w}x{h} {len(raw) / 1024:.0f} KB')
 
-    sky_path = os.path.join(args.pack, manifest['sky']['file'])
-    w, h, raw = load_rgba(sky_path, args.tex_size * 2)
+    w, h, raw = load_rgba(reader(manifest['sky']['file']), args.tex_size * 2)
     sky_index = len(tex_bytes)
     tex_bytes.append((w, h, 1, raw))
     print(f'  tex sky {w}x{h}')
@@ -75,8 +84,7 @@ def main():
     mat_defs = []
     models_raw = {}
     for name in MODEL_ORDER:
-        glb = os.path.join(args.pack, manifest['models'][name]['file'])
-        models, meta = read_glb(glb)
+        models, meta = read_glb(manifest['models'][name]['file'], data=reader(manifest['models'][name]['file']))
         tris = sum(len(p['idx']) // 3 for m in models for p in m['parts'])
         print(f'  model {name}: {tris} tris, materials={meta["materials"]}')
         merged = {'name': name, 'parts': []}

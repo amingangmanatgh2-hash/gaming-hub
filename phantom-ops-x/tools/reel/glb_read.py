@@ -13,9 +13,10 @@ COMP = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('
 NCOMP = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
 
 
-def read_glb(path):
-    with open(path, 'rb') as fh:
-        data = fh.read()
+def read_glb(path=None, data=None):
+    if data is None:
+        with open(path, 'rb') as fh:
+            data = fh.read()
     magic, version, length = struct.unpack_from('<III', data, 0)
     assert magic == 0x46546C67, 'not a GLB'
     assert version == 2, f'glTF version {version}'
