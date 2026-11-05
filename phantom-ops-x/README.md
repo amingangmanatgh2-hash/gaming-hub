@@ -48,6 +48,41 @@ WASD move · Mouse look · LMB fire · RMB ADS · R reload · 1/2/Q switch weapo
 Shift sprint · Space jump / fly-up · C fly-down · P or ⚡ button = Phantom menu.
 Touch devices get a virtual joystick + FIRE/ADS/JUMP/RLD/SWAP buttons.
 
+
+## ◆ ULTRA PACK — optional graphics add-on (light base install)
+
+The APK and web build stay small on purpose: **no texture, 3D model or sky map ships
+inside them** (the APK is ~1.4 MB, the web bundle ~237 KB). Everything that makes the
+graphics "ultra" lives in an optional add-on you download from the in-game
+**◆ ULTRA** panel.
+
+| | |
+|---|---|
+| **Add-on archive** | `phantom-ultra-v1.0.0.zip` — 18 MB, stored ZIP, SHA-256 verified before use |
+| **Contains** | 8 PBR material sets (albedo · normal · metal-roughness · emissive, 1024²) · 6 glTF models (34 898 triangles) · 2048×1024 equirect sky |
+| **Runtime** | `app/js/ultra.js` + `app/js/ultra-glb.js` (dependency-free ZIP + GLB readers) |
+| **Generator** | `addons/ultra-pack/generator/` — every texel and vertex is computed, nothing is downloaded |
+| **Reel** | `tools/reel/` — offline C renderer + Persian typography + procedural soundtrack |
+
+```bash
+# rebuild the add-on from source (deterministic art pipeline, ~1 min)
+pip install -r addons/ultra-pack/generator/requirements.txt
+cd addons/ultra-pack/generator && python3 build_pack.py --out ../dist --size 1024
+
+# re-render the promo reel (needs gcc, ffmpeg via imageio-ffmpeg)
+cd ../../tools/reel && gcc -O2 -o render render.c -lm
+python3 export_scene.py --zip ../addons/ultra-pack/dist/phantom-ultra-v1.0.0.zip --out /tmp/bundle.psc
+python3 make_reel.py --bundle /tmp/bundle.psc --out out/phantom-ultra-reel.mp4
+```
+
+Install order enforced by the game: **download → SHA-256 of the archive → per-file hashes
+from `pack.json` → unpack → cache (Cache API)**. One mismatch aborts, the base game is
+untouched, and the add-on can be removed with a click.
+
+`tests/ultra.test.js` covers the hash gate, the ZIP reader (including rejecting compressed
+entries), the GLB reader, the catalogue contract and an end-to-end build of the real archive
+into three.js objects.
+
 ## Development
 
 ```bash
