@@ -180,9 +180,55 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+
+  reel:
+    name: Vertical promo reel (offline software renderer)
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install renderer dependencies
+        run: pip install numpy pillow imageio-ffmpeg arabic-reshaper python-bidi
+      - uses: actions/download-artifact@v4
+        with:
+          name: PhantomUltra-Pack
+          path: dist
+      - name: Compile the software renderer
+        working-directory: phantom-ops-x/tools/reel
+        run: gcc -O2 -o render render.c -lm
+      - name: Export the add-on archive into a render bundle
+        working-directory: phantom-ops-x/tools/reel
+        run: python3 export_scene.py --zip ../../dist/phantom-ultra-v1.0.0.zip --out /tmp/bundle.psc --tex-size 1024
+      - name: Render + composite + encode the reel
+        working-directory: phantom-ops-x/tools/reel
+        run: python3 make_reel.py --bundle /tmp/bundle.psc --out out/phantom-ultra-reel.mp4 --jobs 2
+      - name: Probe the result
+        run: |
+          python3 - <<'PY'
+          import imageio_ffmpeg, subprocess
+          out = 'phantom-ops-x/tools/reel/out/phantom-ultra-reel.mp4'
+          info = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), '-i', out],
+                                capture_output=True, text=True).stderr
+          line = [l for l in info.splitlines() if 'Stream #0:0' in l][0]
+          audio = [l for l in info.splitlines() if 'Stream #0:1' in l]
+          print(line.strip()); print(audio[0].strip() if audio else 'no audio')
+          assert '1080x1920' in line, 'reel must be a vertical 1080x1920 video'
+          assert audio, 'reel must carry the synthesised soundtrack'
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhantomUltra-Reel
+          path: phantom-ops-x/tools/reel/out/phantom-ultra-reel.mp4
+          if-no-files-found: error
+          retention-days: 30
+
   release:
-    name: Publish the release (add-on + APK + web build)
-    needs: [pack, android]
+    name: Publish the release (add-on + APK + web build + reel)
+    needs: [pack, android, reel]
     if: ${{ inputs.publish == true || github.event_name == 'push' || inputs.publish == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -197,6 +243,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: PhantomOpsX-Ultra-APK
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: PhantomUltra-Reel
           path: dist
       - name: Stage web build + checksums
         run: |
