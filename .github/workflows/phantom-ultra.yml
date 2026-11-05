@@ -220,3 +220,27 @@ jobs:
               --title "PHANTOM OPS X — Ultra Pack v1.0.0" \
               --notes-file phantom-ops-x/addons/ultra-pack/RELEASE-NOTES.md
           fi
+      - name: Sync the bundled catalogue with the published bytes
+        run: |
+          set -euo pipefail
+          # the archive is reproducible but not byte-identical across Pillow/zlib
+          # builds, so the in-app fallback catalogue is refreshed from the asset
+          # that was actually published (the app always prefers the remote one).
+          node - <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const path = 'phantom-ops-x/addons/ultra-pack/dist/phantom-ultra-v1.0.0.zip';
+          const buf = fs.readFileSync(path);
+          const sha = crypto.createHash('sha256').update(buf).digest('hex');
+          const catPath = 'phantom-ops-x/app/ultra-packs.json';
+          const cat = JSON.parse(fs.readFileSync(catPath, 'utf8'));
+          cat.packs[0].sha256 = sha;
+          cat.packs[0].bytes = buf.length;
+          fs.writeFileSync(catPath, JSON.stringify(cat, null, 2) + '\n');
+          console.log('catalogue synced:', sha, buf.length);
+          NODE
+          git config user.email "actions@github.com"
+          git config user.name "ultra-pack-bot"
+          git add phantom-ops-x/app/ultra-packs.json
+          git commit -m "chore(ultra): sync bundled catalogue with published add-on ($(git rev-parse --short HEAD))" || echo "catalogue already current"
+          git push || echo "nothing to push"
