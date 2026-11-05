@@ -202,7 +202,7 @@ jobs:
         run: gcc -O2 -o render render.c -lm
       - name: Export the add-on archive into a render bundle
         working-directory: phantom-ops-x/tools/reel
-        run: python3 export_scene.py --zip ../../dist/phantom-ultra-v1.0.0.zip --out /tmp/bundle.psc --tex-size 1024
+        run: python3 export_scene.py --zip ../../../dist/phantom-ultra-v1.0.0.zip --out /tmp/bundle.psc --tex-size 1024
       - name: Render + composite + encode the reel
         working-directory: phantom-ops-x/tools/reel
         run: python3 make_reel.py --bundle /tmp/bundle.psc --out out/phantom-ultra-reel.mp4 --jobs 2
