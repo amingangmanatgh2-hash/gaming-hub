@@ -22,3 +22,7 @@ downloads/
 phantom-ops-x/addons/ultra-pack/dist/
 phantom-ops-x/addons/ultra-pack/build/
 phantom-ops-x/tools/reel/out/
+
+# python bytecode from the add-on generator
+__pycache__/
+*.pyc
