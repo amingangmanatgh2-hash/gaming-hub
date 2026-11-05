@@ -38,6 +38,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install test dependencies
+        working-directory: phantom-ops-x
+        run: npm ci --no-audit --no-fund
       - name: Game + add-on unit tests
         run: node --test phantom-ops-x/tests/*.test.js
       - name: Headless menu smoke test
