@@ -224,26 +224,32 @@ jobs:
           fi
       - name: Sync the bundled catalogue with the published bytes
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # the archive is reproducible but not byte-identical across Pillow/zlib
-          # builds, so the in-app fallback catalogue is refreshed from the asset
-          # that was actually published (the app always prefers the remote one).
-          node - <<'NODE'
+          # The archive is reproducible from source but not byte-identical across
+          # Pillow/zlib builds, so the in-app fallback catalogue is refreshed from
+          # the bytes that were actually published. The app prefers the remote
+          # catalogue anyway; this keeps the offline fallback honest too.
+          SHA=$(sha256sum dist/phantom-ultra-v1.0.0.zip | cut -d' ' -f1)
+          SIZE=$(stat -c%s dist/phantom-ultra-v1.0.0.zip)
+          echo "published add-on: $SHA ($SIZE bytes)"
+          node - "$SHA" "$SIZE" <<'NODE'
           const fs = require('fs');
-          const crypto = require('crypto');
-          const path = 'phantom-ops-x/addons/ultra-pack/dist/phantom-ultra-v1.0.0.zip';
-          const buf = fs.readFileSync(path);
-          const sha = crypto.createHash('sha256').update(buf).digest('hex');
-          const catPath = 'phantom-ops-x/app/ultra-packs.json';
-          const cat = JSON.parse(fs.readFileSync(catPath, 'utf8'));
+          const [sha, size] = process.argv.slice(2);
+          const p = 'phantom-ops-x/app/ultra-packs.json';
+          const cat = JSON.parse(fs.readFileSync(p, 'utf8'));
           cat.packs[0].sha256 = sha;
-          cat.packs[0].bytes = buf.length;
-          fs.writeFileSync(catPath, JSON.stringify(cat, null, 2) + '\n');
-          console.log('catalogue synced:', sha, buf.length);
+          cat.packs[0].bytes = Number(size);
+          fs.writeFileSync(p, JSON.stringify(cat, null, 2) + '\n');
           NODE
-          git config user.email "actions@github.com"
-          git config user.name "ultra-pack-bot"
-          git add phantom-ops-x/app/ultra-packs.json
-          git commit -m "chore(ultra): sync bundled catalogue with published add-on" || echo "catalogue already current"
-          git push origin "HEAD:${{ github.ref_name }}" || echo "nothing to push"
+          if git diff --quiet -- phantom-ops-x/app/ultra-packs.json; then
+            echo "catalogue already in sync"; exit 0
+          fi
+          gh api -X PUT "repos/${GITHUB_REPOSITORY}/contents/phantom-ops-x/app/ultra-packs.json" \
+            -f message="chore(ultra): sync bundled catalogue with the published add-on" \
+            -f content="$(base64 -w0 phantom-ops-x/app/ultra-packs.json)" \
+            -f sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/phantom-ops-x/app/ultra-packs.json?ref=${GITHUB_REF_NAME}" --jq .sha)" \
+            -f branch="${GITHUB_REF_NAME}" >/dev/null
+          echo "catalogue committed to ${GITHUB_REF_NAME}"
