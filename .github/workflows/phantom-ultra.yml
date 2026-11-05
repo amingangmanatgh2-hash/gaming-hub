@@ -188,6 +188,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
       - uses: actions/download-artifact@v4
         with:
           name: PhantomUltra-Pack
@@ -221,6 +223,7 @@ jobs:
               --notes-file phantom-ops-x/addons/ultra-pack/RELEASE-NOTES.md
           fi
       - name: Sync the bundled catalogue with the published bytes
+        continue-on-error: true
         run: |
           set -euo pipefail
           # the archive is reproducible but not byte-identical across Pillow/zlib
@@ -242,5 +245,5 @@ jobs:
           git config user.email "actions@github.com"
           git config user.name "ultra-pack-bot"
           git add phantom-ops-x/app/ultra-packs.json
-          git commit -m "chore(ultra): sync bundled catalogue with published add-on ($(git rev-parse --short HEAD))" || echo "catalogue already current"
-          git push || echo "nothing to push"
+          git commit -m "chore(ultra): sync bundled catalogue with published add-on" || echo "catalogue already current"
+          git push origin "HEAD:${{ github.ref_name }}" || echo "nothing to push"
