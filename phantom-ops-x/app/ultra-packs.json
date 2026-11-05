@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "name": "PHANTOM OPS X — add-on catalogue",
+  "remote": "https://github.com/amingangmanatgh2-hash/gaming-hub/releases/download/phantom-ultra-v1.0.0/ultra-catalog.json",
+  "note": "Bundled fallback catalogue. The game prefers the `remote` catalogue published next to the add-on archive, then falls back to this file. The archive is only installed when its SHA-256 matches.",
+  "packs": [
+    {
+      "id": "ultra",
+      "name": "ULTRA GRAPHICS PACK",
+      "version": "1.0.0",
+      "url": "https://github.com/amingangmanatgh2-hash/gaming-hub/releases/download/phantom-ultra-v1.0.0/phantom-ultra-v1.0.0.zip",
+      "bytes": 18837353,
+      "sha256": "b833e4830a004e2a13dbde4042c1d7ca4b49893fc9d70bc7e6a3a1d0a26da336",
+      "contains": {
+        "materialSets": 8,
+        "models": 6,
+        "triangles": 34898,
+        "texels": 27262976
+      },
+      "notes": "PBR albedo/normal/metallic-roughness/emissive sets plus six 3D models and an equirect sky, generated procedurally by addons/ultra-pack/generator."
+    }
+  ]
+}

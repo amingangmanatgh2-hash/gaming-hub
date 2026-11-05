@@ -22,7 +22,9 @@
       <button id="btnPlayLauncher" class="btn primary big">▶ PLAY</button>
       <button id="btnCheckUpdate" class="btn">⟳ Check updates</button>
       <button id="btnRepair" class="btn warn">🛠 Repair</button>
+      <button id="btnUltraLauncher" class="btn ultra">◆ Ultra Pack</button>
     </div>
+    <div id="ultraLauncherBadge" class="ultra-badge">Optional add-on: real 3D models + PBR textures · base install stays light</div>
     <p class="fineprint">Independent experimental FPS. Not affiliated with Call of Duty. No official accounts, servers or purchases are touched.</p>
   </div>
 </section>
@@ -143,6 +145,37 @@
 </div>
 
 <button id="btnPhantom" class="hidden">⚡ PHANTOM</button>
+<button id="btnUltra" class="hidden">◆ ULTRA</button>
+
+<!-- ============ ULTRA PACK ADD-ON MANAGER ============ -->
+<div id="ultraModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="ultraTitle">
+  <div class="ultra-card">
+    <header>
+      <span id="ultraTitle">◆ ULTRA GRAPHICS PACK</span>
+      <button id="ultraClose" class="pm-win-btn">✕</button>
+    </header>
+    <p class="ultra-lead">
+      The game you just launched is complete on its own — the add-on is
+      <b>optional</b>. It swaps the procedural stand-ins for authored content:
+      PBR texture sets (albedo · normal · metal-roughness · emissive), six 3D
+      models and an equirect studio sky, all downloaded on demand.
+    </p>
+    <div id="ultraFacts" class="ultra-facts"></div>
+    <div class="ultra-progress-wrap"><div id="ultraProgress"></div></div>
+    <p id="ultraStatus" class="ultra-status">Checking…</p>
+    <div class="btn-row">
+      <button id="ultraDownload" class="btn primary">⬇ Download add-on</button>
+      <button id="ultraCancel" class="btn hidden">Cancel</button>
+      <button id="ultraRemove" class="btn warn hidden">Remove add-on</button>
+      <button id="ultraDone" class="btn">Close</button>
+    </div>
+    <p class="ultra-fine">
+      Every byte is verified with SHA-256 before use; a mismatch is rejected and
+      the base game is untouched. Downloaded once, then served from cache — even
+      offline.
+    </p>
+  </div>
+</div>
 
 <!-- ============ FLOATING PHANTOM MENU ============ -->
 <div id="phantomMenu" class="hidden">

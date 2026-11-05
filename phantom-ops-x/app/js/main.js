@@ -9,8 +9,11 @@ import { MAPS, MODES, DIFFICULTIES, WEAPONS, COSMETICS, weaponById } from './cat
 import { Game } from './game.js';
 import { PhantomMenu } from './menu.js';
 import { SoundFX } from './audio.js';
+import * as THREE from 'three';
+import { UltraLoader, buildAssets } from './ultra.js';
 
 const APP_VERSION = '1.0.0';
+const ULTRA_CATALOG_FALLBACK = 'ultra-packs.json';
 const $ = (s) => document.querySelector(s);
 const LAUNCHER_KEY = GAME_STORAGE_KEYS.launcher;
 
@@ -26,6 +29,165 @@ export function toast(msg) {
   clearTimeout(toastT);
   toastT = setTimeout(() => toastEl.classList.remove('show'), 2400);
 }
+
+// ---------------------------------------------------------------- ultra pack
+const ultraUI = {
+  modal: $('#ultraModal'), btn: $('#btnUltra'), launcherBtn: $('#btnUltraLauncher'),
+  badge: $('#ultraLauncherBadge'), facts: $('#ultraFacts'), progress: $('#ultraProgress'),
+  status: $('#ultraStatus'), download: $('#ultraDownload'), cancel: $('#ultraCancel'),
+  remove: $('#ultraRemove'), close: $('#ultraClose'), done: $('#ultraDone'),
+};
+const ultra = new UltraLoader({
+  catalogUrl: '',
+  bundledUrl: ULTRA_CATALOG_FALLBACK,
+  onProgress: (p) => renderUltraProgress(p),
+});
+let ultraAssets = null;
+let ultraPack = null;
+let ultraBusy = false;
+
+function fmtBytes(n) {
+  if (!n) return '—';
+  const mb = n / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
+}
+function fmtNum(n) { return typeof n === 'number' ? n.toLocaleString('en-US') : '—'; }
+
+function renderUltraFacts(pack, manifest) {
+  const facts = manifest?.facts || pack?.contains || {};
+  const rows = [
+    [fmtBytes(pack?.bytes || facts.bytes), 'download'],
+    [fmtNum(facts.materialSets || 8), 'PBR sets'],
+    [fmtNum(facts.models || 6), '3D models'],
+    [fmtNum(facts.triangles), 'triangles'],
+    [fmtNum(facts.texels), 'texels'],
+  ];
+  ultraUI.facts.innerHTML = rows
+    .map(([v, l]) => `<div class="ultra-fact"><b>${v}</b><span>${l}</span></div>`).join('');
+}
+function renderUltraStatus(text, kind = '') {
+  ultraUI.status.textContent = text;
+  ultraUI.status.className = 'ultra-status' + (kind ? ' ' + kind : '');
+}
+function renderUltraProgress(p) {
+  if (!p) return;
+  const pct = Math.max(0, Math.min(100, (p.ratio || 0) * 100));
+  ultraUI.progress.style.width = pct.toFixed(1) + '%';
+  const map = {
+    download: () => `Downloading… ${fmtBytes(p.loaded)} / ${fmtBytes(p.total)} (${pct.toFixed(0)}%)`,
+    hash: () => 'Verifying SHA-256 of the archive…',
+    unpack: () => 'Unpacking (stored ZIP)…',
+    'verify-files': () => `Verifying files… ${p.loaded}/${p.total}`,
+    retry: () => 'Primary mirror failed — trying the backup mirror…',
+    'verify-start': () => 'Starting download…',
+    done: () => 'Verified. Installing into the renderer…',
+  };
+  const fn = map[p.phase];
+  if (fn) renderUltraStatus(fn());
+}
+function setUltraBusy(busy) {
+  ultraBusy = busy;
+  ultraUI.download.classList.toggle('hidden', busy || !!ultraAssets);
+  ultraUI.cancel.classList.toggle('hidden', !busy);
+  ultraUI.remove.classList.toggle('hidden', busy || !ultraAssets);
+  ultraUI.download.disabled = busy;
+}
+function syncUltraChrome() {
+  const on = !!ultraAssets;
+  ultraUI.btn.classList.toggle('installed', on);
+  ultraUI.btn.textContent = on ? '◆ ULTRA ON' : '◆ ULTRA';
+  if (ultraUI.badge) {
+    ultraUI.badge.textContent = on
+      ? `Ultra Pack v${ultraAssets.manifest.version} active — ${fmtBytes(ultraAssets.manifest.facts?.bytes || 0)} of authored PBR art loaded`
+      : 'Optional add-on: real 3D models + PBR textures · base install stays light';
+  }
+}
+
+async function openUltraModal() {
+  ultraUI.modal.classList.remove('hidden');
+  setUltraBusy(false);
+  syncUltraChrome();
+  if (ultraAssets) {
+    renderUltraFacts({ bytes: ultraAssets.manifest.facts?.bytes }, ultraAssets.manifest);
+    renderUltraStatus(`Installed: ${ultraAssets.manifest.name} v${ultraAssets.manifest.version} — active in game.`, 'ok');
+    return;
+  }
+  renderUltraStatus('Looking up the add-on catalogue…');
+  try {
+    const cat = await ultra.catalog();
+    ultraPack = cat.pack;
+    renderUltraFacts(ultraPack);
+    const st = await ultra.status();
+    renderUltraStatus(
+      st.installed
+        ? `Installed v${st.meta.version} but not cached on this device — download once to re-activate.`
+        : `Not installed. ${ultraPack.name} v${ultraPack.version} — ${fmtBytes(ultraPack.bytes)} one-time download.`,
+    );
+  } catch (e) {
+    renderUltraStatus(`Catalogue unavailable: ${e.message}. The base game is fully playable offline.`, 'error');
+  }
+}
+
+async function installUltra() {
+  if (ultraBusy) return;
+  setUltraBusy(true);
+  ultraUI.progress.style.width = '0%';
+  try {
+    const cat = await ultra.catalog();
+    ultraPack = cat.pack;
+    renderUltraFacts(ultraPack);
+    const archive = await ultra.install(ultraPack);
+    renderUltraStatus('Building textures and 3D models…');
+    ultraAssets = await buildAssets(THREE, archive);
+    game.setUltra(ultraAssets);
+    syncUltraChrome();
+    setUltraBusy(false);
+    renderUltraFacts({ bytes: archive.manifest.facts?.bytes }, archive.manifest);
+    renderUltraStatus(`✔ ${archive.manifest.facts.models} models · ${fmtNum(archive.manifest.facts.triangles)} triangles · ${fmtNum(archive.manifest.facts.texels)} texels active.`, 'ok');
+    toast('Ultra Pack installed — graphics upgraded');
+    sfx.ui();
+  } catch (e) {
+    setUltraBusy(false);
+    ultraUI.remove.classList.add('hidden');
+    renderUltraStatus(`✖ ${e.message}`, 'error');
+    toast('Ultra Pack not installed');
+  }
+}
+
+async function removeUltra() {
+  await ultra.uninstall();
+  ultraAssets = null;
+  ultraPack = null;
+  game.setUltra(null);
+  setUltraBusy(false);
+  syncUltraChrome();
+  ultraUI.progress.style.width = '0%';
+  renderUltraStatus('Add-on removed. Base game unmodified and still complete.', 'ok');
+  toast('Ultra Pack removed');
+}
+
+async function restoreUltra() {
+  try {
+    const status = await ultra.status();
+    if (!status.installed) return;
+    const archive = await ultra.restore();
+    if (!archive) return;
+    ultraAssets = await buildAssets(THREE, archive);
+    game.setUltra(ultraAssets);
+    syncUltraChrome();
+    toast('Ultra Pack active');
+  } catch { /* a broken cache must never block the game */ }
+}
+
+ultraUI.btn.onclick = () => { sfx.ui(); openUltraModal(); };
+ultraUI.launcherBtn.onclick = () => { sfx.ensure(); sfx.ui(); openUltraModal(); };
+ultraUI.download.onclick = () => { sfx.ui(); installUltra(); };
+ultraUI.cancel.onclick = () => { ultra.abort(); renderUltraStatus('Download cancelled — nothing was installed.'); };
+ultraUI.remove.onclick = () => { sfx.ui(); removeUltra(); };
+ultraUI.close.onclick = closeUltraModal;
+ultraUI.done.onclick = closeUltraModal;
+function closeUltraModal() { ultraUI.modal.classList.add('hidden'); }
+ultraUI.modal.addEventListener('click', (e) => { if (e.target === ultraUI.modal) closeUltraModal(); });
 
 // ---------------------------------------------------------------- launcher
 let launcherState = 'idle';
@@ -129,6 +291,7 @@ function repair() {
   toast('Repair complete — accounts & inventory preserved');
 }
 
+const ultraBootTime = Date.now();
 $('#btnCheckUpdate').onclick = () => { sfx.ensure(); checkUpdates(true); };
 $('#btnRepair').onclick = () => { sfx.ensure(); repair(); };
 $('#btnPlayLauncher').onclick = () => { sfx.ensure(); sfx.ui(); enterApp(); };
@@ -149,6 +312,8 @@ function enterApp() {
     show('#accountScreen');
   }
   $('#btnPhantom').classList.remove('hidden');
+  $('#btnUltra').classList.remove('hidden');
+  syncUltraChrome();
 }
 
 // ---------------------------------------------------------------- accounts screen
@@ -366,3 +531,6 @@ $('#btnDeploy').onclick = () => {
   // silent background check (does not block play)
   setTimeout(() => { if (navigator.onLine) checkUpdates(false); }, 600);
 })();
+
+// restore a previously verified add-on without any network round-trip
+restoreUltra();

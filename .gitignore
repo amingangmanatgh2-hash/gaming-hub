@@ -16,3 +16,9 @@ downloads/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# PHANTOM OPS X — generated add-on archives & reel renders (published as GitHub
+# release assets, reproducible from addons/ultra-pack/generator + tools/reel)
+phantom-ops-x/addons/ultra-pack/dist/
+phantom-ops-x/addons/ultra-pack/build/
+phantom-ops-x/tools/reel/out/

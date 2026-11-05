@@ -1,0 +1,218 @@
+name: PHANTOM OPS X — Ultra Pack add-on + APK
+
+# Builds the downloadable add-on straight from its procedural generator, runs the
+# game/add-on test suite, packages the Android APK, and publishes one release
+# that holds every artifact: add-on archive, catalogue, APK, web bundle, reel.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        type: string
+        required: true
+        default: 'phantom-ultra-v1.0.0'
+      publish:
+        description: 'Publish the GitHub release'
+        type: boolean
+        required: false
+        default: true
+  push:
+    branches: ['arena/4ab1482f-gaming-hub', 'Main']
+    paths:
+      - 'phantom-ops-x/addons/ultra-pack/**'
+      - 'phantom-ops-x/app/js/ultra*.js'
+      - 'phantom-ops-x/tools/reel/**'
+      - '.github/workflows/phantom-ultra.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Tests (add-on runtime, zip reader, GLB reader, game logic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Game + add-on unit tests
+        run: node --test phantom-ops-x/tests/*.test.js
+      - name: Headless menu smoke test
+        working-directory: phantom-ops-x
+        run: npm run smoke
+
+  pack:
+    name: Build the Ultra Pack archive
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install generator dependencies
+        run: pip install -r phantom-ops-x/addons/ultra-pack/generator/requirements.txt
+      - name: Generate textures + 3D models, pack the archive
+        working-directory: phantom-ops-x/addons/ultra-pack/generator
+        run: python3 build_pack.py --out ../dist --size 1024
+      - name: Publish the catalogue next to the archive
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag || 'phantom-ultra-v1.0.0' }}"
+          SHA=$(cut -d' ' -f1 phantom-ops-x/addons/ultra-pack/dist/SHA256SUMS.txt)
+          SIZE=$(stat -c%s phantom-ops-x/addons/ultra-pack/dist/phantom-ultra-v1.0.0.zip)
+          node - "$TAG" "$SHA" "$SIZE" <<'NODE'
+          const fs = require('fs');
+          const [tag, sha, size] = process.argv.slice(2);
+          const base = 'https://github.com/amingangmanatgh2-hash/gaming-hub/releases/download/' + tag;
+          const manifest = JSON.parse(fs.readFileSync('phantom-ops-x/addons/ultra-pack/dist/pack.json', 'utf8'));
+          const catalog = {
+            schema: 1,
+            name: 'PHANTOM OPS X — add-on catalogue',
+            packs: [{
+              id: 'ultra',
+              name: 'ULTRA GRAPHICS PACK',
+              version: manifest.version,
+              url: `${base}/phantom-ultra-v${manifest.version}.zip`,
+              bytes: Number(size),
+              sha256: sha,
+              contains: {
+                materialSets: manifest.facts.texture_sets,
+                models: manifest.facts.models,
+                triangles: manifest.facts.triangles,
+                texels: manifest.facts.texels,
+              },
+              notes: 'PBR albedo/normal/metallic-roughness/emissive sets plus six 3D models and an equirect sky.',
+            }],
+          };
+          fs.writeFileSync('phantom-ops-x/addons/ultra-pack/dist/ultra-catalog.json', JSON.stringify(catalog, null, 2) + '\n');
+          NODE
+          cat phantom-ops-x/addons/ultra-pack/dist/ultra-catalog.json
+      - name: Verify the archive is readable by the in-game ZIP reader
+        run: |
+          cat > .ultra-check.mjs <<'NODE'
+          import { readZipEntries } from './phantom-ops-x/app/js/ultra.js';
+          import { readFileSync } from 'node:fs';
+          const buf = readFileSync('phantom-ops-x/addons/ultra-pack/dist/phantom-ultra-v1.0.0.zip');
+          const entries = readZipEntries(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+          const names = [...entries.keys()];
+          const required = ['pack.json', 'sky/neon_dusk_equirect.png',
+            'models/rifle_ultra.glb', 'models/operator_ultra.glb',
+            'textures/carbon_albedo.png', 'textures/panel_normal.png'];
+          const missing = required.filter((n) => !names.includes(n));
+          console.log('entries:', names.length);
+          if (missing.length) { console.error('MISSING:', missing); process.exit(1); }
+          const manifest = JSON.parse(new TextDecoder().decode(entries.get('pack.json')));
+          console.log('pack:', manifest.name, manifest.version, manifest.facts);
+          NODE
+          node .ultra-check.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhantomUltra-Pack
+          path: |
+            phantom-ops-x/addons/ultra-pack/dist/phantom-ultra-v1.0.0.zip
+            phantom-ops-x/addons/ultra-pack/dist/ultra-catalog.json
+            phantom-ops-x/addons/ultra-pack/dist/SHA256SUMS.txt
+            phantom-ops-x/addons/ultra-pack/dist/pack.json
+          if-no-files-found: error
+          retention-days: 30
+
+  android:
+    name: Android APK (light base install)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Regenerate the bundle manifest (new add-on files included)
+        working-directory: phantom-ops-x
+        run: node tools/gen-manifest.mjs
+      - name: Android SDK (download only if absent)
+        run: |
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+      - name: Build the debug APK
+        working-directory: phantom-ops-x/launcher-android
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-daemon 2>&1 | tee /tmp/ultra-gradle.log || {
+            echo "::error::$(tail -n 25 /tmp/ultra-gradle.log | tr '\n' ' ')"; exit 1; }
+      - name: Verify APK + that the add-on runtime shipped inside it
+        run: |
+          APK=phantom-ops-x/launcher-android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 3
+          python3 - "$APK" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          needed = ['assets/game/index.html', 'assets/game/js/ultra.js',
+                    'assets/game/js/ultra-glb.js', 'assets/game/ultra-packs.json',
+                    'assets/game/js/vendor/three.module.min.js']
+          missing = [n for n in needed if n not in names]
+          print('APK entries:', len(names))
+          print('base APK size: %.1f MB (add-on is downloaded on demand)' %
+                (sum(i.file_size for i in zipfile.ZipFile(sys.argv[1]).infolist()) / 1048576))
+          if missing:
+              print('MISSING from APK:', missing); sys.exit(1)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhantomOpsX-Ultra-APK
+          path: phantom-ops-x/launcher-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish the release (add-on + APK + web build)
+    needs: [pack, android]
+    if: ${{ inputs.publish == true || github.event_name == 'push' || inputs.publish == '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: PhantomUltra-Pack
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: PhantomOpsX-Ultra-APK
+          path: dist
+      - name: Stage web build + checksums
+        run: |
+          set -euo pipefail
+          cd phantom-ops-x
+          node tools/gen-manifest.mjs
+          cd ..
+          (cd phantom-ops-x/app && zip -qr ../PhantomOpsX-web-ultra.zip .)
+          mv PhantomOpsX-web-ultra.zip dist/
+          mv dist/app-debug.apk dist/PhantomOpsX-Ultra-debug.apk
+          cd dist && sha256sum phantom-ultra-v1.0.0.zip PhantomOpsX-Ultra-debug.apk PhantomOpsX-web-ultra.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || 'phantom-ultra-v1.0.0' }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --title "PHANTOM OPS X — Ultra Pack v1.0.0" \
+              --notes-file phantom-ops-x/addons/ultra-pack/RELEASE-NOTES.md
+          fi

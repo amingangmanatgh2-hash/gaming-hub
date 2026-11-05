@@ -1,0 +1,4 @@
+# Ultra Pack generator — every texture and vertex is produced locally, no assets
+# are downloaded. Pinned so CI reproduces the same art pipeline.
+numpy>=1.26,<3
+Pillow>=10.2,<12

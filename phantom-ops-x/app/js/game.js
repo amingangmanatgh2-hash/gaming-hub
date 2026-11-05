@@ -9,6 +9,7 @@ import {
 } from './mods.js';
 import { weaponById, cosmeticById, mapById, modeById, DIFFICULTIES } from './catalog.js';
 import { buildWeaponModel, buildBotModel } from './model.js';
+import { applySet } from './ultra.js';
 
 const BOT_NAMES = ['VIPER', 'HAVOC', 'ORION', 'JINX', 'ROGUE', 'ECHO', 'TITAN', 'NOVA', 'ONYX', 'FABLE', 'WRAITH', 'ZERO'];
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -87,6 +88,144 @@ export class Game {
     this.onResize();
   }
 
+  // ---------------------------------------------------------- ultra add-on
+  // Enabled by main.js once the optional Ultra Pack is installed + verified.
+  setUltra(assets) {
+    this.ultra = assets && assets.sets ? assets : null;
+    this._ultraEnv = null;
+    if (!this.ultra) {
+      this.scene.environment = null;
+      this.renderer.shadowMap.enabled = false;
+      this.renderer.toneMapping = THREE.NoToneMapping;
+      if (this.state === 'playing') this.buildWorld(this.mapDef);
+      return;
+    }
+    const env = this.ultraEnvironment();
+    if (env) this.scene.environment = env;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    if (this.state === 'playing') {
+      // live upgrade without restarting the match
+      this.buildWorld(this.mapDef);
+      this.equipViewmodel();
+    }
+  }
+
+  ultraEnvironment() {
+    if (!this.ultra || !this.ultra.sky) return null;
+    if (this._ultraEnv) return this._ultraEnv;
+    try {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      const rt = pmrem.fromEquirectangular(this.ultra.sky);
+      this._ultraEnv = rt.texture;
+      pmrem.dispose();
+    } catch { this._ultraEnv = null; }
+    return this._ultraEnv;
+  }
+
+  // PBR texture sets + hero props + shadow casting for the current map.
+  decorateUltraWorld(ground, sun, map, rng) {
+    const sets = this.ultra.sets;
+    const S = map.size;
+    if (sets.concrete && ground) {
+      const mat = applySet(THREE, ground.material, sets.concrete, { repeat: Math.max(4, Math.round(S / 6)) });
+      mat.roughness = 1; mat.metalness = 0.2;
+      ground.material = mat;
+    }
+    if (ground) ground.receiveShadow = true;
+    for (const m of this.solids) {
+      const set = sets.panel || sets.steel;
+      if (!set) break;
+      const box = new THREE.Box3().setFromObject(m);
+      const size = box.getSize(new THREE.Vector3());
+      const rep = Math.max(1, Math.round(Math.max(size.x, size.z) / 3.2));
+      m.material = applySet(THREE, m.material, set, { repeat: rep });
+      m.castShadow = true; m.receiveShadow = true;
+    }
+    if (sun) {
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      const cam = sun.shadow.camera;
+      cam.left = -S * 0.85; cam.right = S * 0.85; cam.top = S * 0.85; cam.bottom = -S * 0.85;
+      cam.near = 1; cam.far = 240; cam.updateProjectionMatrix();
+      sun.shadow.bias = -0.0012;
+      sun.shadow.normalBias = 0.03;
+    }
+    this.ultraProps = [];
+    const spawnProp = (name, x, z, scale = 1, rotate = 0, y = 0, collide = false, spin = 0) => {
+      const src = this.ultra.models[name];
+      if (!src) return;
+      const obj = src.root.clone(true);
+      obj.position.set(x, y, z);
+      obj.rotation.y = rotate;
+      obj.scale.setScalar(scale);
+      obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      this.scene.add(obj);
+      if (collide) {
+        obj.traverse((o) => {
+          if (o.isMesh) { this.solids.push(o); this.colliders.push(new THREE.Box3().setFromObject(o)); }
+        });
+      }
+      if (spin) this.ultraProps.push({ obj, spin, baseY: y });
+    };
+    // pylons on the skyline, supply crates for cover, recon drones overhead
+    const edge = S / 2 - 6;
+    spawnProp('tower_ultra', -edge, -edge, 0.85, 0.4, 0, true);
+    spawnProp('tower_ultra', edge * 0.9, edge * 0.75, 0.7, -0.8, 0, true);
+    if (map.night) spawnProp('tower_ultra', edge * 0.6, -edge, 0.55, 1.6, 0, true);
+    for (let i = 0; i < 7; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = 8 + rng() * (S / 2 - 14);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      spawnProp('crate_ultra', x, z, 0.9 + rng() * 0.3, rng() * Math.PI, 0, true);
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = S * 0.28 + rng() * S * 0.16;
+      spawnProp('drone_ultra', Math.cos(a) * r, Math.sin(a) * r, 1.15, rng() * Math.PI, 3.4 + rng() * 2.4, false, 0.5 + rng() * 0.6);
+    }
+  }
+
+  upgradeBot(grp) {
+    const sets = this.ultra && this.ultra.sets;
+    if (!sets) return;
+    const parts = grp.userData.parts || {};
+    const swap = (mesh, set, { tint = true, emissive = null, repeat = 3 } = {}) => {
+      if (!mesh || !set) return;
+      const old = mesh.material;
+      const mat = applySet(THREE, old, set, { repeat });
+      if (tint && old.color) mat.color.multiply(old.color.clone().lerp(new THREE.Color(0xffffff), 0.45));
+      if (emissive) { mat.emissive = emissive.clone(); mat.emissiveIntensity = 0.7; }
+      else { mat.emissive = new THREE.Color(0x000000); mat.emissiveIntensity = 0; }
+      mesh.material = mat;
+      mesh.castShadow = true;
+    };
+    swap(parts.body, sets.camo, { repeat: 3 });
+    swap(parts.chest, sets.panel || sets.steel, { emissive: parts.chest.material.emissive, repeat: 4 });
+    swap(parts.head, sets.steel, { repeat: 4 });
+    swap(parts.gun, sets.carbon, { repeat: 4 });
+  }
+
+  ultraWeaponModel(ws) {
+    const models = this.ultra && this.ultra.models;
+    if (!models) return null;
+    const side = ws.def.cls === 'Pistol';
+    const src = side ? models.sidearm_ultra : models.rifle_ultra;
+    if (!src) return null;
+    const obj = src.root.clone(true);
+    obj.scale.setScalar(side ? 0.95 : 0.62);
+    obj.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } });
+    const muzzle = new THREE.Object3D();
+    muzzle.position.set(0, 0.02, side ? -0.22 : -1.0);
+    obj.add(muzzle);
+    obj.userData.muzzle = muzzle;
+    obj.userData.materials = {};
+    obj.userData.pulse = () => {};
+    return obj;
+  }
+
   // Rebuild player weapon states after loadout changes (works mid-match too).
   applyLoadout() {
     if (!this.profile) return;
@@ -113,7 +252,8 @@ export class Game {
   buildWorld(map) {
     while (this.scene.children.length) this.scene.remove(this.scene.children[0]);
     this.colliders = []; this.solids = []; this.bots = []; this.projectiles = []; this.effects = [];
-    this.scene.background = new THREE.Color(map.sky);
+    this.scene.background = (this.ultra && this.ultra.sky) ? this.ultra.sky : new THREE.Color(map.sky);
+    if (this.ultra && this.ultra.sky) this.scene.backgroundIntensity = 0.55;
     this.scene.fog = new THREE.Fog(new THREE.Color(map.fog), 40, map.size * 1.9);
     const hemi = new THREE.HemisphereLight(0xffffff, 0x334455, map.night ? 0.35 : 0.95);
     this.scene.add(hemi);
@@ -162,6 +302,7 @@ export class Game {
       addBox(s, s, s, x, z, [0xa9825a, 0x6b7f5e, 0x707a8c][i % 3]);
       if (rng() > 0.6) addBox(s * 0.8, s * 0.8, s * 0.8, x, z, 0x8a6f4d).position.y = s + s * 0.4;
     }
+    if (this.ultra) this.decorateUltraWorld(ground, sun, map, rng);
     // viewmodel + flash light
     this.viewGroup = new THREE.Group();
     this.camera.add(this.viewGroup);
@@ -265,6 +406,8 @@ export class Game {
       const outfitColors = [0x5b6b7a, 0x232a3d, 0xb99b5f, 0x35424f, 0x6e3b3b];
       const grp = buildBotModel(THREE, team === 0 ? 0x2f7bff : 0xff4545, outfitColors[i % outfitColors.length]);
       grp.position.copy(sp);
+      grp.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      if (this.ultra) this.upgradeBot(grp);
       this.scene.add(grp);
       const bot = {
         isPlayer: false, id: `bot_${team}_${i}`, name: BOT_NAMES[(i + team * 5) % BOT_NAMES.length],
@@ -308,9 +451,12 @@ export class Game {
     const camoId = inv.loadout.camoByWeapon[ws.id] || 'camo_factory';
     const camo = cosmeticById(camoId);
     const outfit = cosmeticById(inv.loadout.outfit);
-    const model = buildWeaponModel(THREE, ws.def, { camoColor: camo?.color, animated: ws.def.animated || camo?.animated });
-    model.position.set(0.26, -0.22, -0.45);
-    model.rotation.y = Math.PI;
+    const ultra = this.ultraWeaponModel(ws);
+    const model = ultra || buildWeaponModel(THREE, ws.def, { camoColor: camo?.color, animated: ws.def.animated || camo?.animated });
+    // rotation.y must stay 0: the barrel is authored along -Z, and Math.PI
+    // pointed the muzzle at the player (invisible muzzle flash).
+    model.position.set(ultra ? 0.24 : 0.26, -0.22, ultra ? -0.50 : -0.45);
+    model.rotation.y = 0;
     this.viewGroup.add(model);
     this.viewModel = model;
     // arms in outfit colour
@@ -1050,6 +1196,7 @@ export class Game {
         );
         this.viewKick = Math.max(0, (this.viewKick || 0) - dt * 9);
         this.viewModel.userData.pulse?.(now / 1000);
+        if (this.ultraProps) for (const pr of this.ultraProps) { pr.obj.rotation.y += dt * pr.spin; pr.obj.position.y = pr.baseY + Math.sin(now * 0.0013 + pr.baseY) * 0.18; }
         // hp regen (sandbox pacing)
         if (p.hp > 0 && p.hp < p.maxHp && now - (p._lastHurt || 0) > 4500) p.hp = Math.min(p.maxHp, p.hp + dt * 9);
       } else if (now > p.respawnAt && this.state === 'playing') {
