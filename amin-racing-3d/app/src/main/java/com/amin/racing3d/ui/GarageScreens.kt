@@ -146,6 +146,13 @@ class GarageScreen(host: GameHost) : Screen(host) {
         val speedLine = Ui.text(ctx, str(R.string.top_speed) + ": " +
             Lang.num(GameData.topSpeedKmh(spec, save.upgradeLevel(car, GameData.UPG_SPEED)).toInt()) + " " + str(R.string.kmh), 12f, Ui.DIM)
         panel.addView(speedLine, Ui.lp(topDp = 4f))
+        // class, kerb weight and tyre grip (they change how the car handles, not only the bars above)
+        val info = StringBuilder()
+        if (spec.catRes != 0) info.append(str(spec.catRes)).append("  •  ")
+        info.append(str(R.string.stat_weight)).append(": ").append(Lang.num(spec.massKg)).append(' ').append(str(R.string.kg))
+        info.append("  •  ").append(str(R.string.stat_grip)).append(": ").append(Lang.num((spec.grip * 100f).toInt())).append('%')
+        if (spec.allTerrain) info.append("  •  4×4")
+        panel.addView(Ui.text(ctx, info.toString(), 12f, Ui.CYAN, Ui.bold), Ui.lp(topDp = 2f))
 
         // ---- paint
         panel.addView(sectionTitle(str(R.string.paint)), Ui.lp())

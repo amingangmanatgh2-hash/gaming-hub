@@ -20,6 +20,7 @@ uniform mat4 uLightVP;
 uniform highp int uTexMode;
 uniform vec2 uTexScale;
 uniform float uBlink;
+uniform float uSiren;
 out vec3 vWorld;
 out vec3 vNormal;
 out vec3 vColor;
@@ -42,7 +43,9 @@ void main() {
         else if (t < 2.5) e = 0.22 + 0.45 * iExtra.y + 1.4 * iExtra.x;
         else if (t < 3.5) e = iExtra.z * uBlink * 1.8;
         else if (t < 4.5) e = iExtra.w * uBlink * 1.8;
-        else e = 1.0;
+        else if (t < 5.5) e = 1.0;
+        else if (t < 6.5) e = 0.15 + 2.2 * uSiren;
+        else e = 0.15 + 2.2 * (1.0 - uSiren);
     }
     vEmis = e;
     vSpec = aMat.y;
@@ -100,6 +103,8 @@ uniform float uLampPhase;
 uniform float uLampX;
 uniform float uGlass;
 uniform int uShadowSoft;
+uniform float uWet;
+uniform float uFlash;
 out vec4 fragColor;
 
 float shadowFactor() {
@@ -147,6 +152,15 @@ void main() {
         windowLit = step(0.75, tx.a);
     }
     vec3 N = normalize(vNormal);
+    // wet asphalt / ground: darker albedo, mirror-like puddles that break up with a cheap world-space noise
+    float wetK = 0.0;
+    if (uWet > 0.01 && (uTexMode == 1 || uTexMode == 2) && N.y > 0.8) {
+        vec2 q = vWorld.xz * vec2(0.23, 0.11);
+        float puddle = 0.55 + 0.45 * sin(q.x * 3.1 + sin(q.y * 1.7) * 2.0) * sin(q.y * 2.3 + q.x * 0.7);
+        wetK = uWet * (uTexMode == 1 ? mix(0.55, 1.0, puddle) : 0.45);
+        albedo *= 1.0 - 0.38 * wetK;
+        spec = max(spec, wetK * 0.95);
+    }
     vec3 toCam = uCamPos - vWorld;
     float dist = length(toCam);
     vec3 V = toCam / max(dist, 0.001);
@@ -169,7 +183,14 @@ void main() {
         float dx = abs(abs(vWorld.x) - uLampX);
         float pool = exp(-(dz * dz + dx * dx * 0.8) / 46.0);
         light += vec3(1.0, 0.74, 0.42) * uLampOn * 1.5 * pool * max(N.y, 0.15);
+        // long reflected streaks of the street lights on a wet road
+        if (wetK > 0.01) {
+            float dzc = vWorld.z - uCamPos.z;
+            float streak = exp(-(dx * dx) / 0.9) * exp(-(dz * dz) / (18.0 + abs(dzc) * 1.2));
+            light += vec3(1.0, 0.78, 0.5) * uLampOn * wetK * 2.2 * streak;
+        }
     }
+    light += vec3(0.75, 0.8, 1.0) * uFlash * (0.5 + 0.5 * max(N.y, 0.0));
 
     vec3 col = albedo * light;
     if (spec > 0.01) {
@@ -179,7 +200,8 @@ void main() {
         vec3 R = reflect(-V, N);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
         vec3 env = mix(uFogColor, uSkyTop, clamp(R.y * 1.4 + 0.25, 0.0, 1.0));
-        col = mix(col, env, clamp((fres * 0.65 + 0.08) * spec * uReflect, 0.0, 0.85));
+        float rk = (fres * 0.65 + 0.08) * spec * uReflect + wetK * 0.35;
+        col = mix(col, env, clamp(rk, 0.0, 0.85));
     }
     col += vColor * vEmis * 2.4;
     col += vec3(1.0, 0.82, 0.5) * windowLit * uNight * 1.1;
@@ -305,7 +327,15 @@ uniform float uFogDensity;
 out vec2 vUv;
 out vec4 vColor;
 void main() {
-    vec3 p = iPosSize.xyz + (uCamRight * aCorner.x + uCamUp * aCorner.y) * iPosSize.w;
+    float s = iPosSize.w;
+    vec3 p;
+    if (s < 0.0) {
+        // rain streak: thin quad stretched along world up (and slightly along the fall direction)
+        vec3 up = normalize(vec3(0.0, 1.0, 0.18));
+        p = iPosSize.xyz + uCamRight * aCorner.x * (-s) * 0.035 + up * aCorner.y * (-s);
+    } else {
+        p = iPosSize.xyz + (uCamRight * aCorner.x + uCamUp * aCorner.y) * s;
+    }
     vUv = aCorner * 0.5 + 0.5;
     float d = length(iPosSize.xyz - uCamPos) * uFogDensity * 0.7;
     float fog = exp(-d * d);

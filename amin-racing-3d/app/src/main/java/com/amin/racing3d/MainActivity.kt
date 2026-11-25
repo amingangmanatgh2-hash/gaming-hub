@@ -313,7 +313,8 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
             save.setCarOwned(c)
             save.selectedCar = c
         }
-        if (i.hasExtra("mode")) save.selectedMode = i.getIntExtra("mode", save.selectedMode).coerceIn(0, 2)
+        if (i.hasExtra("mode")) save.selectedMode = i.getIntExtra("mode", save.selectedMode).coerceIn(0, GameData.NUM_MODES - 1)
+        if (i.hasExtra("weather")) save.selectedWeather = i.getIntExtra("weather", 0).coerceIn(0, GameData.weatherNames.size - 1)
         if (i.hasExtra("env")) {
             val e = i.getIntExtra("env", 0).coerceIn(0, GameData.envs.size - 1)
             save.unlockEnv(e)
@@ -509,9 +510,10 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         val lHandling = save.upgradeLevel(car, GameData.UPG_HANDLING)
         val lBrakes = save.upgradeLevel(car, GameData.UPG_BRAKES)
         val lNitro = save.upgradeLevel(car, GameData.UPG_NITRO)
-        val mode = save.selectedMode
-        val env = if (save.isEnvUnlocked(save.selectedEnv)) save.selectedEnv else GameData.ENV_CITY
+        val mode = save.selectedMode.coerceIn(0, GameData.NUM_MODES - 1)
+        val env = if (save.selectedEnv in GameData.envs.indices && save.isEnvUnlocked(save.selectedEnv)) save.selectedEnv else GameData.ENV_CITY
         val tod = save.selectedTod
+        val cfg = GameData.defaultConfig(mode, env, tod, save.selectedWeather)
         inRace = true
         racePaused = false
         clearScreens()
@@ -524,7 +526,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         glView.queueEvent {
             world.paused = false
             world.configureCar(car, color, lSpeed, lHandling, lBrakes, lNitro)
-            world.startRace(mode, env, tod)
+            world.startRace(cfg)
             renderer.resetTiming()
         }
     }
@@ -569,8 +571,25 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         replaceAll(MainMenuScreen(this))
     }
 
+    override fun endFreeRoam() {
+        if (!inRace) return
+        glView.queueEvent { world.endFreeRoam() }
+    }
+
+    override fun swapCar(car: Int) {
+        if (!inRace || !save.isCarOwned(car)) return
+        save.selectedCar = car
+        val color = save.paintColor(car)
+        val lS = save.upgradeLevel(car, GameData.UPG_SPEED)
+        val lH = save.upgradeLevel(car, GameData.UPG_HANDLING)
+        val lB = save.upgradeLevel(car, GameData.UPG_BRAKES)
+        val lN = save.upgradeLevel(car, GameData.UPG_NITRO)
+        glView.queueEvent { world.swapCar(car, color, lS, lH, lB, lN) }
+        resumeRace()
+    }
+
     private fun finishRun(mode: Int, score: Int, distance: Float, topSpeed: Int, near: Int, combo: Int,
-                          earned: Int, timeUp: Boolean, car: Int, env: Int) {
+                          earned: Int, timeUp: Boolean, car: Int, env: Int, extra: RunResult? = null) {
         if (!inRace) return
         inRace = false
         racePaused = false
@@ -579,8 +598,14 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         updateTiltListening()
         save.addCoins(earned)
         save.recordRun(score, distance, near, topSpeed)
-        val record = save.submitScore(mode, ScoreEntry(score, car, env, distance.toInt(), System.currentTimeMillis()))
-        val result = RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode))
+        // street races / time trials only count on the leaderboard when they were finished
+        val counts = extra == null || mode == GameData.MODE_FREE ||
+            !((mode == GameData.MODE_STREET || mode == GameData.MODE_TIME_TRIAL) && !extra.success)
+        val record = counts && score > 0 && save.submitScore(mode, ScoreEntry(score, car, env, distance.toInt(), System.currentTimeMillis()))
+        if (extra != null) save.submitMedal(mode, extra.medal)
+        val result = if (extra == null) RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode))
+        else RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode),
+            extra.reason, extra.success, extra.medal, extra.position, extra.racers, extra.raceTime, extra.escapes, extra.takedowns)
         replaceAll(GameOverScreen(this, result))
         if (record) audio.trigger(AudioEngine.SFX_CHECKPOINT)
     }
@@ -752,7 +777,11 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         val timeUp = world.crashedReason == World.REASON_TIME
         val car = world.carId
         val env = world.env
-        handler.post { finishRun(mode, score, distance, top, near, combo, earned, timeUp, car, env) }
+        var racers = 0
+        for (r in world.rivals) if (r.active && !r.cop) racers++
+        val extra = RunResult(mode, score, distance, top, near, combo, earned, timeUp, false, 0,
+            world.crashedReason, world.success, world.medal, world.position, racers + 1, world.raceTime, world.escapes, world.takedowns)
+        handler.post { finishRun(mode, score, distance, top, near, combo, earned, timeUp, car, env, extra) }
     }
 
     // ================================================================= RendererCallbacks (GL thread)

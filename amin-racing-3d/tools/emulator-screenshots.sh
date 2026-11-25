@@ -80,6 +80,34 @@ demo 7 --es demo garage --ei car 1
 shot 13-landscape-garage
 sleep 4
 
+# ---------------------------------------------------------------- v2 modes + weather
+demo 6 --es demo race --ei mode 3 --ei env 0 --ei tod 0 --ei weather 2 --ei car 5 --ei gfx 2 --ez autogas true --ei control 1
+sleep 18
+shot 16-street-race-heavy-rain
+alive street || exit 1
+
+demo 6 --es demo race --ei mode 6 --ei env 5 --ei tod 2 --ei weather 5 --ei car 1 --ei gfx 2 --ez autogas true --ei control 1
+sleep 24
+shot 17-police-chase-industrial-storm
+alive police || exit 1
+
+demo 6 --es demo race --ei mode 8 --ei env 4 --ei tod 1 --ei weather 0 --ei car 3 --ei gfx 2 --ez autogas true --ei control 1
+sleep 26
+shot 18-free-roam-coast-sunset
+alive freeroam || exit 1
+
+demo 6 --es demo race --ei mode 5 --ei env 6 --ei tod 0 --ei weather 3 --ei car 7 --ei gfx 2 --ez autogas true --ei control 1
+sleep 16
+shot 19-time-trial-mountain-snow
+
+demo 6 --es demo race --ei mode 4 --ei env 3 --ei tod 0 --ei weather 4 --ei car 9 --ei gfx 2 --ez autogas true --ei control 1
+sleep 14
+shot 20-drift-forest-fog
+alive drift || exit 1
+
+demo 7 --es demo modes
+shot 21-mode-select-weather
+
 # ---------------------------------------------------------------- English UI (fresh launch)
 adb shell am force-stop "$PKG"
 sleep 1

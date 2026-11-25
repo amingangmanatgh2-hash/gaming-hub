@@ -196,6 +196,27 @@ object Textures {
                     g = 96f + g1 * 46f + g2 * 26f - dirt * 10f
                     b = 40f + g1 * 16f + dirt * 20f
                 }
+                GameData.ENV_COAST -> {
+                    // sandy dune grass: pale sand with tufts of sea-grass
+                    val tuft = if (g1 > 0.58f) (g1 - 0.58f) * 2.4f else 0f
+                    r = 214f + g1 * 22f + g2 * 10f - tuft * 120f
+                    g = 196f + g1 * 20f + g2 * 8f - tuft * 40f
+                    b = 150f + g1 * 16f - tuft * 90f
+                }
+                GameData.ENV_INDUSTRIAL -> {
+                    // cracked concrete, gravel and oil stains
+                    val slab = (x % 64 == 0 || y % 64 == 0)
+                    val stain = if (vnoise(x / 40f, y / 40f, 4, 17) > 0.7f) 0.55f else 1f
+                    val c = (112f + g1 * 34f + g2 * 26f) * stain * (if (slab) 0.6f else 1f)
+                    r = c + 4f; g = c + 2f; b = c - 2f
+                }
+                GameData.ENV_MOUNTAIN -> {
+                    // alpine meadow with rocky scree patches
+                    val rock = if (g1 < 0.4f) (0.4f - g1) * 2.5f else 0f
+                    r = 70f + g1 * 26f + g2 * 18f + rock * 70f
+                    g = 98f + g1 * 32f + g2 * 18f + rock * 26f
+                    b = 58f + g1 * 14f + rock * 70f
+                }
                 else -> {
                     val pave = vnoise(x / 64f, y / 64f, 4, 91) > 0.62f
                     if (pave) {

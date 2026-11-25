@@ -342,6 +342,311 @@ object Models {
     }
 
     // --------------------------------------------------------------------------------------
+    // v2 vehicle classes
+    // --------------------------------------------------------------------------------------
+    private fun roundLamp(b: MeshBuilder, x: Float, y: Float, zFace: Float, r: Float, front: Boolean) {
+        val d = if (front) 1f else -1f
+        b.cylinderZ(x, y, zFace + d * 0.03f, r, 0.06f, 14)
+        b.diskZ(x, y, zFace, r, 14, !front)
+    }
+
+    /** 1960s grand-tourer coupe: long bonnet, chrome trim, round lamps, slim roof pillars. */
+    fun classic(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.7f; val w = 1.86f; val hw = w / 2; val r = 0.35f
+        val zf = -l * 0.33f; val zr = l * 0.31f
+        paint(b, 0.8f)
+        b.box(0f, 0.5f, 0f, w, 0.38f, l - 0.14f)
+        b.taper(-hw, hw, -l / 2 + 0.07f, -l * 0.05f, 0.69f, -hw + 0.1f, hw - 0.1f, -l / 2 + 0.24f, -l * 0.05f, 0.78f, bottom = false)
+        b.taper(-hw, hw, l * 0.26f, l / 2 - 0.07f, 0.69f, -hw + 0.1f, hw - 0.1f, l * 0.26f, l / 2 - 0.26f, 0.76f, bottom = false)
+        b.box(0f, 0.735f, (-l * 0.05f + l * 0.26f) / 2, w, 0.09f, l * 0.31f)
+        val zt0 = -l * 0.05f + 0.42f; val zt1 = l * 0.26f - 0.38f
+        b.glass()
+        b.taper(-hw + 0.12f, hw - 0.12f, -l * 0.05f, l * 0.26f, 0.78f, -hw + 0.26f, hw - 0.26f, zt0, zt1, 1.2f, bottom = false)
+        interior(b, hw - 0.12f, -l * 0.05f, l * 0.26f, 0.78f, zt0, zt1, 1.2f, hw)
+        paint(b, 0.8f)
+        b.box(0f, 1.212f, (zt0 + zt1) / 2, w - 0.5f, 0.025f, zt1 - zt0 + 0.02f)
+        // chrome: bumpers with overriders, beltline strip, window surround
+        b.color(CHROME, 0f, 0, 1f)
+        b.box(0f, 0.36f, -l / 2 + 0.03f, w + 0.02f, 0.09f, 0.1f)
+        b.box(0f, 0.38f, l / 2 - 0.03f, w + 0.02f, 0.09f, 0.1f)
+        for (sx in floatArrayOf(-0.42f, 0.42f)) {
+            b.box(sx, 0.43f, -l / 2 + 0.0f, 0.06f, 0.16f, 0.06f)
+            b.box(sx, 0.45f, l / 2 - 0.0f, 0.06f, 0.16f, 0.06f)
+        }
+        b.box(-(hw + 0.004f), 0.6f, 0f, 0.008f, 0.025f, l * 0.8f)
+        b.box(hw + 0.004f, 0.6f, 0f, 0.008f, 0.025f, l * 0.8f)
+        b.box(0f, 0.785f, -l * 0.05f + 0.01f, w - 0.26f, 0.015f, 0.02f)
+        // grille with chrome slats and a bonnet ornament
+        b.color(0xFF0A0A0A.toInt(), 0f, 0, 0.4f)
+        b.box(0f, 0.53f, -l / 2 + 0.06f, w * 0.42f, 0.18f, 0.04f)
+        b.color(CHROME, 0f, 0, 1f)
+        for (i in 0 until 5) b.box(0f, 0.46f + i * 0.035f, -l / 2 + 0.035f, w * 0.42f, 0.008f, 0.012f)
+        b.box(0f, 0.8f, -l / 2 + 0.3f, 0.03f, 0.04f, 0.12f)
+        // round headlights with chrome bezels, round tail lights
+        for (sx in floatArrayOf(-(hw - 0.24f), hw - 0.24f)) {
+            b.color(CHROME, 0f, 0, 1f)
+            b.cylinderZ(sx, 0.6f, -l / 2 + 0.08f, 0.115f, 0.05f, 14)
+            b.color(HEAD, 0f, 1, 1f)
+            roundLamp(b, sx, 0.6f, -l / 2 + 0.05f, 0.1f, true)
+        }
+        b.color(TAIL, 0f, 2, 0.8f)
+        for (sx in floatArrayOf(-(hw - 0.2f), -(hw - 0.42f), hw - 0.42f, hw - 0.2f)) roundLamp(b, sx, 0.6f, l / 2 - 0.04f, 0.075f, false)
+        blinkers(b, hw, 0.44f, -l / 2 + 0.05f, 0.47f, l / 2 - 0.05f)
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(-0.5f, 0.3f, l / 2 + 0.02f, 0.045f, 0.18f, 8)
+        mirrors(b, hw, 0.84f, -l * 0.02f)
+        archesAndUnder(b, w, l, floatArrayOf(zf, zr), r, 0.24f)
+        return VehicleModel(
+            b.build(), l, w, hw - 0.1f, floatArrayOf(zf, zr), r,
+            floatArrayOf(-(hw - 0.24f), 0.6f, -l / 2, hw - 0.24f, 0.6f, -l / 2),
+            floatArrayOf(-(hw - 0.3f), 0.6f, l / 2, hw - 0.3f, 0.6f, l / 2),
+            floatArrayOf(-0.5f, 0.3f, l / 2 + 0.1f)
+        )
+    }
+
+    /** Four-door performance saloon: lowered, quad exhausts, lip spoiler, front splitter. */
+    fun sportSedan(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.8f; val w = 1.9f; val hw = w / 2; val r = 0.35f
+        val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
+        sedanBody(b, l, w)
+        b.color(0xFF0B0C0E.toInt(), 0f, 0, 0.4f)
+        b.box(0f, 0.27f, -l / 2 + 0.08f, w + 0.02f, 0.03f, 0.22f)
+        b.box(-(hw + 0.02f), 0.3f, 0f, 0.04f, 0.06f, l * 0.5f)
+        b.box(hw + 0.02f, 0.3f, 0f, 0.04f, 0.06f, l * 0.5f)
+        b.box(0f, 0.835f, l / 2 - 0.12f, w - 0.3f, 0.025f, 0.12f)
+        b.box(0f, 0.3f, l / 2 + 0.01f, w - 0.5f, 0.1f, 0.06f)
+        b.color(CHROME, 0f, 0, 1f)
+        for (sx in floatArrayOf(-0.62f, -0.46f, 0.46f, 0.62f)) b.cylinderZ(sx, 0.31f, l / 2 + 0.04f, 0.05f, 0.12f, 10)
+        archesAndUnder(b, w, l, zs, r, 0.22f)
+        return VehicleModel(b.build(), l, w, hw - 0.1f, zs, r,
+            floatArrayOf(-(hw - 0.25f), 0.62f, -l / 2, hw - 0.25f, 0.62f, -l / 2),
+            floatArrayOf(-(hw - 0.22f), 0.68f, l / 2, hw - 0.22f, 0.68f, l / 2),
+            floatArrayOf(-0.54f, 0.31f, l / 2 + 0.1f, 0.54f, 0.31f, l / 2 + 0.1f))
+    }
+
+    /** Full-size pickup: tall nose, chrome grille, crew cab and an open load bed. */
+    fun pickup(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 5.5f; val w = 2.06f; val hw = w / 2; val r = 0.45f
+        val zs = floatArrayOf(-l * 0.32f, l * 0.3f)
+        val zc0 = -l * 0.2f; val zc1 = zc0 + 1.75f
+        paint(b, 0.55f)
+        b.box(0f, 0.88f, 0f, w, 0.6f, l - 0.08f)
+        b.taper(-hw, hw, -l / 2 + 0.04f, zc0, 1.18f, -hw + 0.03f, hw - 0.03f, -l / 2 + 0.1f, zc0, 1.26f, bottom = false)
+        b.glass()
+        b.taper(-hw + 0.08f, hw - 0.08f, zc0, zc1, 1.18f, -hw + 0.16f, hw - 0.16f, zc0 + 0.5f, zc1 - 0.06f, 1.95f, bottom = false)
+        interior(b, hw - 0.08f, zc0, zc1, 1.18f, zc0 + 0.5f, zc1 - 0.06f, 1.95f, hw)
+        paint(b, 0.55f)
+        b.box(0f, 1.965f, (zc0 + 0.5f + zc1 - 0.06f) / 2, w - 0.3f, 0.04f, zc1 - zc0 - 0.54f)
+        b.box(0f, 1.56f, zc0 + 0.95f, w - 0.14f, 0.76f, 0.09f)
+        // load bed: side walls, tailgate, dark floor
+        val bedLen = l / 2 - zc1
+        b.box(-(hw - 0.04f), 1.33f, zc1 + bedLen / 2, 0.08f, 0.3f, bedLen - 0.04f)
+        b.box(hw - 0.04f, 1.33f, zc1 + bedLen / 2, 0.08f, 0.3f, bedLen - 0.04f)
+        b.box(0f, 1.33f, l / 2 - 0.06f, w, 0.3f, 0.08f)
+        b.color(0xFF141518.toInt(), 0f, 0, 0.15f)
+        b.box(0f, 1.19f, zc1 + bedLen / 2, w - 0.16f, 0.02f, bedLen - 0.1f)
+        for (i in 0 until 5) b.box(-0.6f + i * 0.3f, 1.205f, zc1 + bedLen / 2, 0.05f, 0.012f, bedLen - 0.2f)
+        // chrome grille and bumpers
+        b.color(CHROME, 0f, 0, 1f)
+        b.box(0f, 0.98f, -l / 2 + 0.02f, w - 0.56f, 0.34f, 0.05f)
+        b.box(0f, 0.6f, -l / 2 + 0.0f, w + 0.02f, 0.2f, 0.12f)
+        b.box(0f, 0.62f, l / 2 + 0.0f, w + 0.02f, 0.18f, 0.12f)
+        b.color(0xFF0A0A0A.toInt(), 0f, 0, 0.3f)
+        for (i in 0 until 4) b.box(0f, 0.86f + i * 0.08f, -l / 2 - 0.005f, w - 0.66f, 0.035f, 0.02f)
+        b.color(HEAD, 0f, 1, 1f)
+        b.box(-(hw - 0.2f), 1.02f, -l / 2 + 0.03f, 0.3f, 0.18f, 0.06f)
+        b.box(hw - 0.2f, 1.02f, -l / 2 + 0.03f, 0.3f, 0.18f, 0.06f)
+        b.color(TAIL, 0f, 2, 0.8f)
+        b.box(-(hw - 0.05f), 1.2f, l / 2 - 0.02f, 0.1f, 0.42f, 0.06f)
+        b.box(hw - 0.05f, 1.2f, l / 2 - 0.02f, 0.1f, 0.42f, 0.06f)
+        blinkers(b, hw, 0.84f, -l / 2 + 0.0f, 0.95f, l / 2 + 0.0f)
+        b.color(DARK, 0f, 0, 0.3f)
+        b.box(-(hw + 0.04f), 0.62f, (zc0 + zc1) / 2, 0.08f, 0.05f, zc1 - zc0)
+        b.box(hw + 0.04f, 0.62f, (zc0 + zc1) / 2, 0.08f, 0.05f, zc1 - zc0)
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(0.62f, 0.5f, l / 2 - 0.02f, 0.06f, 0.16f, 8)
+        mirrors(b, hw, 1.42f, zc0 + 0.32f)
+        archesAndUnder(b, w, l, zs, r, 0.48f)
+        return VehicleModel(b.build(), l, w, hw - 0.12f, zs, r,
+            floatArrayOf(-(hw - 0.2f), 1.02f, -l / 2, hw - 0.2f, 1.02f, -l / 2),
+            floatArrayOf(-(hw - 0.05f), 1.2f, l / 2, hw - 0.05f, 1.2f, l / 2),
+            floatArrayOf(0.62f, 0.5f, l / 2 + 0.06f))
+    }
+
+    /** Short-wheelbase off-roader: upright glass, slotted grille, roof lamps, snorkel, spare wheel. */
+    fun offroad(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.3f; val w = 2.0f; val hw = w / 2; val r = 0.48f
+        val zs = floatArrayOf(-l * 0.3f, l * 0.29f)
+        val zg0 = -l * 0.12f; val zg1 = l / 2 - 0.2f
+        paint(b, 0.4f)
+        b.box(0f, 0.96f, 0f, w, 0.72f, l - 0.3f)
+        b.taper(-hw, hw, -l / 2 + 0.15f, zg0, 1.32f, -hw + 0.03f, hw - 0.03f, -l / 2 + 0.2f, zg0, 1.38f, bottom = false)
+        b.glass()
+        b.taper(-hw + 0.06f, hw - 0.06f, zg0, zg1, 1.32f, -hw + 0.08f, hw - 0.08f, zg0 + 0.24f, zg1 - 0.02f, 2.04f, bottom = false)
+        interior(b, hw - 0.06f, zg0, zg1, 1.32f, zg0 + 0.24f, zg1 - 0.02f, 2.04f, hw)
+        paint(b, 0.4f)
+        b.box(0f, 2.06f, (zg0 + 0.24f + zg1 - 0.02f) / 2, w - 0.12f, 0.05f, zg1 - zg0 - 0.22f)
+        b.box(0f, 1.68f, l * 0.06f, w - 0.1f, 0.72f, 0.08f)
+        // steel bumpers, fender flares, rock sliders
+        b.color(0xFF1A1B1E.toInt(), 0f, 0, 0.25f)
+        b.box(0f, 0.62f, -l / 2 + 0.08f, w + 0.12f, 0.2f, 0.2f)
+        b.box(0f, 0.62f, l / 2 - 0.08f, w + 0.12f, 0.2f, 0.2f)
+        for (z in zs) {
+            b.box(-(hw + 0.05f), 1.06f, z, 0.14f, 0.1f, r * 2.6f)
+            b.box(hw + 0.05f, 1.06f, z, 0.14f, 0.1f, r * 2.6f)
+        }
+        b.box(-(hw + 0.05f), 0.6f, 0f, 0.1f, 0.08f, l * 0.36f)
+        b.box(hw + 0.05f, 0.6f, 0f, 0.1f, 0.08f, l * 0.36f)
+        // slotted grille and round headlamps
+        b.color(0xFF0B0B0C.toInt(), 0f, 0, 0.2f)
+        for (i in -3..3) b.box(i * 0.12f, 1.06f, -l / 2 + 0.14f, 0.05f, 0.3f, 0.02f)
+        for (sx in floatArrayOf(-(hw - 0.28f), hw - 0.28f)) {
+            b.color(0xFF0B0B0C.toInt(), 0f, 0, 0.2f)
+            b.cylinderZ(sx, 1.08f, -l / 2 + 0.15f, 0.135f, 0.04f, 14)
+            b.color(HEAD, 0f, 1, 1f)
+            roundLamp(b, sx, 1.08f, -l / 2 + 0.11f, 0.115f, true)
+        }
+        // roof lamp bar
+        b.color(0xFF141518.toInt(), 0f, 0, 0.3f)
+        b.box(0f, 2.12f, zg0 + 0.32f, w - 0.36f, 0.08f, 0.1f)
+        b.color(HEAD, 0f, 1, 1f)
+        for (i in 0 until 4) b.box(-0.54f + i * 0.36f, 2.12f, zg0 + 0.265f, 0.22f, 0.06f, 0.02f)
+        // tail lamps, spare wheel on the tailgate, snorkel
+        b.color(TAIL, 0f, 2, 0.8f)
+        b.box(-(hw - 0.08f), 1.0f, l / 2 - 0.145f, 0.12f, 0.24f, 0.04f)
+        b.box(hw - 0.08f, 1.0f, l / 2 - 0.145f, 0.12f, 0.24f, 0.04f)
+        b.color(0xFF18181A.toInt(), 0f, 0, 0.05f)
+        b.cylinderZ(0f, 1.3f, l / 2 - 0.02f, r * 0.95f, 0.26f, 18)
+        b.diskZ(0f, 1.3f, l / 2 + 0.11f, r * 0.95f, 18, true)
+        b.color(0xFF505359.toInt(), 0f, 0, 0.6f)
+        b.diskZ(0f, 1.3f, l / 2 + 0.115f, r * 0.55f, 14, true)
+        b.color(0xFF141518.toInt(), 0f, 0, 0.3f)
+        b.box(hw + 0.05f, 1.62f, zg0 + 0.05f, 0.09f, 0.86f, 0.09f)
+        b.box(hw + 0.05f, 2.04f, zg0 - 0.02f, 0.09f, 0.08f, 0.22f)
+        blinkers(b, hw, 0.92f, -l / 2 + 0.15f, 0.86f, l / 2 - 0.15f)
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(-0.62f, 0.56f, l / 2 - 0.06f, 0.055f, 0.14f, 8)
+        mirrors(b, hw, 1.58f, zg0 + 0.12f)
+        archesAndUnder(b, w, l, zs, r, 0.56f)
+        return VehicleModel(b.build(), l, w, hw - 0.1f, zs, r,
+            floatArrayOf(-(hw - 0.28f), 1.08f, -l / 2 + 0.1f, hw - 0.28f, 1.08f, -l / 2 + 0.1f),
+            floatArrayOf(-(hw - 0.08f), 1.0f, l / 2 - 0.12f, hw - 0.08f, 1.0f, l / 2 - 0.12f),
+            floatArrayOf(-0.62f, 0.56f, l / 2 + 0.02f))
+    }
+
+    /** Police interceptor: saloon with livery panels, push bar and a red/blue strobe light bar. */
+    fun police(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.9f; val w = 1.92f; val hw = w / 2; val r = 0.36f
+        val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
+        sedanBody(b, l, w)
+        // white door panels and a dark lower stripe (fixed livery over the chosen paint)
+        b.color(0xFFF2F4F6.toInt(), 0f, 0, 0.5f)
+        b.box(-(hw + 0.005f), 0.56f, l * 0.03f, 0.01f, 0.28f, l * 0.42f)
+        b.box(hw + 0.005f, 0.56f, l * 0.03f, 0.01f, 0.28f, l * 0.42f)
+        b.color(0xFF0F2A6B.toInt(), 0f, 0, 0.4f)
+        b.box(-(hw + 0.008f), 0.42f, 0f, 0.01f, 0.05f, l * 0.8f)
+        b.box(hw + 0.008f, 0.42f, 0f, 0.01f, 0.05f, l * 0.8f)
+        // push bar
+        b.color(0xFF101114.toInt(), 0f, 0, 0.4f)
+        b.box(0f, 0.62f, -l / 2 - 0.1f, w * 0.62f, 0.06f, 0.06f)
+        b.box(0f, 0.42f, -l / 2 - 0.1f, w * 0.62f, 0.06f, 0.06f)
+        for (sx in floatArrayOf(-0.5f, -0.2f, 0.2f, 0.5f)) b.box(sx, 0.52f, -l / 2 - 0.1f, 0.06f, 0.3f, 0.06f)
+        // light bar: base, red and blue strobes (emissive 6 / 7), centre take-down lamps
+        b.color(0xFF0D0E10.toInt(), 0f, 0, 0.5f)
+        b.box(0f, 1.475f, l * 0.03f, 1.2f, 0.06f, 0.3f)
+        b.color(0xFFFF1A2E.toInt(), 0f, 6, 0.9f)
+        b.box(-0.32f, 1.54f, l * 0.03f, 0.5f, 0.08f, 0.26f)
+        b.color(0xFF1A5BFF.toInt(), 0f, 7, 0.9f)
+        b.box(0.32f, 1.54f, l * 0.03f, 0.5f, 0.08f, 0.26f)
+        b.color(HEAD, 0f, 1, 1f)
+        b.box(0f, 1.53f, l * 0.03f - 0.135f, 0.12f, 0.06f, 0.02f)
+        // grille strobes and antenna
+        b.color(0xFFFF1A2E.toInt(), 0f, 6, 0.9f)
+        b.box(-0.18f, 0.58f, -l / 2 - 0.005f, 0.12f, 0.04f, 0.02f)
+        b.color(0xFF1A5BFF.toInt(), 0f, 7, 0.9f)
+        b.box(0.18f, 0.58f, -l / 2 - 0.005f, 0.12f, 0.04f, 0.02f)
+        b.color(0xFF101114.toInt(), 0f, 0, 0.3f)
+        b.box(0.3f, 1.7f, l * 0.2f, 0.015f, 0.5f, 0.015f)
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(-0.5f, 0.3f, l / 2 + 0.03f, 0.05f, 0.14f, 8)
+        b.cylinderZ(0.5f, 0.3f, l / 2 + 0.03f, 0.05f, 0.14f, 8)
+        archesAndUnder(b, w, l, zs, r, 0.24f)
+        return VehicleModel(b.build(), l, w, hw - 0.1f, zs, r,
+            floatArrayOf(-(hw - 0.25f), 0.62f, -l / 2, hw - 0.25f, 0.62f, -l / 2),
+            floatArrayOf(-(hw - 0.22f), 0.68f, l / 2, hw - 0.22f, 0.68f, l / 2),
+            floatArrayOf(-0.5f, 0.3f, l / 2 + 0.1f, 0.5f, 0.3f, l / 2 + 0.1f))
+    }
+
+    /** GT race car: very low and wide, roll cage, number roundels, splitter, diffuser, swan-neck wing. */
+    fun raceCar(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.7f; val w = 2.08f; val hw = w / 2; val r = 0.37f
+        val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
+        val zt0 = -l * 0.16f + 0.6f; val zt1 = l * 0.16f - 0.1f
+        paint(b, 0.9f)
+        b.box(0f, 0.36f, 0f, w, 0.24f, l - 0.1f)
+        b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.1f, 0.48f, -hw + 0.14f, hw - 0.14f, -l / 2 + 0.45f, -l * 0.1f, 0.64f, bottom = false)
+        b.taper(-hw, hw, -l * 0.1f, l / 2 - 0.05f, 0.48f, -hw + 0.1f, hw - 0.1f, 0f, l / 2 - 0.15f, 0.74f, bottom = false)
+        b.glass()
+        b.taper(-hw + 0.28f, hw - 0.28f, -l * 0.16f, l * 0.16f, 0.68f, -hw + 0.45f, hw - 0.45f, zt0, zt1, 1.05f, bottom = false)
+        interior(b, hw - 0.28f, -l * 0.16f, l * 0.16f, 0.68f, zt0, zt1, 1.05f, hw)
+        // roll cage behind the seats
+        b.color(0xFFB0B4BA.toInt(), 0f, 0, 0.8f)
+        b.box(0f, 0.98f, zt1 - 0.05f, w - 1.0f, 0.03f, 0.03f)
+        b.box(-(hw - 0.52f), 0.83f, zt1 - 0.05f, 0.03f, 0.3f, 0.03f)
+        b.box(hw - 0.52f, 0.83f, zt1 - 0.05f, 0.03f, 0.3f, 0.03f)
+        paint(b, 0.9f)
+        b.box(0f, 1.06f, (zt0 + zt1) / 2, w - 0.9f, 0.02f, zt1 - zt0 + 0.02f)
+        // livery: white roundels with a dark number plate, side stripe
+        b.color(0xFFF4F4F4.toInt(), 0f, 0, 0.5f)
+        b.diskX(hw + 0.006f, 0.42f, l * 0.02f, 0.17f, 18, true)
+        b.diskX(-(hw + 0.006f), 0.42f, l * 0.02f, 0.17f, 18, false)
+        b.color(0xFF111111.toInt(), 0f, 0, 0.3f)
+        b.box(hw + 0.008f, 0.42f, l * 0.02f, 0.004f, 0.12f, 0.06f)
+        b.box(-(hw + 0.008f), 0.42f, l * 0.02f, 0.004f, 0.12f, 0.06f)
+        b.color(0xFFFFC21A.toInt(), 0f, 0, 0.5f)
+        b.box(-(hw + 0.004f), 0.3f, 0f, 0.008f, 0.04f, l * 0.9f)
+        b.box(hw + 0.004f, 0.3f, 0f, 0.008f, 0.04f, l * 0.9f)
+        // aero: splitter, canards, skirts, diffuser fins
+        b.color(0xFF0B0C0E.toInt(), 0f, 0, 0.5f)
+        b.box(0f, 0.245f, -l / 2 + 0.02f, w + 0.06f, 0.025f, 0.36f)
+        for (sx in floatArrayOf(-1f, 1f)) {
+            b.box(sx * (hw - 0.12f), 0.42f, -l / 2 + 0.12f, 0.2f, 0.015f, 0.12f)
+            b.box(sx * (hw + 0.025f), 0.27f, 0f, 0.05f, 0.06f, l * 0.5f)
+        }
+        for (i in -3..3) b.box(i * 0.2f, 0.3f, l / 2 + 0.02f, 0.02f, 0.12f, 0.26f)
+        // swan-neck rear wing
+        b.box(0f, 1.14f, l / 2 - 0.16f, w - 0.04f, 0.04f, 0.44f)
+        b.box(-(hw - 0.03f), 1.06f, l / 2 - 0.16f, 0.03f, 0.26f, 0.52f)
+        b.box(hw - 0.03f, 1.06f, l / 2 - 0.16f, 0.03f, 0.26f, 0.52f)
+        b.box(-0.4f, 0.94f, l / 2 - 0.24f, 0.05f, 0.38f, 0.1f)
+        b.box(0.4f, 0.94f, l / 2 - 0.24f, 0.05f, 0.38f, 0.1f)
+        // lights
+        b.color(HEAD, 0f, 1, 1f)
+        b.box(-(hw - 0.32f), 0.52f, -l / 2 + 0.22f, 0.42f, 0.06f, 0.14f)
+        b.box(hw - 0.32f, 0.52f, -l / 2 + 0.22f, 0.42f, 0.06f, 0.14f)
+        b.color(TAIL, 0f, 2, 0.8f)
+        b.box(0f, 0.6f, l / 2 - 0.07f, w - 0.3f, 0.05f, 0.06f)
+        b.box(-(hw - 0.2f), 0.58f, l / 2 - 0.06f, 0.28f, 0.1f, 0.06f)
+        b.box(hw - 0.2f, 0.58f, l / 2 - 0.06f, 0.28f, 0.1f, 0.06f)
+        blinkers(b, hw, 0.42f, -l / 2 + 0.08f, 0.5f, l / 2 - 0.04f)
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(-0.15f, 0.34f, l / 2 + 0.03f, 0.065f, 0.12f, 10)
+        b.cylinderZ(0.15f, 0.34f, l / 2 + 0.03f, 0.065f, 0.12f, 10)
+        mirrors(b, hw - 0.15f, 0.8f, -l * 0.13f)
+        archesAndUnder(b, w, l, zs, r, 0.2f)
+        return VehicleModel(b.build(), l, w, hw - 0.08f, zs, r,
+            floatArrayOf(-(hw - 0.32f), 0.52f, -l / 2 + 0.15f, hw - 0.32f, 0.52f, -l / 2 + 0.15f),
+            floatArrayOf(-(hw - 0.2f), 0.58f, l / 2, hw - 0.2f, 0.58f, l / 2),
+            floatArrayOf(-0.15f, 0.34f, l / 2 + 0.1f, 0.15f, 0.34f, l / 2 + 0.1f))
+    }
+
+    // --------------------------------------------------------------------------------------
     // Traffic vehicles
     // --------------------------------------------------------------------------------------
     private fun sedanBody(b: MeshBuilder, l: Float, w: Float) {
@@ -775,6 +1080,276 @@ object Models {
         b.uvFree().color(WHITE, 0f, 0, 0.2f)
         b.quad(-7f, 6.3f, 0.31f, 7f, 6.3f, 0.31f, 7f, 7.7f, 0.31f, -7f, 7.7f, 0.31f, 0f, 0f, 1f,
             0.002f, 0.877f, 0.498f, 0.998f)
+        return b.build()
+    }
+
+
+
+    /** Slanted ceiling slab from the wall top (xw, yw) to (xi, yt), full length [len] along Z. */
+    private fun MeshBuilder.taperSlab(xw: Float, yw: Float, xi: Float, yt: Float, len: Float) {
+        val h = len / 2f
+        val sd = if (xw > xi) 1f else -1f
+        quad(xw, yw, -h, xi, yt, -h, xi, yt, h, xw, yw, h, -sd, -1f, 0f)
+        quad(xw, yw + 0.8f, -h, xi, yt + 0.8f, -h, xi, yt + 0.8f, h, xw, yw + 0.8f, h, sd, 1f, 0f)
+    }
+
+    /** Diagonal beam in the YZ plane at x, from (y0, z0) to (y1, z1), thickness t. */
+    private fun MeshBuilder.slantZ(x: Float, y0: Float, z0: Float, y1: Float, z1: Float, t: Float) {
+        val dy = y1 - y0; val dz = z1 - z0
+        val l = kotlin.math.sqrt(dy * dy + dz * dz)
+        val py = -dz / l * t / 2f; val pz = dy / l * t / 2f
+        for (sx in floatArrayOf(-1f, 1f)) {
+            val xx = x + sx * t / 2f
+            quad(xx, y0 + py, z0 + pz, xx, y1 + py, z1 + pz, xx, y1 - py, z1 - pz, xx, y0 - py, z0 - pz, sx, 0f, 0f)
+        }
+        quad(x - t / 2f, y0 + py, z0 + pz, x + t / 2f, y0 + py, z0 + pz, x + t / 2f, y1 + py, z1 + pz, x - t / 2f, y1 + py, z1 + pz, 0f, py, pz)
+        quad(x - t / 2f, y0 - py, z0 - pz, x + t / 2f, y0 - py, z0 - pz, x + t / 2f, y1 - py, z1 - pz, x - t / 2f, y1 - py, z1 - pz, 0f, -py, -pz)
+    }
+
+    /** Gable roof over a box of size sx × sz at height y. */
+    private fun MeshBuilder.taperRoof(cx: Float, y: Float, cz: Float, sx: Float, h: Float, sz: Float) {
+        taper(cx - sx / 2f, cx + sx / 2f, cz - sz / 2f, cz + sz / 2f, y, cx - 0.01f, cx + 0.01f, cz - sz / 2f, cz + sz / 2f, y + h)
+    }
+
+    // ------------------------------------------------------------------ v2 landmarks
+    /** 20 m tunnel tube section over the road (centred on z = 0). Walls face the road. */
+    fun tunnelSection(): Mesh {
+        val b = MeshBuilder()
+        val hw = 9.6f
+        b.color(0xFF8E8C86.toInt(), 0f, 0, 0.12f)
+        b.box(-hw - 0.6f, 3.2f, 0f, 1.2f, 6.4f, 20.02f)
+        b.box(hw + 0.6f, 3.2f, 0f, 1.2f, 6.4f, 20.02f)
+        // vaulted ceiling: three slanted slabs
+        b.box(0f, 8.1f, 0f, 12f, 0.8f, 20.02f)
+        b.color(0xFF7A7872.toInt(), 0f, 0, 0.1f)
+        b.taperSlab(-hw, 6.4f, -6f, 7.7f, 20.02f)
+        b.taperSlab(hw, 6.4f, 6f, 7.7f, 20.02f)
+        // white tiled lower band and kerbs
+        b.color(0xFFDADCD8.toInt(), 0f, 0, 0.45f)
+        b.box(-hw + 0.02f, 1.1f, 0f, 0.06f, 2.2f, 20.02f)
+        b.box(hw - 0.02f, 1.1f, 0f, 0.06f, 2.2f, 20.02f)
+        b.color(0xFF505256.toInt(), 0f, 0, 0.1f)
+        b.box(-hw + 0.4f, 0.15f, 0f, 0.8f, 0.3f, 20.02f)
+        b.box(hw - 0.4f, 0.15f, 0f, 0.8f, 0.3f, 20.02f)
+        // sodium lamp strips (always lit) + emergency signs
+        b.color(0xFFFFC27A.toInt(), 0f, 5, 0f)
+        for (k in 0 until 4) {
+            val z = -7.5f + k * 5f
+            b.box(-hw + 0.08f, 5.9f, z, 0.1f, 0.18f, 2.2f)
+            b.box(hw - 0.08f, 5.9f, z, 0.1f, 0.18f, 2.2f)
+        }
+        b.color(0xFF19C46A.toInt(), 0f, 5, 0f)
+        b.box(-hw + 0.06f, 2.6f, 4f, 0.05f, 0.35f, 0.7f)
+        return b.build()
+    }
+
+    /** Tunnel portal facade with the hillside around it; the opening faces +Z. */
+    fun tunnelPortal(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFF6F6D68.toInt(), 0f, 0, 0.12f)
+        b.box(-15.6f, 6f, 0f, 12f, 12f, 1.6f)
+        b.box(15.6f, 6f, 0f, 12f, 12f, 1.6f)
+        b.box(0f, 10.4f, 0f, 19.2f, 3.2f, 1.6f)
+        b.color(0xFFF2C230.toInt(), 0f, 0, 0.2f)
+        b.box(0f, 8.62f, 0.82f, 19.2f, 0.36f, 0.05f)
+        b.color(0xFF3A5A34.toInt(), 0f, 0, 0.05f)
+        // hill mass over and around the portal
+        b.blob(0f, 17f, -10f, 34f, 8f, 14f, 6, 12, 0.18f, 11)
+        b.blob(-30f, 6f, -6f, 16f, 10f, 12f, 5, 10, 0.2f, 12)
+        b.blob(30f, 6f, -6f, 16f, 10f, 12f, 5, 10, 0.2f, 13)
+        return b.build()
+    }
+
+    /** 20 m bridge deck section: parapets, steel truss and piers down to the water. */
+    fun bridgeSection(): Mesh {
+        val b = MeshBuilder()
+        val hw = 9.4f
+        b.color(0xFFB9B6AE.toInt(), 0f, 0, 0.2f)
+        b.box(-hw, 0.55f, 0f, 0.5f, 1.1f, 20.02f)
+        b.box(hw, 0.55f, 0f, 0.5f, 1.1f, 20.02f)
+        b.color(0xFF77746D.toInt(), 0f, 0, 0.1f)
+        b.box(0f, -1.0f, 0f, 2f * hw + 1f, 2.0f, 20.02f)
+        // truss: verticals and diagonals in painted steel
+        b.color(0xFFB8322A.toInt(), 0f, 0, 0.55f)
+        for (sd in intArrayOf(-1, 1)) {
+            val x = sd * (hw + 0.6f)
+            b.box(x, 3.6f, -10f, 0.45f, 7.2f, 0.45f)
+            b.box(x, 7.2f, 0f, 0.5f, 0.5f, 20.02f)
+            b.slantZ(x, 0.4f, -10f, 7.2f, 10f, 0.35f)
+        }
+        b.box(0f, 7.2f, -10f, 2f * hw + 1.6f, 0.4f, 0.4f)
+        // pier
+        b.color(0xFF8C8A84.toInt(), 0f, 0, 0.1f)
+        b.box(0f, -9f, -10f, 6f, 16f, 3f)
+        return b.build()
+    }
+
+    /** Big still water plane under bridges and along the coast. */
+    fun water(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFF1C4A66.toInt(), 0f, 0, 0.95f)
+        // unit width along +X (scaled per instance), 400 m along Z, gridded for depth precision
+        var z = -200f
+        while (z < 200f) {
+            var x = 0f
+            while (x < 1f) {
+                b.planeY(x, z, x + 0.125f, z + 50f, 0f)
+                x += 0.125f
+            }
+            z += 50f
+        }
+        return b.build()
+    }
+
+    /** Gas station: canopy over pumps, shop with lit windows and a price pylon. Road on -X side. */
+    fun gasStation(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFF34373D.toInt(), 0f, 0, 0.3f)
+        b.planeY(-6f, -22f, 22f, 22f, 0.012f)
+        b.color(0xFFE8E8EA.toInt(), 0f, 0, 0.4f)
+        for (px in floatArrayOf(-1f, 9f)) for (pz in floatArrayOf(-7f, 7f)) b.box(px, 2.7f, pz, 0.45f, 5.4f, 0.45f)
+        b.color(0xFFD62828.toInt(), 0f, 0, 0.5f)
+        b.box(4f, 5.75f, 0f, 13f, 0.7f, 18f)
+        b.color(0xFFFFFFFF.toInt(), 0f, 5, 0f)
+        b.box(4f, 5.38f, 0f, 11f, 0.04f, 15f)
+        b.color(0xFF2A2D33.toInt(), 0f, 0, 0.3f)
+        for (pz in floatArrayOf(-4f, 4f)) {
+            b.box(4f, 0.12f, pz, 1.4f, 0.24f, 3.4f)
+            b.box(4f, 1.0f, pz - 0.8f, 0.6f, 1.6f, 0.7f)
+            b.box(4f, 1.0f, pz + 0.8f, 0.6f, 1.6f, 0.7f)
+        }
+        b.color(0xFF35E07A.toInt(), 0f, 5, 0f)
+        for (pz in floatArrayOf(-4.8f, -3.2f, 3.2f, 4.8f)) b.box(3.68f, 1.4f, pz, 0.02f, 0.3f, 0.4f)
+        // shop
+        b.color(0xFFD8D2C4.toInt(), 0f, 0, 0.1f)
+        b.box(16f, 2.2f, 0f, 9f, 4.4f, 14f)
+        b.color(0xFFFFE2A8.toInt(), 0f, 1, 0.6f)
+        b.box(11.47f, 1.6f, 0f, 0.05f, 2.2f, 10f)
+        b.color(0xFFD62828.toInt(), 0f, 0, 0.4f)
+        b.box(16f, 4.6f, 0f, 9.2f, 0.4f, 14.2f)
+        // pylon
+        b.color(0xFF2A2D33.toInt(), 0f, 0, 0.3f)
+        b.box(-4f, 4f, -14f, 0.5f, 8f, 0.5f)
+        b.color(0xFFD62828.toInt(), 0f, 1, 0.3f)
+        b.box(-4f, 8.4f, -14f, 2.6f, 2.4f, 0.5f)
+        b.color(0xFFFFF4DA.toInt(), 0f, 5, 0f)
+        b.box(-4f, 7.6f, -13.73f, 2.0f, 0.5f, 0.02f)
+        return b.build()
+    }
+
+    /** Open-air parking lot with markings and lamp posts. Road on -X side. */
+    fun parkingLot(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFF2C2E33.toInt(), 0f, 0, 0.25f)
+        b.planeY(-3f, -28f, 30f, 28f, 0.012f)
+        b.color(0xFFE8E8E8.toInt(), 0f, 0, 0.2f)
+        for (k in 0..9) {
+            val z = -25f + k * 5.5f
+            b.box(9f, 0.02f, z, 6f, 0.02f, 0.14f)
+            b.box(21f, 0.02f, z, 6f, 0.02f, 0.14f)
+        }
+        b.box(15f, 0.02f, 0f, 0.14f, 0.02f, 50f)
+        b.color(0xFF5A6068.toInt(), 0f, 0, 0.3f)
+        for (pz in floatArrayOf(-20f, 0f, 20f)) {
+            b.box(15f, 3.5f, pz, 0.25f, 7f, 0.25f)
+            b.box(15f, 7f, pz, 3.4f, 0.2f, 0.4f)
+        }
+        b.color(0xFFFFE0A6.toInt(), 0f, 1, 0f)
+        for (pz in floatArrayOf(-20f, 0f, 20f)) b.box(15f, 6.88f, pz, 3f, 0.04f, 0.3f)
+        // kerb island trees planters
+        b.color(0xFF8A8A84.toInt(), 0f, 0, 0.1f)
+        b.box(27.5f, 0.2f, 0f, 1f, 0.4f, 50f)
+        return b.build()
+    }
+
+    /** Car dealership: glass showroom, logo tower and a forecourt. Road on -X side. */
+    fun dealership(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFF505358.toInt(), 0f, 0, 0.5f)
+        b.planeY(-4f, -24f, 32f, 24f, 0.012f)
+        b.color(0xFFE6E8EC.toInt(), 0f, 0, 0.5f)
+        b.box(22f, 6.6f, 0f, 18f, 0.6f, 30f)
+        b.box(22f, 0.15f, 0f, 18f, 0.3f, 30f)
+        for (pz in floatArrayOf(-15f, -5f, 5f, 15f)) b.box(13.2f, 3.3f, pz, 0.3f, 6.6f, 0.3f)
+        // illuminated glass front (cool white, always on)
+        b.color(0xFF9FC8E8.toInt(), 0f, 5, 0.9f)
+        for (pz in floatArrayOf(-10f, 0f, 10f)) b.box(13.25f, 3.3f, pz, 0.05f, 6f, 9.6f)
+        b.color(0xFF0C1420.toInt(), 0f, 0, 0.9f)
+        b.box(31f, 3.3f, 0f, 0.3f, 6.6f, 30f)
+        // logo tower
+        b.color(0xFF1E2228.toInt(), 0f, 0, 0.5f)
+        b.box(10f, 6f, -19f, 2f, 12f, 2f)
+        b.color(0xFF00E5FF.toInt(), 0f, 5, 0f)
+        b.box(10f, 10.5f, -17.98f, 1.6f, 1.6f, 0.04f)
+        b.color(0xFFFF2D95.toInt(), 0f, 5, 0f)
+        b.box(8.98f, 10.5f, -19f, 0.04f, 1.6f, 1.6f)
+        // flag poles along the road
+        b.color(0xFFC0C4CA.toInt(), 0f, 0, 0.7f)
+        for (pz in floatArrayOf(-12f, -4f, 4f, 12f)) b.box(-2f, 4f, pz, 0.12f, 8f, 0.12f)
+        b.color(0xFFD62828.toInt(), 0f, 0, 0.2f)
+        for (pz in floatArrayOf(-12f, 4f)) b.box(-2f, 7f, pz + 0.8f, 0.04f, 1.6f, 1.5f)
+        b.color(0xFF1C3F8A.toInt(), 0f, 0, 0.2f)
+        for (pz in floatArrayOf(-4f, 12f)) b.box(-2f, 7f, pz + 0.8f, 0.04f, 1.6f, 1.5f)
+        return b.build()
+    }
+
+    /** Industrial props: warehouse hall (scaled per instance), tall chimney and a storage tank. */
+    fun warehouse(): Mesh {
+        val b = MeshBuilder()
+        b.color(WHITE, 1f, 0, 0.25f)
+        b.box(0f, 0.4f, 0f, 1f, 0.8f, 1f)
+        b.color(0xFF6A6E74.toInt(), 0f, 0, 0.5f)
+        b.taperRoof(0f, 0.8f, 0f, 1.02f, 0.2f, 1.02f)
+        b.color(0xFF2A2D33.toInt(), 0f, 0, 0.2f)
+        b.box(0.505f, 0.26f, 0f, 0.01f, 0.5f, 0.35f)
+        b.color(0xFFFFE2A8.toInt(), 0f, 1, 0.2f)
+        b.box(0.506f, 0.7f, 0f, 0.01f, 0.05f, 0.8f)
+        return b.build()
+    }
+
+    fun chimney(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFF8E5A48.toInt(), 0f, 0, 0.1f)
+        b.cylinderY(0f, 0f, 0f, 1.6f, 1.0f, 34f, 12)
+        b.color(0xFFE8E8EA.toInt(), 0f, 0, 0.2f)
+        b.cylinderY(0f, 26f, 0f, 1.22f, 1.18f, 1.6f, 12, false)
+        b.cylinderY(0f, 30f, 0f, 1.12f, 1.08f, 1.6f, 12, false)
+        b.color(0xFFFF2020.toInt(), 0f, 5, 0f)
+        b.box(0f, 34.1f, 0f, 0.3f, 0.3f, 0.3f)
+        return b.build()
+    }
+
+    fun tank(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFFD9DCE0.toInt(), 0f, 0, 0.6f)
+        b.cylinderY(0f, 0f, 0f, 1f, 1f, 1f, 18)
+        b.color(0xFF8A8E94.toInt(), 0f, 0, 0.3f)
+        b.cylinderY(0f, 1f, 0f, 1f, 0.2f, 0.18f, 18)
+        return b.build()
+    }
+
+    /** Palm tree for the coast. */
+    fun palm(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFF8A6A48.toInt(), 0f, 0, 0.05f)
+        for (k in 0 until 6) {
+            val y = k * 1.3f
+            b.cylinderY(k * 0.12f, y, 0f, 0.26f - k * 0.02f, 0.24f - k * 0.02f, 1.32f, 7, false)
+        }
+        b.color(0xFF2F7A3A.toInt(), 0f, 0, 0.15f)
+        val top = 7.8f
+        for (k in 0 until 7) {
+            val a = k / 7f * 6.283f
+            val dx = cos(a); val dz = sin(a)
+            b.quad(0.72f, top, 0f,
+                0.72f + dx * 3.6f - dz * 0.5f, top - 1.4f, dz * 3.6f + dx * 0.5f,
+                0.72f + dx * 3.6f + dz * 0.5f, top - 1.4f, dz * 3.6f - dx * 0.5f,
+                0.72f, top + 0.05f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f)
+            b.quad(0.72f, top + 0.05f, 0f,
+                0.72f + dx * 3.6f + dz * 0.5f, top - 1.4f, dz * 3.6f - dx * 0.5f,
+                0.72f + dx * 3.6f - dz * 0.5f, top - 1.4f, dz * 3.6f + dx * 0.5f,
+                0.72f, top, 0f, 0f, -1f, 0f, 0f, 0f, 1f, 1f)
+        }
         return b.build()
     }
 

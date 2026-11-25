@@ -13,6 +13,7 @@ import com.amin.racing3d.R
 import com.amin.racing3d.audio.AudioEngine
 import com.amin.racing3d.core.Lang
 import com.amin.racing3d.game.GameData
+import com.amin.racing3d.game.World
 
 /** Animates children of a container in one after another. */
 internal fun staggerIn(group: LinearLayout, startDelay: Long = 60L, fromY: Float = 40f) {
@@ -33,11 +34,13 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         val root = FrameLayout(ctx)
         // soft gradients at the screen edges keep the menus readable over the live 3D scene
         val shadeL = View(ctx)
-        shadeL.background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xCC050812.toInt(), 0x00050812))
-        root.addView(shadeL, FrameLayout.LayoutParams(Ui.dp(330f), Ui.MATCH, Gravity.START))
+        // multi-stop gradients so the shade fades out without a visible edge
+        val fade = intArrayOf(0xD0050812.toInt(), 0x9A050812.toInt(), 0x4A050812, 0x14050812, 0x00050812)
+        shadeL.background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, fade)
+        root.addView(shadeL, FrameLayout.LayoutParams(Ui.dp(400f), Ui.MATCH, Gravity.LEFT))
         val shadeR = View(ctx)
-        shadeR.background = GradientDrawable(GradientDrawable.Orientation.RIGHT_LEFT, intArrayOf(0xCC050812.toInt(), 0x00050812))
-        root.addView(shadeR, FrameLayout.LayoutParams(Ui.dp(250f), Ui.MATCH, Gravity.END))
+        shadeR.background = GradientDrawable(GradientDrawable.Orientation.RIGHT_LEFT, fade)
+        root.addView(shadeR, FrameLayout.LayoutParams(Ui.dp(320f), Ui.MATCH, Gravity.RIGHT))
         val shadeT = View(ctx)
         shadeT.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xAA050812.toInt(), 0x00050812))
         root.addView(shadeT, FrameLayout.LayoutParams(Ui.MATCH, Ui.dp(90f), Gravity.TOP))
@@ -70,16 +73,23 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
             override fun onViewDetachedFromWindow(v: View) = pulse.cancel()
         })
 
-        // ---- start side: game modes (only modes that are implemented)
+        // ---- start side: game modes (only modes that are implemented and playable)
         val modes = Ui.vbox(ctx, Gravity.START)
-        modes.addView(modeCard(R.string.menu_traffic, R.string.menu_traffic_sub, Ui.CYAN) {
-            if (save.selectedMode == GameData.MODE_TIME_ATTACK) save.selectedMode = GameData.MODE_ENDLESS
-            host.push(ModeSelectScreen(host))
-        }, Ui.lp(Ui.dp(270f)))
-        modes.addView(modeCard(R.string.menu_time_trial, R.string.menu_time_trial_sub, Ui.YELLOW) {
-            save.selectedMode = GameData.MODE_TIME_ATTACK
-            host.push(ModeSelectScreen(host))
-        }, Ui.lp(Ui.dp(270f), topDp = 10f))
+        val groups = arrayOf(
+            Triple(R.string.menu_traffic, R.string.menu_traffic_sub, intArrayOf(GameData.MODE_TWO_WAY, GameData.MODE_ENDLESS, GameData.MODE_CHALLENGE)),
+            Triple(R.string.mode_street, R.string.menu_street_sub, intArrayOf(GameData.MODE_STREET)),
+            Triple(R.string.mode_drift, R.string.menu_drift_sub, intArrayOf(GameData.MODE_DRIFT)),
+            Triple(R.string.menu_time_trial, R.string.menu_time_trial_sub, intArrayOf(GameData.MODE_TIME_TRIAL, GameData.MODE_TIME_ATTACK)),
+            Triple(R.string.mode_police, R.string.menu_police_sub, intArrayOf(GameData.MODE_POLICE)),
+            Triple(R.string.mode_free, R.string.menu_free_sub, intArrayOf(GameData.MODE_FREE))
+        )
+        val accents = intArrayOf(Ui.CYAN, Ui.PINK, 0xFFB388FF.toInt(), Ui.YELLOW, Ui.RED, Ui.GREEN)
+        for ((i, g) in groups.withIndex()) {
+            modes.addView(modeCard(g.first, g.second, accents[i]) {
+                if (save.selectedMode !in g.third) save.selectedMode = g.third[0]
+                host.push(ModeSelectScreen(host, g.third, g.first))
+            }, Ui.lp(Ui.dp(262f), topDp = if (i == 0) 0f else 7f))
+        }
         val modesScroll = ScrollView(ctx)
         modesScroll.isVerticalScrollBarEnabled = false
         modesScroll.addView(modes, FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP))
@@ -135,7 +145,8 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         badge.background = Ui.gradient(Ui.CYAN, Ui.PINK, 0, 20f)
         card.addView(badge, LinearLayout.LayoutParams(Ui.dp(36f), Ui.dp(36f)))
         val info = Ui.vbox(ctx, Gravity.START)
-        info.setPadding(Ui.dp(8f), 0, 0, 0)
+        // relative padding: the gap sits between badge and text in both RTL and LTR
+        info.setPaddingRelative(Ui.dp(10f), 0, 0, 0)
         info.addView(Ui.text(ctx, str(R.string.player_default) + "  •  " + str(R.string.level_short) + " " + Lang.num(save.level()), 12f, Ui.TEXT, Ui.bold))
         info.addView(Ui.statBar(ctx, save.levelProgress(), Ui.CYAN), LinearLayout.LayoutParams(Ui.dp(120f), Ui.dp(6f)).also { it.topMargin = Ui.dp(4f) })
         card.addView(info)
@@ -144,12 +155,12 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
 
     private fun modeCard(title: Int, sub: Int, accent: Int, onClick: () -> Unit): View {
         val card = Ui.vbox(ctx, Gravity.START)
-        card.setPadding(Ui.dp(16f), Ui.dp(10f), Ui.dp(16f), Ui.dp(10f))
+        card.setPadding(Ui.dp(14f), Ui.dp(6f), Ui.dp(14f), Ui.dp(7f))
         card.background = Ui.gradient(Ui.withAlpha(accent, 0x38), Ui.withAlpha(0xFF0D1424.toInt(), 0xD8), Ui.withAlpha(accent, 0xAA), 14f,
             GradientDrawable.Orientation.LEFT_RIGHT)
-        val t = Ui.text(ctx, str(title), 18f, accent, Ui.bold)
+        val t = Ui.text(ctx, str(title), 16f, accent, Ui.bold)
         card.addView(t)
-        card.addView(Ui.text(ctx, str(sub), 11f, Ui.DIM))
+        card.addView(Ui.text(ctx, str(sub), 10.5f, Ui.DIM))
         card.isClickable = true
         card.setOnClickListener { Ui.onClickSound?.invoke(); onClick() }
         Ui.pressable(card)
@@ -161,10 +172,17 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
     }
 }
 
-class ModeSelectScreen(host: GameHost) : Screen(host) {
-    private var mode = save.selectedMode
-    private var env = save.selectedEnv.let { if (save.isEnvUnlocked(it)) it else 0 }
+internal val MEDALS = arrayOf("", "🥉", "🥈", "🥇")
+
+class ModeSelectScreen(
+    host: GameHost,
+    private val modes: IntArray = intArrayOf(GameData.MODE_TWO_WAY, GameData.MODE_ENDLESS, GameData.MODE_CHALLENGE),
+    private val titleRes: Int = R.string.modes_title
+) : Screen(host) {
+    private var mode = save.selectedMode.let { if (it in modes) it else modes[0] }
+    private var env = save.selectedEnv.let { if (it in GameData.envs.indices && save.isEnvUnlocked(it)) it else 0 }
     private var tod = save.selectedTod
+    private var weather = save.selectedWeather
     private val modeCards = ArrayList<View>()
     private val envCards = ArrayList<View>()
 
@@ -174,24 +192,50 @@ class ModeSelectScreen(host: GameHost) : Screen(host) {
         return buildPage()
     }
 
-    private fun buildPage(): View = page(str(R.string.modes_title), 720f) { col ->
+    private fun bestText(m: Int): String {
+        val medal = save.bestMedal(m)
+        val medalStr = if (medal > 0) "   " + MEDALS[medal] else ""
+        return when (m) {
+            GameData.MODE_FREE -> str(R.string.free_note)
+            GameData.MODE_TIME_TRIAL -> str(R.string.best) + ": " + (if (save.highScore(m) > 0) Lang.num(save.highScore(m) / 10) + " " + str(R.string.kmh_avg) else "—") + medalStr
+            else -> str(R.string.best) + ": " + Lang.num(save.highScore(m)) + medalStr
+        }
+    }
+
+    private fun objectiveText(m: Int): String {
+        val c = GameData.defaultConfig(m, 0, 0, 0)
+        return when (m) {
+            GameData.MODE_STREET -> str(R.string.obj_street, Lang.km(c.goal))
+            GameData.MODE_DRIFT -> str(R.string.obj_drift, Lang.num(c.timeLimit.toInt()), Lang.num(c.gold.toInt()))
+            GameData.MODE_TIME_TRIAL -> str(R.string.obj_trial, Lang.km(c.goal), Lang.num(c.gold.toInt()))
+            GameData.MODE_POLICE -> str(R.string.obj_police)
+            GameData.MODE_CHALLENGE -> str(R.string.obj_challenge, Lang.num(c.gold.toInt()), Lang.num(c.timeLimit.toInt()))
+            else -> ""
+        }
+    }
+
+    private fun buildPage(): View = page(str(titleRes), 760f) { col ->
         // ---- modes
         col.addView(sectionTitle(str(R.string.modes_title)), Ui.lp())
         val modeRow = if (portrait) Ui.vbox(ctx) else Ui.hbox(ctx, Gravity.TOP)
-        val modeColors = intArrayOf(Ui.CYAN, Ui.PINK, Ui.YELLOW)
-        for (m in 0..2) {
+        val palette = intArrayOf(Ui.CYAN, Ui.PINK, Ui.YELLOW)
+        for ((idx, m) in modes.withIndex()) {
+            val modeColors = palette
             val card = Ui.vbox(ctx, Gravity.START)
             card.setPadding(Ui.dp(14f), Ui.dp(12f), Ui.dp(14f), Ui.dp(12f))
-            val name = Ui.text(ctx, str(GameData.modeNames[m]), 18f, modeColors[m], Ui.black)
+            val accent = modeColors[idx % modeColors.size]
+            val name = Ui.text(ctx, str(GameData.modeNames[m]), 18f, accent, Ui.black)
             card.addView(name)
             val desc = Ui.text(ctx, str(GameData.modeDescs[m]), 12.5f, Ui.TEXT)
             card.addView(desc, Ui.lp(topDp = 4f))
-            val best = Ui.text(ctx, str(R.string.best) + ": " + Lang.num(save.highScore(m)), 11.5f, Ui.DIM, Ui.bold)
+            val obj = objectiveText(m)
+            if (obj.isNotEmpty()) card.addView(Ui.text(ctx, obj, 11.5f, Ui.withAlpha(accent, 0xDD), Ui.bold), Ui.lp(topDp = 4f))
+            val best = Ui.text(ctx, bestText(m), 11.5f, Ui.DIM, Ui.bold)
             card.addView(best, Ui.lp(topDp = 6f))
             card.isClickable = true
             Ui.pressable(card)
             card.setOnClickListener { host.sfx(AudioEngine.SFX_CLICK); mode = m; paintModes() }
-            card.tag = modeColors[m]
+            card.tag = accent
             modeCards.add(card)
             val lp = if (portrait) Ui.lp(topDp = 6f) else LinearLayout.LayoutParams(0, Ui.MATCH, 1f).also {
                 it.marginStart = Ui.dp(4f); it.marginEnd = Ui.dp(4f)
@@ -206,9 +250,11 @@ class ModeSelectScreen(host: GameHost) : Screen(host) {
         val envGrid = Ui.vbox(ctx)
         var row: LinearLayout? = null
         val perRow = if (portrait) 2 else 4
-        val envAccents = intArrayOf(0xFF5AA9FF.toInt(), 0xFFFFB347.toInt(), 0xFFE8F4FF.toInt(), 0xFF5EDB7C.toInt())
-        val envBg = intArrayOf(0xFF1A2440.toInt(), 0xFF3D2A14.toInt(), 0xFF2A3A4E.toInt(), 0xFF143322.toInt())
-        for (e in 0..3) {
+        val envAccents = intArrayOf(0xFF5AA9FF.toInt(), 0xFFFFB347.toInt(), 0xFFE8F4FF.toInt(), 0xFF5EDB7C.toInt(),
+            0xFF4FE3D6.toInt(), 0xFFC9A27A.toInt(), 0xFFB9C6D8.toInt())
+        val envBg = intArrayOf(0xFF1A2440.toInt(), 0xFF3D2A14.toInt(), 0xFF2A3A4E.toInt(), 0xFF143322.toInt(),
+            0xFF0F3A40.toInt(), 0xFF33302C.toInt(), 0xFF27303C.toInt())
+        for (e in GameData.envs.indices) {
             if (e % perRow == 0) {
                 row = Ui.hbox(ctx)
                 envGrid.addView(row, Ui.lp(topDp = 6f))
@@ -260,6 +306,12 @@ class ModeSelectScreen(host: GameHost) : Screen(host) {
         val todOpts = GameData.todNames.map { str(it) }
         col.addView(Ui.segmented(ctx, todOpts, tod, Ui.YELLOW) { tod = it }, Ui.lp())
 
+        // ---- weather (affects grip, visibility, lighting and sound)
+        col.addView(sectionTitle(str(R.string.w_title)), Ui.lp())
+        val wOpts = GameData.weatherNames.map { str(it) }
+        col.addView(Ui.segmented(ctx, wOpts, weather, Ui.CYAN) { weather = it }, Ui.lp())
+        col.addView(Ui.text(ctx, str(if (modes.contains(GameData.MODE_FREE)) R.string.w_note_free else R.string.w_note), 11f, Ui.DIM), Ui.lp(topDp = 4f))
+
         // ---- car
         col.addView(sectionTitle(str(R.string.garage_title)), Ui.lp())
         val carRow = Ui.hbox(ctx)
@@ -283,6 +335,7 @@ class ModeSelectScreen(host: GameHost) : Screen(host) {
             save.selectedMode = mode
             save.selectedEnv = env
             save.selectedTod = tod
+            save.selectedWeather = weather
             host.startRace()
         }
         col.addView(go, Ui.lp(topDp = 20f))
@@ -292,7 +345,7 @@ class ModeSelectScreen(host: GameHost) : Screen(host) {
     private fun paintModes() {
         for ((i, c) in modeCards.withIndex()) {
             val accent = c.tag as Int
-            c.background = if (i == mode) Ui.gradient(Ui.withAlpha(accent, 0x44), Ui.withAlpha(accent, 0x14), accent, 16f)
+            c.background = if (modes[i] == mode) Ui.gradient(Ui.withAlpha(accent, 0x44), Ui.withAlpha(accent, 0x14), accent, 16f)
             else Ui.bg(Ui.PANEL_LIGHT, Ui.withAlpha(accent, 0x33), 16f, 1f)
         }
     }
@@ -314,9 +367,15 @@ class ScoresScreen(host: GameHost) : Screen(host) {
     private lateinit var list: LinearLayout
 
     override fun build(): View = page(str(R.string.scores_title)) { col ->
-        col.addView(Ui.segmented(ctx, GameData.modeNames.map { str(it) }, mode, Ui.YELLOW) {
+        // nine modes: natural-width tabs in a horizontal scroller
+        val seg = Ui.segmented(ctx, GameData.modeNames.map { str(it) }, mode.coerceIn(0, GameData.NUM_MODES - 1), Ui.YELLOW) {
             mode = it; fill()
-        }, Ui.lp(topDp = 6f))
+        }
+        for (i in 0 until seg.childCount) seg.getChildAt(i).layoutParams = LinearLayout.LayoutParams(Ui.WRAP, Ui.WRAP)
+        val hs = android.widget.HorizontalScrollView(ctx)
+        hs.isHorizontalScrollBarEnabled = false
+        hs.addView(seg, FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP))
+        col.addView(hs, Ui.lp(topDp = 6f))
         list = Ui.vbox(ctx)
         col.addView(list, Ui.lp(topDp = 10f))
         fill()
@@ -342,7 +401,8 @@ class ScoresScreen(host: GameHost) : Screen(host) {
             rank.gravity = Gravity.CENTER
             row.addView(rank, LinearLayout.LayoutParams(Ui.dp(36f), Ui.WRAP))
             val info = Ui.vbox(ctx, Gravity.START)
-            info.addView(Ui.text(ctx, Lang.num(s.score), 18f, Ui.TEXT, Ui.bold))
+            val shown = if (mode == GameData.MODE_TIME_TRIAL) Lang.num(s.score / 10) + " " + str(R.string.kmh_avg) else Lang.num(s.score)
+            info.addView(Ui.text(ctx, shown, 18f, Ui.TEXT, Ui.bold))
             val car = if (s.car in GameData.cars.indices) str(GameData.cars[s.car].nameRes) else ""
             val env = if (s.env in GameData.envs.indices) str(GameData.envs[s.env].nameRes) else ""
             info.addView(Ui.text(ctx, "$car • $env", 12f, Ui.DIM))
@@ -365,7 +425,25 @@ class PauseScreen(host: GameHost) : Screen(host) {
         p.gravity = Gravity.CENTER_HORIZONTAL
         p.addView(Ui.glowTitle(ctx, str(R.string.pause_title), 30f), Ui.lp(Ui.WRAP, bottomDp = 14f))
         p.addView(Ui.button(ctx, str(R.string.resume), Ui.GREEN, true, 19f) { host.resumeRace() }, Ui.lp())
-        p.addView(Ui.button(ctx, str(R.string.restart), Ui.YELLOW, false, 16f) { host.restartRace() }, Ui.lp(topDp = 10f))
+        if (save.selectedMode == GameData.MODE_FREE) {
+            // free roam: change car on the spot, or end the drive and collect the rewards
+            p.addView(Ui.text(ctx, str(R.string.pause_change_car), 13f, Ui.CYAN, Ui.bold), Ui.lp(Ui.WRAP, topDp = 12f))
+            val cars = Ui.hbox(ctx)
+            for (c in GameData.cars.indices) {
+                if (!save.isCarOwned(c)) continue
+                val b = Ui.button(ctx, str(GameData.cars[c].nameRes), if (c == save.selectedCar) Ui.PINK else Ui.CYAN, c == save.selectedCar, 12f) {
+                    if (c != save.selectedCar) host.swapCar(c) else host.resumeRace()
+                }
+                cars.addView(b, LinearLayout.LayoutParams(Ui.WRAP, Ui.WRAP).also { it.marginEnd = Ui.dp(6f) })
+            }
+            val hs = android.widget.HorizontalScrollView(ctx)
+            hs.isHorizontalScrollBarEnabled = false
+            hs.addView(cars)
+            p.addView(hs, Ui.lp(topDp = 6f))
+            p.addView(Ui.button(ctx, str(R.string.pause_end_drive), Ui.YELLOW, false, 16f) { host.endFreeRoam() }, Ui.lp(topDp = 12f))
+        } else {
+            p.addView(Ui.button(ctx, str(R.string.restart), Ui.YELLOW, false, 16f) { host.restartRace() }, Ui.lp(topDp = 10f))
+        }
         p.addView(Ui.button(ctx, str(R.string.menu_settings), Ui.CYAN, false, 16f) { host.push(SettingsScreen(host)) }, Ui.lp(topDp = 10f))
         p.addView(Ui.button(ctx, str(R.string.main_menu), Ui.RED, false, 16f) { host.quitToMenu() }, Ui.lp(topDp = 10f))
         val scroll = ScrollView(ctx)
@@ -390,9 +468,31 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
         val root = FrameLayout(ctx)
         val p = Ui.panel(ctx, true, Ui.withAlpha(if (r.newRecord) Ui.YELLOW else Ui.PINK, 0x99))
         p.gravity = Gravity.CENTER_HORIZONTAL
-        p.addView(Ui.glowTitle(ctx, str(R.string.gameover_title), 28f, Ui.PINK), Ui.lp(Ui.WRAP))
-        val reason = Ui.text(ctx, str(if (r.timeUp) R.string.time_up else R.string.crashed), 14f, Ui.DIM, Ui.bold)
-        p.addView(reason, Ui.lp(Ui.WRAP, bottomDp = 6f))
+        val titleRes = when {
+            r.reason == World.REASON_BUSTED -> R.string.busted
+            r.mode == GameData.MODE_FREE -> R.string.drive_over
+            r.reason == World.REASON_FINISH || (r.success && r.reason == World.REASON_TIME) -> R.string.finished
+            else -> R.string.gameover_title
+        }
+        p.addView(Ui.glowTitle(ctx, str(titleRes), 28f, if (r.success) Ui.GREEN else Ui.PINK), Ui.lp(Ui.WRAP))
+        val reasonRes = when {
+            r.reason == World.REASON_BUSTED -> R.string.busted_sub
+            r.mode == GameData.MODE_STREET && r.success -> 0
+            r.mode == GameData.MODE_STREET -> R.string.dnf
+            r.mode == GameData.MODE_TIME_TRIAL && !r.success -> R.string.dnf
+            r.reason == World.REASON_FINISH -> 0
+            r.timeUp -> R.string.time_up
+            else -> R.string.crashed
+        }
+        if (reasonRes != 0) p.addView(Ui.text(ctx, str(reasonRes), 14f, Ui.DIM, Ui.bold), Ui.lp(Ui.WRAP, bottomDp = 6f))
+        if (r.mode == GameData.MODE_STREET && r.success) {
+            p.addView(Ui.glowTitle(ctx, str(R.string.res_place, Lang.num(r.position), Lang.num(r.racers)), 22f, if (r.position == 1) Ui.YELLOW else Ui.TEXT), Ui.lp(Ui.WRAP, bottomDp = 4f))
+        }
+        if (r.medal > 0) {
+            val medalNames = intArrayOf(0, R.string.medal_bronze, R.string.medal_silver, R.string.medal_gold)
+            val medalColors = intArrayOf(0, 0xFFCD7F32.toInt(), 0xFFC0C8D4.toInt(), Ui.YELLOW)
+            p.addView(Ui.text(ctx, MEDALS[r.medal] + "  " + str(medalNames[r.medal]), 18f, medalColors[r.medal], Ui.black), Ui.lp(Ui.WRAP, bottomDp = 4f))
+        }
 
         p.addView(Ui.text(ctx, str(R.string.score), 13f, Ui.DIM), Ui.lp(Ui.WRAP))
         val score = Ui.glowTitle(ctx, Lang.num(0), 42f, Ui.TEXT)
@@ -427,6 +527,14 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
             row.addView(Ui.text(ctx, value, 15f, color, Ui.bold))
             stats.addView(row, Ui.lp())
         }
+        if (r.mode == GameData.MODE_TIME_TRIAL || r.mode == GameData.MODE_STREET) {
+            val t = (r.raceTime * 10f).toInt()
+            stat(R.string.res_time, Lang.num(t / 600) + ":" + Lang.num((t / 10) % 60).padStart(2, if (Lang.isFa) '۰' else '0') + "." + Lang.num(t % 10))
+        }
+        if (r.mode == GameData.MODE_POLICE) {
+            stat(R.string.res_escapes, Lang.num(r.escapes), Ui.GREEN)
+            stat(R.string.res_takedowns, Lang.num(r.takedowns), Ui.PINK)
+        }
         stat(R.string.distance, Lang.km(r.distance) + " " + str(R.string.km))
         stat(R.string.top_speed, Lang.num(r.topSpeed) + " " + str(R.string.kmh))
         stat(R.string.near_misses, Lang.num(r.nearMisses))
@@ -434,7 +542,7 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
         stat(R.string.coins_earned, "+" + Lang.num(r.coins), Ui.YELLOW)
         p.addView(stats, Ui.lp())
 
-        p.addView(Ui.button(ctx, str(R.string.retry), Ui.GREEN, true, 19f) { host.restartRace() }, Ui.lp(topDp = 6f))
+        p.addView(Ui.button(ctx, str(if (r.mode == GameData.MODE_FREE) R.string.drive_again else R.string.retry), Ui.GREEN, true, 19f) { host.restartRace() }, Ui.lp(topDp = 6f))
         val row = Ui.hbox(ctx)
         val lp1 = LinearLayout.LayoutParams(0, Ui.WRAP, 1f).also { it.marginEnd = Ui.dp(5f) }
         val lp2 = LinearLayout.LayoutParams(0, Ui.WRAP, 1f).also { it.marginStart = Ui.dp(5f) }

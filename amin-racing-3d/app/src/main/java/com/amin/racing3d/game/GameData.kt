@@ -16,7 +16,17 @@ class CarSpec(
     val width: Float,
     val wheelRadius: Float,
     val upgradeCostFactor: Float,
-    val paints: IntArray
+    val paints: IntArray,
+    /** vehicle class label (hypercar, classic, sedan, …) */
+    val catRes: Int = 0,
+    /** kerb weight in kg: weight transfer, suspension stiffness, contact behaviour */
+    val massKg: Int = 1500,
+    /** tyre grip multiplier (lateral response, braking on low-grip surfaces) */
+    val grip: Float = 1f,
+    /** how easily the rear steps out (drift angle gain) */
+    val drift: Float = 1f,
+    /** off-road capable: loses less grip on snow / wet surfaces */
+    val allTerrain: Boolean = false
 )
 
 class TrafficSpec(
@@ -28,6 +38,28 @@ class TrafficSpec(
     val minSpeed: Float,
     val maxSpeed: Float,
     val weight: Int
+)
+
+/** Everything that defines one run: mode, place, time of day, weather and the mode objective. */
+class RaceConfig(
+    val mode: Int,
+    val env: Int,
+    val tod: Int,
+    val weather: Int,
+    /** finish distance (m) for street / time trial, required escapes for police, 0 = none */
+    val goal: Float = 0f,
+    /** medal thresholds: seconds for time trial (lower is better), points / counts otherwise */
+    val gold: Float = 0f,
+    val silver: Float = 0f,
+    val bronze: Float = 0f,
+    /** time limit in seconds (drift, traffic challenge), 0 = none */
+    val timeLimit: Float = 0f,
+    val rivals: Int = 3,
+    val rivalSkill: Float = 1f,
+    /** car of the lead rival (story), -1 = random */
+    val rivalCar: Int = -1,
+    /** story mission index, -1 for quick play */
+    val missionId: Int = -1
 )
 
 class EnvSpec(
@@ -43,6 +75,12 @@ object GameData {
     const val CAR_MUSCLE = 1
     const val CAR_SUV = 2
     const val CAR_SUPER = 3
+    const val CAR_CLASSIC = 4
+    const val CAR_SEDAN = 5
+    const val CAR_PICKUP = 6
+    const val CAR_OFFROAD = 7
+    const val CAR_POLICE = 8
+    const val CAR_RACE = 9
 
     const val TR_SEDAN = 0
     const val TR_TAXI = 1
@@ -54,10 +92,33 @@ object GameData {
     const val ENV_DESERT = 1
     const val ENV_SNOW = 2
     const val ENV_FOREST = 3
+    const val ENV_COAST = 4
+    const val ENV_INDUSTRIAL = 5
+    const val ENV_MOUNTAIN = 6
 
     const val MODE_ENDLESS = 0
     const val MODE_TWO_WAY = 1
     const val MODE_TIME_ATTACK = 2
+    const val MODE_STREET = 3
+    const val MODE_DRIFT = 4
+    const val MODE_TIME_TRIAL = 5
+    const val MODE_POLICE = 6
+    const val MODE_CHALLENGE = 7
+    const val MODE_FREE = 8
+    const val NUM_MODES = 9
+
+    const val W_CLEAR = 0
+    const val W_LIGHT_RAIN = 1
+    const val W_HEAVY_RAIN = 2
+    const val W_SNOW = 3
+    const val W_FOG = 4
+    const val W_STORM = 5
+    /** per weather: rain intensity, snowfall, target road wetness, cloud cover, fog multiplier */
+    val W_RAIN = floatArrayOf(0f, 0.4f, 1f, 0f, 0f, 1f)
+    val W_SNOWFALL = floatArrayOf(0f, 0f, 0f, 1f, 0f, 0f)
+    val W_WET = floatArrayOf(0f, 0.75f, 1f, 0.3f, 0.15f, 1f)
+    val W_CLOUD = floatArrayOf(0f, 0.55f, 0.85f, 0.6f, 0.45f, 1f)
+    val W_FOGMUL = floatArrayOf(1f, 1.6f, 2.5f, 2.1f, 4.4f, 2.9f)
 
     const val TOD_DAY = 0
     const val TOD_SUNSET = 1
@@ -82,10 +143,26 @@ object GameData {
     )
 
     val cars = arrayOf(
-        CarSpec(CAR_SPORTS, R.string.car_sports, 0, 228f, 7.6f, 8.6f, 13f, 1.25f, 4.4f, 1.9f, 0.34f, 1.0f, PAINT_PALETTE),
-        CarSpec(CAR_MUSCLE, R.string.car_muscle, 9000, 246f, 8.8f, 7.6f, 12f, 1.30f, 4.9f, 2.0f, 0.36f, 1.4f, PAINT_PALETTE),
-        CarSpec(CAR_SUV, R.string.car_suv, 16000, 214f, 7.2f, 7.2f, 14f, 1.28f, 4.8f, 2.05f, 0.42f, 1.7f, PAINT_PALETTE),
-        CarSpec(CAR_SUPER, R.string.car_super, 38000, 292f, 10.4f, 10.2f, 16f, 1.36f, 4.6f, 2.02f, 0.36f, 2.2f, PAINT_PALETTE)
+        CarSpec(CAR_SPORTS, R.string.car_sports, 0, 228f, 7.6f, 8.6f, 13f, 1.25f, 4.4f, 1.9f, 0.34f, 1.0f, PAINT_PALETTE,
+            R.string.cat_sports, 1350, 1.0f, 1.1f),
+        CarSpec(CAR_MUSCLE, R.string.car_muscle, 9000, 246f, 8.8f, 7.6f, 12f, 1.30f, 4.9f, 2.0f, 0.36f, 1.4f, PAINT_PALETTE,
+            R.string.cat_muscle, 1650, 0.92f, 1.45f),
+        CarSpec(CAR_SUV, R.string.car_suv, 16000, 214f, 7.2f, 7.2f, 14f, 1.28f, 4.8f, 2.05f, 0.42f, 1.7f, PAINT_PALETTE,
+            R.string.cat_suv, 2050, 0.93f, 0.8f, true),
+        CarSpec(CAR_SUPER, R.string.car_super, 38000, 292f, 10.4f, 10.2f, 16f, 1.36f, 4.6f, 2.02f, 0.36f, 2.2f, PAINT_PALETTE,
+            R.string.cat_hyper, 1420, 1.1f, 1.0f),
+        CarSpec(CAR_CLASSIC, R.string.car_classic, 6000, 205f, 6.6f, 6.8f, 10.5f, 1.22f, 4.7f, 1.86f, 0.35f, 1.2f, PAINT_PALETTE,
+            R.string.cat_classic, 1240, 0.86f, 1.35f),
+        CarSpec(CAR_SEDAN, R.string.car_sedan, 12000, 238f, 8.0f, 8.0f, 13.5f, 1.27f, 4.8f, 1.9f, 0.35f, 1.3f, PAINT_PALETTE,
+            R.string.cat_sedan, 1680, 1.0f, 0.95f),
+        CarSpec(CAR_PICKUP, R.string.car_pickup, 14000, 198f, 6.8f, 6.2f, 11.5f, 1.25f, 5.5f, 2.06f, 0.45f, 1.5f, PAINT_PALETTE,
+            R.string.cat_pickup, 2350, 0.9f, 0.85f, true),
+        CarSpec(CAR_OFFROAD, R.string.car_offroad, 18000, 186f, 6.4f, 6.0f, 11f, 1.24f, 4.3f, 2.0f, 0.48f, 1.5f, PAINT_PALETTE,
+            R.string.cat_offroad, 2100, 0.96f, 0.7f, true),
+        CarSpec(CAR_POLICE, R.string.car_police, 30000, 262f, 9.4f, 8.8f, 15f, 1.32f, 4.9f, 1.92f, 0.36f, 1.9f, PAINT_PALETTE,
+            R.string.cat_police, 1800, 1.02f, 1.0f),
+        CarSpec(CAR_RACE, R.string.car_race, 60000, 305f, 11.0f, 11.0f, 18f, 1.38f, 4.7f, 2.08f, 0.37f, 2.5f, PAINT_PALETTE,
+            R.string.cat_race, 1250, 1.16f, 0.85f)
     )
 
     val traffic = arrayOf(
@@ -101,11 +178,27 @@ object GameData {
         EnvSpec(ENV_CITY, R.string.env_city, 0, 1.0f, 1.0f),
         EnvSpec(ENV_DESERT, R.string.env_desert, 4000, 0.95f, 1.15f),
         EnvSpec(ENV_SNOW, R.string.env_snow, 8000, 0.72f, 1.6f),
-        EnvSpec(ENV_FOREST, R.string.env_forest, 12000, 0.92f, 1.3f)
+        EnvSpec(ENV_FOREST, R.string.env_forest, 12000, 0.92f, 1.3f),
+        EnvSpec(ENV_COAST, R.string.env_coast, 6000, 1.0f, 1.1f),
+        EnvSpec(ENV_INDUSTRIAL, R.string.env_industrial, 10000, 0.97f, 1.35f),
+        EnvSpec(ENV_MOUNTAIN, R.string.env_mountain, 14000, 0.9f, 1.2f)
     )
 
-    val modeNames = intArrayOf(R.string.mode_endless, R.string.mode_twoway, R.string.mode_time)
-    val modeDescs = intArrayOf(R.string.mode_endless_desc, R.string.mode_twoway_desc, R.string.mode_time_desc)
+    val modeNames = intArrayOf(R.string.mode_endless, R.string.mode_twoway, R.string.mode_time, R.string.mode_street,
+        R.string.mode_drift, R.string.mode_trial, R.string.mode_police, R.string.mode_challenge, R.string.mode_free)
+    val modeDescs = intArrayOf(R.string.mode_endless_desc, R.string.mode_twoway_desc, R.string.mode_time_desc, R.string.mode_street_desc,
+        R.string.mode_drift_desc, R.string.mode_trial_desc, R.string.mode_police_desc, R.string.mode_challenge_desc, R.string.mode_free_desc)
+    val weatherNames = intArrayOf(R.string.w_clear, R.string.w_light_rain, R.string.w_heavy_rain, R.string.w_snow, R.string.w_fog, R.string.w_storm)
+
+    /** Quick-play objective for each mode (story missions define their own). */
+    fun defaultConfig(mode: Int, env: Int, tod: Int, weather: Int): RaceConfig = when (mode) {
+        MODE_STREET -> RaceConfig(mode, env, tod, weather, goal = 3000f, rivals = 3, rivalSkill = 1f)
+        MODE_DRIFT -> RaceConfig(mode, env, tod, weather, gold = 30000f, silver = 17000f, bronze = 8000f, timeLimit = 90f)
+        MODE_TIME_TRIAL -> RaceConfig(mode, env, tod, weather, goal = 2500f, gold = 54f, silver = 62f, bronze = 74f)
+        MODE_POLICE -> RaceConfig(mode, env, tod, weather)
+        MODE_CHALLENGE -> RaceConfig(mode, env, tod, weather, gold = 30f, silver = 22f, bronze = 15f, timeLimit = 75f)
+        else -> RaceConfig(mode, env, tod, weather)
+    }
     val todNames = intArrayOf(R.string.tod_day, R.string.tod_sunset, R.string.tod_night, R.string.tod_cycle)
     val upgradeNames = intArrayOf(R.string.stat_speed, R.string.stat_handling, R.string.stat_brakes, R.string.stat_nitro)
     val upgradeDescs = intArrayOf(R.string.upg_speed_desc, R.string.upg_handling_desc, R.string.upg_brakes_desc, R.string.upg_nitro_desc)

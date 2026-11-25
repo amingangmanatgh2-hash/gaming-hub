@@ -57,6 +57,12 @@ class SaveManager(context: Context) {
         GameData.CAR_SPORTS -> 0
         GameData.CAR_MUSCLE -> 2
         GameData.CAR_SUV -> 7
+        GameData.CAR_CLASSIC -> 6
+        GameData.CAR_SEDAN -> 9
+        GameData.CAR_PICKUP -> 4
+        GameData.CAR_OFFROAD -> 3
+        GameData.CAR_POLICE -> 7
+        GameData.CAR_RACE -> 2
         else -> 1
     }
 
@@ -83,6 +89,18 @@ class SaveManager(context: Context) {
     var selectedTod: Int
         get() = prefs.getInt(K_SEL_TOD, GameData.TOD_DAY)
         set(v) = prefs.edit().putInt(K_SEL_TOD, v).apply()
+
+    /** v2: weather for the next run (0 = sunny; older saves have no key and get sunny) */
+    var selectedWeather: Int
+        get() = prefs.getInt("sel_weather", GameData.W_CLEAR).coerceIn(0, GameData.weatherNames.size - 1)
+        set(v) = prefs.edit().putInt("sel_weather", v).apply()
+
+    /** best medal per mode (0 none .. 3 gold) */
+    fun bestMedal(mode: Int): Int = prefs.getInt("medal_$mode", 0)
+
+    fun submitMedal(mode: Int, medal: Int) {
+        if (medal > bestMedal(mode)) prefs.edit().putInt("medal_$mode", medal).apply()
+    }
 
     // ----- Scores -----------------------------------------------------------------------------
     fun highScore(mode: Int): Int = prefs.getInt("hs_$mode", 0)

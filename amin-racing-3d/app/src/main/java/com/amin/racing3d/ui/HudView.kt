@@ -61,6 +61,26 @@ class HudView(context: Context, private val world: World, private val input: Inp
     private val sHintTouch = context.getString(R.string.hint_touch)
     private val sBest = context.getString(R.string.best_score_short)
     private val sFps = "FPS"
+    private val sPos = context.getString(R.string.hud_pos)
+    private val sToGo = context.getString(R.string.hud_to_go)
+    private val sDrift = context.getString(R.string.hud_drift)
+    private val sBust = context.getString(R.string.hud_bust)
+    private val sEscape = context.getString(R.string.hud_escape)
+    private val sHeat = context.getString(R.string.hud_heat)
+    private val sNearGoal = context.getString(R.string.hud_near_goal)
+    private val sTarget = context.getString(R.string.hud_target)
+    private val sEvEscape = context.getString(R.string.ev_escape)
+    private val sEvTakedown = context.getString(R.string.ev_takedown)
+    private val sEvWave = context.getString(R.string.ev_wave)
+    private val sEvRegion = context.getString(R.string.ev_region)
+    private val sDriftLost = context.getString(R.string.drift_lost)
+    private val sWeather = Array(GameData.weatherNames.size) { context.getString(GameData.weatherNames[it]) }
+    private val sEnvNames = Array(GameData.envs.size) { context.getString(GameData.envs[it].nameRes) }
+    private var lastEventSeq = -1
+    private var lastDriftSeq = -1
+    private var lastDriftLostSeq = -1
+    private var driftBankStart = 0L
+    private var driftBankPts = 0
     private var message: String? = null
     private var messageUntil = 0L
 
@@ -129,6 +149,10 @@ class HudView(context: Context, private val world: World, private val input: Inp
     fun resetEffects() {
         lastNearSeq = world.hudNearSeq
         lastCheckSeq = world.hudCheckSeq
+        lastEventSeq = world.hudEventSeq
+        lastDriftSeq = world.hudDriftSeq
+        lastDriftLostSeq = world.hudDriftLostSeq
+        driftBankStart = 0L
         nearStart = 0L; checkStart = 0L; goStart = 0L
         lastState = -1
         displaySpeed = 0f
@@ -311,6 +335,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
         }
 
         drawTopBar(canvas, w, now)
+        drawModePanel(canvas, w, now)
         drawGauge(canvas)
         drawCombo(canvas, w, h, now)
         drawPopups(canvas, w, h, now, state)
@@ -346,9 +371,201 @@ class HudView(context: Context, private val world: World, private val input: Inp
         if (visibility == VISIBLE) postInvalidateOnAnimation()
     }
 
+    private fun scoreHidden(): Boolean {
+        val m = world.mode
+        return m == GameData.MODE_STREET || m == GameData.MODE_TIME_TRIAL || m == GameData.MODE_POLICE || m == GameData.MODE_FREE
+    }
+
+    /** writes m:ss.t into [chars] at [start]; returns the new length */
+    private fun writeClock(t: Float, start: Int): Int {
+        val tenths = (t * 10f).toInt().coerceAtLeast(0)
+        var k = start
+        k += Lang.writeInt(tenths / 600, chars, k, false)
+        chars[k++] = ':'
+        val sec = (tenths / 10) % 60
+        if (sec < 10) k += Lang.writeInt(0, chars, k, false)
+        k += Lang.writeInt(sec, chars, k, false)
+        chars[k++] = if (Lang.isFa) '\u066B' else '.'
+        k += Lang.writeInt(tenths % 10, chars, k, false)
+        return k
+    }
+
+    private fun drawBar(canvas: Canvas, cx: Float, y: Float, bw: Float, v: Float, color: Int, label: String) {
+        rect.set(cx - bw / 2, y, cx + bw / 2, y + 9f * d)
+        pFill.color = 0xAA070A14.toInt()
+        canvas.drawRoundRect(rect, 5f * d, 5f * d, pFill)
+        val fill = v.coerceIn(0f, 1f)
+        if (fill > 0.01f) {
+            if (Lang.isFa) rect.set(cx + bw / 2 - bw * fill, y, cx + bw / 2, y + 9f * d)
+            else rect.set(cx - bw / 2, y, cx - bw / 2 + bw * fill, y + 9f * d)
+            pFill.color = color
+            canvas.drawRoundRect(rect, 5f * d, 5f * d, pFill)
+        }
+        pSmall.textAlign = Paint.Align.CENTER
+        pSmall.textSize = 10.5f * d
+        pSmall.color = Ui.withAlpha(color, 0xEE)
+        canvas.drawText(label, cx, y - 3f * d, pSmall)
+    }
+
+    /** Objective read-outs for the v2 modes plus event banners. */
+    private fun drawModePanel(canvas: Canvas, w: Float, now: Long) {
+        val top = paddingTop + margin
+        val m = world.mode
+        // event banners
+        val es = world.hudEventSeq
+        if (es != lastEventSeq) {
+            if (lastEventSeq != -1) {
+                when (world.hudEvent) {
+                    World.EV_ESCAPE -> showMessage(sEvEscape)
+                    World.EV_TAKEDOWN -> showMessage(sEvTakedown, 1600)
+                    World.EV_WAVE -> showMessage(sEvWave, 1800)
+                    World.EV_REGION -> showMessage(sEvRegion + " " + sEnvNames[world.hudEnv.coerceIn(0, sEnvNames.size - 1)] +
+                        "  •  " + sWeather[world.hudWeather.coerceIn(0, sWeather.size - 1)], 3200)
+                }
+            }
+            lastEventSeq = es
+        }
+        if (world.hudDriftSeq != lastDriftSeq) {
+            if (lastDriftSeq != -1) { driftBankStart = now; driftBankPts = world.hudDriftBank }
+            lastDriftSeq = world.hudDriftSeq
+        }
+        if (world.hudDriftLostSeq != lastDriftLostSeq) {
+            if (lastDriftLostSeq != -1) showMessage(sDriftLost, 1400)
+            lastDriftLostSeq = world.hudDriftLostSeq
+        }
+        if (world.hudState != World.STATE_RACING && world.hudState != World.STATE_CRASHED && world.hudState != World.STATE_COUNTDOWN) return
+        val cx = w / 2
+        pText.textAlign = Paint.Align.CENTER
+        when (m) {
+            GameData.MODE_STREET -> {
+                pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 12f * d; pSmall.color = Ui.DIM
+                canvas.drawText(sPos, cx, top + 12f * d, pSmall)
+                var k = Lang.writeInt(world.hudPosition, chars, 0, false)
+                chars[k++] = '/'
+                k += Lang.writeInt(world.hudRacers + 1, chars, k, false)
+                pBig.textSize = 36f * d
+                pBig.color = if (world.hudPosition == 1) Ui.YELLOW else Ui.TEXT
+                pBig.setShadowLayer(10f * d, 0f, 0f, Ui.PINK)
+                canvas.drawText(chars, 0, k, cx, top + 48f * d, pBig)
+                pBig.clearShadowLayer()
+                drawToGo(canvas, cx, top + 68f * d)
+            }
+            GameData.MODE_TIME_TRIAL -> {
+                pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 12f * d; pSmall.color = Ui.DIM
+                canvas.drawText(sTime, cx, top + 12f * d, pSmall)
+                val k = writeClock(world.hudRaceTime, 0)
+                pBig.textSize = 32f * d
+                val gold = world.cfg.gold
+                pBig.color = if (world.hudRaceTime <= gold) Ui.YELLOW else if (world.hudRaceTime <= world.cfg.bronze) Ui.TEXT else Ui.RED
+                canvas.drawText(chars, 0, k, cx, top + 46f * d, pBig)
+                pSmall.color = Ui.withAlpha(Ui.YELLOW, 0xCC)
+                val k2 = writeClock(gold, 0)
+                val label = sTarget + " "
+                val lw = pSmall.measureText(label); val nw = pSmall.measureText(chars, 0, k2)
+                pSmall.textAlign = Paint.Align.LEFT
+                if (Lang.isFa) { canvas.drawText(chars, 0, k2, cx - (lw + nw) / 2, top + 62f * d, pSmall); canvas.drawText(label, cx - (lw + nw) / 2 + nw, top + 62f * d, pSmall) }
+                else { canvas.drawText(label, cx - (lw + nw) / 2, top + 62f * d, pSmall); canvas.drawText(chars, 0, k2, cx - (lw + nw) / 2 + lw, top + 62f * d, pSmall) }
+                drawToGo(canvas, cx, top + 80f * d)
+            }
+            GameData.MODE_DRIFT -> {
+                drawTimeLeft(canvas, cx, top + 96f * d, now)
+                val chain = world.hudDriftChain
+                if (chain > 0) {
+                    pText.textSize = 22f * d
+                    pText.color = Ui.PINK
+                    pText.setShadowLayer(8f * d, 0f, 0f, Ui.PINK)
+                    var k = Lang.writeInt(chain, chars, 0, true)
+                    chars[k++] = ' '; chars[k++] = '×'
+                    k += Lang.writeInt(world.hudDriftMult, chars, k, false)
+                    canvas.drawText(chars, 0, k, cx, height * 0.36f, pText)
+                    pText.clearShadowLayer()
+                    pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 12f * d; pSmall.color = Ui.withAlpha(Ui.PINK, 0xCC)
+                    canvas.drawText(sDrift, cx, height * 0.36f - 26f * d, pSmall)
+                }
+                val age = now - driftBankStart
+                if (driftBankStart > 0L && age < 1300L) {
+                    val a = 1f - age / 1300f
+                    pText.textSize = 20f * d
+                    pText.color = Ui.withAlpha(Ui.GREEN, (255 * a).toInt())
+                    var k = 0
+                    chars[k++] = '+'
+                    k += Lang.writeInt(driftBankPts, chars, k, true)
+                    canvas.drawText(chars, 0, k, cx, height * 0.3f - age / 1300f * 40f * d, pText)
+                }
+            }
+            GameData.MODE_CHALLENGE -> {
+                drawTimeLeft(canvas, cx, top + 96f * d, now)
+                pText.textSize = 18f * d
+                pText.color = Ui.CYAN
+                var k = Lang.writeInt(world.hudNear, chars, 0, false)
+                chars[k++] = ' '; chars[k++] = '/'; chars[k++] = ' '
+                k += Lang.writeInt(world.cfg.gold.toInt(), chars, k, false)
+                canvas.drawText(chars, 0, k, cx, top + 130f * d, pText)
+                pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 11f * d; pSmall.color = Ui.DIM
+                canvas.drawText(sNearGoal, cx, top + 146f * d, pSmall)
+            }
+            GameData.MODE_POLICE -> {
+                val bw = 170f * d
+                drawBar(canvas, cx, top + 22f * d, bw, world.hudBust, Ui.RED, sBust)
+                drawBar(canvas, cx, top + 50f * d, bw, world.hudEscape, Ui.GREEN, sEscape)
+                // heat stars
+                pText.textSize = 14f * d
+                val heat = world.hudHeat
+                val sw = 16f * d
+                for (i in 0 until 5) {
+                    pText.color = if (i < heat) Ui.YELLOW else Ui.withAlpha(Ui.DIM, 0x66)
+                    canvas.drawText("★", cx + (i - 2) * sw, top + 80f * d, pText)
+                }
+                if (world.hudBust > 0.6f && (now / 150) % 2 == 0L) {
+                    pFill.color = Ui.withAlpha(Ui.RED, 0x30)
+                    canvas.drawRect(0f, 0f, w, height.toFloat(), pFill)
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun drawToGo(canvas: Canvas, cx: Float, y: Float) {
+        val dist = world.hudToGo
+        val tenths = (dist / 100f).toInt()
+        var k = Lang.writeInt(tenths / 10, chars, 0, false)
+        chars[k++] = if (Lang.isFa) '\u066B' else '.'
+        k += Lang.writeInt(tenths % 10, chars, k, false)
+        chars[k++] = ' '
+        for (ch in sKm) chars[k++] = ch
+        pSmall.textSize = 12f * d; pSmall.color = Ui.CYAN
+        val lw = pSmall.measureText(sToGo) + 8f * d
+        val nw = pSmall.measureText(chars, 0, k)
+        val x0 = cx - (lw + nw) / 2
+        pSmall.textAlign = Paint.Align.LEFT
+        if (Lang.isFa) { canvas.drawText(chars, 0, k, x0, y, pSmall); canvas.drawText(sToGo, x0 + nw + 8f * d, y, pSmall) }
+        else { canvas.drawText(sToGo, x0, y, pSmall); canvas.drawText(chars, 0, k, x0 + lw, y, pSmall) }
+    }
+
+    private fun drawTimeLeft(canvas: Canvas, cx: Float, y: Float, now: Long) {
+        val t = world.hudTime
+        val secs = ceil(t.toDouble()).toInt()
+        val low = t < 10f
+        pText.textAlign = Paint.Align.CENTER
+        pText.textSize = 12f * d
+        pText.color = Ui.DIM
+        canvas.drawText(sTime, cx, y - 24f * d, pText)
+        pBig.textSize = 26f * d
+        val pulse = if (low) (0.5f + 0.5f * sin(now / 90.0).toFloat()) else 0f
+        pBig.color = if (low) Ui.withAlpha(Ui.RED, (180 + 75 * pulse).toInt()) else Ui.YELLOW
+        val k = Lang.writeInt(secs, chars, 0, false)
+        canvas.drawText(chars, 0, k, cx, y + 2f * d, pBig)
+        pBig.color = Ui.TEXT
+    }
+
     private fun drawTopBar(canvas: Canvas, w: Float, now: Long) {
         val top = paddingTop + margin
         // ---- score (centre)
+        if (!scoreHidden()) drawScore(canvas, w, top)
+        drawTopRest(canvas, w, now, top)
+    }
+
+    private fun drawScore(canvas: Canvas, w: Float, top: Float) {
         pSmall.textAlign = Paint.Align.CENTER
         pSmall.textSize = 12f * d
         pSmall.color = Ui.DIM
@@ -379,7 +596,9 @@ class HudView(context: Context, private val world: World, private val input: Inp
                 canvas.drawText(chars, 0, m, w / 2 + total / 2, y, pSmall)
             }
         }
+    }
 
+    private fun drawTopRest(canvas: Canvas, w: Float, now: Long, top: Float) {
         // ---- time attack clock
         if (world.mode == GameData.MODE_TIME_ATTACK) {
             val t = world.hudTime

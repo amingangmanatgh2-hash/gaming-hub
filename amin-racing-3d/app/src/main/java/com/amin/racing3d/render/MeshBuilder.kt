@@ -229,6 +229,20 @@ class MeshBuilder {
         }
     }
 
+    /** Disk on the Z plane (lamp lenses, exhaust caps, spare wheel faces). */
+    fun diskZ(cx: Float, cy: Float, z: Float, radius: Float, segments: Int, facingPos: Boolean) {
+        val n = if (facingPos) 1f else -1f
+        val c = vertex(cx, cy, z, 0f, 0f, n, 0.5f, 0.5f)
+        val base = vCount
+        for (i in 0..segments) {
+            val a = (i.toFloat() / segments) * (Math.PI * 2).toFloat()
+            vertex(cx + cos(a) * radius, cy + sin(a) * radius, z, 0f, 0f, n, 0f, 0f)
+        }
+        for (i in 0 until segments) {
+            if (facingPos) tri(c, base + i, base + i + 1) else tri(c, base + i + 1, base + i)
+        }
+    }
+
     /** Ring on the X plane between inner and outer radius (rims). */
     fun ringX(x: Float, cy: Float, cz: Float, rIn: Float, rOut: Float, segments: Int, facingPos: Boolean) {
         val n = if (facingPos) 1f else -1f

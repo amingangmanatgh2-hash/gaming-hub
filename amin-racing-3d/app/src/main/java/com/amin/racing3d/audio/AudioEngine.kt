@@ -34,7 +34,8 @@ class AudioEngine {
         const val SFX_SHIFT = 10
         const val SFX_BLOWOFF = 11
         const val SFX_HIT = 12
-        const val NUM_SFX = 13
+        const val SFX_THUNDER = 13
+        const val NUM_SFX = 14
 
         private const val VOICES = 10
         /**
@@ -49,7 +50,13 @@ class AudioEngine {
             EngineProfile(4, 900f, 7800f, 9f, 0.05f, 420f, 0.55f, true, 0.6f, 0.95f),    // sports: turbo inline-4
             EngineProfile(8, 750f, 6500f, 6f, 0.38f, 230f, 0.35f, false, 1.0f, 1.1f),    // muscle: cross-plane V8
             EngineProfile(6, 700f, 5400f, 5f, 0.12f, 260f, 0.25f, true, 0.25f, 1.0f),    // SUV: turbo V6
-            EngineProfile(12, 1000f, 9000f, 12f, 0.03f, 620f, 0.7f, false, 0.7f, 0.9f)   // supercar: V12
+            EngineProfile(12, 1000f, 9000f, 12f, 0.03f, 620f, 0.7f, false, 0.7f, 0.9f),  // hypercar: V12
+            EngineProfile(6, 650f, 5800f, 4.5f, 0.08f, 300f, 0.3f, false, 0.45f, 1.0f),   // classic: carburetted straight-6
+            EngineProfile(4, 850f, 7000f, 7f, 0.06f, 360f, 0.45f, true, 0.35f, 0.95f),    // sport sedan: turbo 4
+            EngineProfile(8, 650f, 5600f, 5f, 0.3f, 190f, 0.3f, false, 0.6f, 1.15f),      // pickup: big-block V8
+            EngineProfile(6, 600f, 4600f, 3.5f, 0.15f, 170f, 0.2f, true, 0.1f, 1.05f),    // off-roader: turbo-diesel 6
+            EngineProfile(8, 750f, 6800f, 7f, 0.25f, 260f, 0.4f, false, 0.5f, 1.05f),     // police: V8 interceptor
+            EngineProfile(8, 1200f, 9500f, 13f, 0.1f, 520f, 0.9f, false, 1.0f, 1.0f)      // GT race: flat-plane V8
         )
     }
 
@@ -65,6 +72,22 @@ class AudioEngine {
     @Volatile var engineAudible = false
     /** tyre slip (0..1): squeal */
     @Volatile var skidLevel = 0f
+    /** rain intensity 0..1 */
+    @Volatile var rainLevel = 0f
+    /** closeness of the nearest police unit 0..1 */
+    @Volatile var sirenLevel = 0f
+    /** 0..1 while driving through a tunnel (echo) */
+    @Volatile var tunnelLevel = 0f
+    private var rainVol = 0f
+    private var rainLp = 0f
+    private var rainLp2 = 0f
+    private var sirenVol = 0f
+    private var sirenPh = 0.0
+    private var sirenT = 0.0
+    private var sirenLp = 0f
+    private var tunVol = 0f
+    private val echoBuf = FloatArray(3300)
+    private var echoPos = 0
 
     @Volatile var sfxEnabled = true
     @Volatile var musicEnabled = true
@@ -251,6 +274,19 @@ class AudioEngine {
             val metal = (sin(2 * PI * 610.0 * t) * 0.4 + sin(2 * PI * 1370.0 * t) * 0.25).toFloat() * exp(-t * 14f)
             metal + noise() * exp(-t * 30f) * 0.6f + sin(2 * PI * 80.0 * t).toFloat() * exp(-t * 18f) * 0.5f
         }
+        samples[SFX_THUNDER] = run {
+            // sharp crack, then a long rolling rumble (low-passed noise with slow swells)
+            var lp = 0f; var lp2 = 0f; var lp3 = 0f
+            synth(3.2f) { t, _ ->
+                val n = noise()
+                lp += (n - lp) * 0.08f
+                lp2 += (lp - lp2) * 0.05f
+                lp3 += (n - lp3) * 0.5f
+                val crack = if (t < 0.25f) lp3 * exp(-t * 14f) * 0.9f else 0f
+                val swell = 0.6f + 0.4f * sin(t * 5.3f) * sin(t * 2.1f + 1f)
+                crack + lp2 * 5.5f * swell * (t / 0.15f).coerceAtMost(1f) * exp(-t * 0.9f)
+            }
+        }
         samples[SFX_BUY] = synth(0.5f) { t, _ ->
             val f = if (t < 0.1f) 880f else if (t < 0.2f) 1108.7f else 1318.5f
             (sin(2 * PI * f * t).toFloat() * 0.5f + sin(2 * PI * f * 1.5 * t).toFloat() * 0.15f) * exp(-(t % 0.1f) * 6f) * (1f - t * 1.6f).coerceAtLeast(0f)
@@ -376,6 +412,9 @@ class AudioEngine {
         val scrape = if (engineAudible && sfx) scrapeLevel else 0f
         val prof = PROFILES[carType.coerceIn(0, PROFILES.size - 1)]
         val skid = if (engineAudible && sfx) skidLevel else 0f
+        val rainT = if (engineAudible && sfx) rainLevel else 0f
+        val sirenT2 = if (engineAudible && sfx) sirenLevel else 0f
+        val tunT = if (engineAudible && sfx) tunnelLevel else 0f
         // driving events per block (~11.6 ms): gear shifts, lift-off pops, blow-off valve
         if (engOn) {
             if (++shiftCheck >= 4) {
@@ -485,6 +524,36 @@ class AudioEngine {
                 val crackle = if (noise() > 0.96f) noise() * 1.5f else 0f
                 mix += (scrapeHp * 0.4f + crackle) * scrapeVol * 0.45f
             }
+            // ---- rain on the roof / road
+            rainVol += (rainT - rainVol) * 0.0004f
+            if (rainVol > 0.005f) {
+                val n = noise()
+                rainLp += (n - rainLp) * 0.55f
+                rainLp2 += (rainLp - rainLp2) * 0.12f
+                val drop = if (noise() > 0.9985f - rainVol * 0.002f) noise() * 0.9f else 0f
+                mix += ((rainLp - rainLp2) * 0.28f + drop) * rainVol
+            }
+            // ---- police siren (wail, switching to yelp when very close)
+            sirenVol += (sirenT2 - sirenVol) * 0.0006f
+            if (sirenVol > 0.005f) {
+                sirenT += 1.0 / RATE
+                val yelp = sirenVol > 0.75f
+                val period = if (yelp) 0.32 else 3.6
+                val ph = (sirenT % period) / period
+                val sweep = if (ph < 0.5) ph * 2.0 else (1.0 - ph) * 2.0
+                val freq = 640.0 + 720.0 * sweep
+                sirenPh += freq / RATE
+                if (sirenPh > 1.0) sirenPh -= 1.0
+                val sq = (if (sirenPh < 0.5) 1f else -1f) * 0.6f + sin(2.0 * PI * sirenPh).toFloat() * 0.4f
+                sirenLp += (sq - sirenLp) * 0.25f
+                mix += sirenLp * sirenVol * sirenVol * 0.16f
+            }
+            // ---- tunnel acoustics: short feedback echo on the vehicle sounds
+            tunVol += (tunT - tunVol) * 0.0005f
+            val d = echoBuf[echoPos]
+            echoBuf[echoPos] = if (tunVol > 0.01f) mix + d * 0.42f else 0f
+            echoPos = (echoPos + 1) % echoBuf.size
+            if (tunVol > 0.01f) mix += d * 0.6f * tunVol
             // ---- one-shot sfx
             for (v in 0 until VOICES) {
                 val id = voiceSample[v]

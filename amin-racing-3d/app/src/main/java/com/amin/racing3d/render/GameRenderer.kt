@@ -128,6 +128,17 @@ class GameRenderer(
     private lateinit var sign2Batch: InstanceBatch
     private lateinit var billboardBatch: InstanceBatch
     private lateinit var checkpointBatch: InstanceBatch
+    private lateinit var palmBatch: InstanceBatch
+    private lateinit var warehouseBatch: InstanceBatch
+    private lateinit var chimneyBatch: InstanceBatch
+    private lateinit var tankBatch: InstanceBatch
+    private lateinit var tunnelBatch: InstanceBatch
+    private lateinit var portalBatch: InstanceBatch
+    private lateinit var bridgeBatch: InstanceBatch
+    private lateinit var waterBatch: InstanceBatch
+    private lateinit var gasBatch: InstanceBatch
+    private lateinit var parkingBatch: InstanceBatch
+    private lateinit var dealerBatch: InstanceBatch
     private lateinit var mountainBatch: InstanceBatch
     private lateinit var roadBatch: InstanceBatch
     private lateinit var groundBatch: InstanceBatch
@@ -181,6 +192,7 @@ class GameRenderer(
         val texMode = GLES30.glGetUniformLocation(p, "uTexMode")
         val texScale = GLES30.glGetUniformLocation(p, "uTexScale")
         val blink = GLES30.glGetUniformLocation(p, "uBlink")
+        val siren = GLES30.glGetUniformLocation(p, "uSiren")
         val tex = GLES30.glGetUniformLocation(p, "uTex")
         val shadowMap = GLES30.glGetUniformLocation(p, "uShadowMap")
         val shadowOn = GLES30.glGetUniformLocation(p, "uShadowOn")
@@ -205,6 +217,8 @@ class GameRenderer(
         val lampX = GLES30.glGetUniformLocation(p, "uLampX")
         val shadowSoft = GLES30.glGetUniformLocation(p, "uShadowSoft")
         val glass = GLES30.glGetUniformLocation(p, "uGlass")
+        val wet = GLES30.glGetUniformLocation(p, "uWet")
+        val flash = GLES30.glGetUniformLocation(p, "uFlash")
     }
 
     // ================================================================== GL lifecycle
@@ -232,7 +246,7 @@ class GameRenderer(
     private fun buildLoadSteps() {
         val st = loadSteps
         st.clear()
-        val pm = arrayOfNulls<VehicleModel>(4)
+        val pm = arrayOfNulls<VehicleModel>(GameData.cars.size)
         val tm = arrayOfNulls<VehicleModel>(5)
         // 1. shaders, fullscreen triangle, GL state
         st.add {
@@ -301,24 +315,31 @@ class GameRenderer(
             texSprite = Textures.sprite()
             texWhite = Textures.upload(intArrayOf(-1), 1, 1, true, false)
             showroomBatch = InstanceBatch(Models.showroom(), 1)
-            shadowBatch = InstanceBatch(Models.shadowDecal(), World.MAX_TRAFFIC + 4)
+            shadowBatch = InstanceBatch(Models.shadowDecal(), World.MAX_TRAFFIC + 40)
             skidBatch = InstanceBatch(Models.shadowDecal(), World.MAX_SKID)
             additive = SpriteBatch(1600)
-            alphaSprites = SpriteBatch(1100)
+            alphaSprites = SpriteBatch(2200)
         }
         st.add {
-            wheelBatch = InstanceBatch(Models.wheel(), World.MAX_TRAFFIC * 6 + 8)
-            caliperBatch = InstanceBatch(Models.caliper(), World.MAX_TRAFFIC * 6 + 8)
+            wheelBatch = InstanceBatch(Models.wheel(), (World.MAX_TRAFFIC + 40) * 6)
+            caliperBatch = InstanceBatch(Models.caliper(), (World.MAX_TRAFFIC + 40) * 6)
         }
         st.add { pm[0] = Models.sports() }
         st.add { pm[1] = Models.muscle() }
         st.add { pm[2] = Models.suv() }
         st.add { pm[3] = Models.supercar() }
+        st.add { pm[4] = Models.classic() }
+        st.add { pm[5] = Models.sportSedan() }
+        st.add { pm[6] = Models.pickup() }
+        st.add { pm[7] = Models.offroad() }
+        st.add { pm[8] = Models.police() }
+        st.add { pm[9] = Models.raceCar() }
         st.add {
             playerModels = pm.requireNoNulls()
             for (m in playerModels) m.sporty = true
-            playerBatches = Array(4) { InstanceBatch(playerModels[it].mesh, 2) }
-            playerGlass = Array(4) { i -> playerModels[i].glass?.let { InstanceBatch(it, 2, playerBatches[i]) } }
+            // player + up to 4 AI racers/police + dealership display cars can share one model
+            playerBatches = Array(playerModels.size) { InstanceBatch(playerModels[it].mesh, 10) }
+            playerGlass = Array(playerModels.size) { i -> playerModels[i].glass?.let { InstanceBatch(it, playerBatches[i].capacity, playerBatches[i]) } }
             loadingSceneReady = true
         }
         // 3. textures
@@ -335,8 +356,8 @@ class GameRenderer(
         st.add { tm[4] = Models.bus() }
         st.add {
             trafficModels = tm.requireNoNulls()
-            trafficBatches = Array(5) { InstanceBatch(trafficModels[it].mesh, World.MAX_TRAFFIC) }
-            trafficGlass = Array(5) { i -> trafficModels[i].glass?.let { InstanceBatch(it, World.MAX_TRAFFIC, trafficBatches[i]) } }
+            trafficBatches = Array(5) { InstanceBatch(trafficModels[it].mesh, World.MAX_TRAFFIC + 24) }
+            trafficGlass = Array(5) { i -> trafficModels[i].glass?.let { InstanceBatch(it, World.MAX_TRAFFIC + 24, trafficBatches[i]) } }
         }
         // 5. scenery
         st.add { coinBatch = InstanceBatch(Models.coin(), World.MAX_COINS); railBatch = InstanceBatch(Models.guardrail(), 70) }
@@ -350,21 +371,32 @@ class GameRenderer(
             billboardBatch = InstanceBatch(Models.billboard(), 8)
             checkpointBatch = InstanceBatch(Models.checkpoint(), 2)
         }
+        st.add { palmBatch = InstanceBatch(Models.palm(), 160); warehouseBatch = InstanceBatch(Models.warehouse(), 80) }
+        st.add { chimneyBatch = InstanceBatch(Models.chimney(), 40); tankBatch = InstanceBatch(Models.tank(), 80) }
+        st.add { tunnelBatch = InstanceBatch(Models.tunnelSection(), 64); portalBatch = InstanceBatch(Models.tunnelPortal(), 8) }
+        st.add { bridgeBatch = InstanceBatch(Models.bridgeSection(), 64); waterBatch = InstanceBatch(Models.water(), 6) }
+        st.add {
+            gasBatch = InstanceBatch(Models.gasStation(), 4)
+            parkingBatch = InstanceBatch(Models.parkingLot(), 4)
+            dealerBatch = InstanceBatch(Models.dealership(), 4)
+        }
         st.add { mountainBatch = InstanceBatch(Models.mountains(7), 1) }
         st.add { roadBatch = InstanceBatch(Models.road(Textures.ROAD_HALF_WIDTH), 1); groundBatch = InstanceBatch(Models.ground(), 1) }
         // 6. batch lists, shadow map
         st.add {
-            casterBatches = arrayOf(
-                playerBatches[0], playerBatches[1], playerBatches[2], playerBatches[3],
+            // every player model must be listed (cars 4-9 were missing: they were never cleared per frame)
+            casterBatches = arrayOf(*playerBatches,
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
                 buildingBatch, pineBatch, snowPineBatch, treeBatch, cactusBatch, lampBatch, sign1Batch, sign2Batch,
-                billboardBatch, checkpointBatch, railBatch
+                billboardBatch, checkpointBatch, railBatch, palmBatch, warehouseBatch, chimneyBatch, tankBatch,
+                tunnelBatch, portalBatch, bridgeBatch, gasBatch, dealerBatch
             )
-            allSceneBatches = arrayOf(
-                playerBatches[0], playerBatches[1], playerBatches[2], playerBatches[3],
+            allSceneBatches = arrayOf(*playerBatches,
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
                 wheelBatch, caliperBatch, coinBatch, shadowBatch, skidBatch, railBatch, lampBatch, buildingBatch, pineBatch, snowPineBatch,
                 treeBatch, bushBatch, cactusBatch, rockBatch, sign1Batch, sign2Batch, billboardBatch, checkpointBatch,
+                palmBatch, warehouseBatch, chimneyBatch, tankBatch, tunnelBatch, portalBatch, bridgeBatch, waterBatch,
+                gasBatch, parkingBatch, dealerBatch,
                 mountainBatch, roadBatch, groundBatch, showroomBatch
             )
 
@@ -559,12 +591,59 @@ class GameRenderer(
                 groundAmb[1] *= 1.25f
                 fog *= GameData.envs[GameData.ENV_FOREST].fogMul
             }
+            GameData.ENV_COAST -> {
+                // bright, hazy sea air
+                horizon[0] *= 0.94f; horizon[1] *= 1.02f; horizon[2] *= 1.08f
+                skyAmb[2] *= 1.08f
+                fog *= GameData.envs[GameData.ENV_COAST].fogMul
+            }
+            GameData.ENV_INDUSTRIAL -> {
+                // smog: brownish-grey haze
+                val k = 0.35f
+                val g = (horizon[0] + horizon[1] + horizon[2]) / 3f
+                horizon[0] += (g * 1.05f - horizon[0]) * k; horizon[1] += (g * 0.98f - horizon[1]) * k; horizon[2] += (g * 0.86f - horizon[2]) * k
+                skyTop[0] += (g - skyTop[0]) * 0.25f; skyTop[1] += (g - skyTop[1]) * 0.25f
+                fog *= GameData.envs[GameData.ENV_INDUSTRIAL].fogMul
+            }
+            GameData.ENV_MOUNTAIN -> {
+                horizon[0] *= 0.92f; horizon[1] *= 0.97f; horizon[2] *= 1.05f
+                skyAmb[2] *= 1.06f
+                fog *= GameData.envs[GameData.ENV_MOUNTAIN].fogMul
+            }
             else -> {
                 horizon[0] += 0.07f * night; horizon[1] += 0.045f * night; horizon[2] += 0.02f * night
             }
         }
+        // weather: overcast sky darkens and desaturates everything, fog thickens, lightning flashes
+        val w = world
+        val cl = w.cloud
+        if (cl > 0.01f) {
+            val dim = 1f - 0.5f * cl
+            for (i in 0..2) {
+                sunColor[i] *= 1f - 0.82f * cl
+                skyAmb[i] *= 1f - 0.22f * cl
+                val gh = (horizon[0] + horizon[1] + horizon[2]) / 3f
+                horizon[i] = (horizon[i] + (gh * 0.95f - horizon[i]) * 0.7f * cl) * dim + 0.06f * cl * (1f - night)
+                val gt = (skyTop[0] + skyTop[1] + skyTop[2]) / 3f
+                skyTop[i] = (skyTop[i] + (gt - skyTop[i]) * 0.8f * cl) * dim + 0.1f * cl * (1f - night)
+            }
+            night = max(night, 0.32f * cl)
+        }
+        fog *= w.fogMul
+        if (w.lightning > 0.01f) {
+            val f2 = w.lightning * (1f - w.tunnelK)
+            for (i in 0..2) { horizon[i] += 0.55f * f2; skyTop[i] += 0.45f * f2 }
+        }
+        val tk = w.tunnelK
+        if (tk > 0.01f) {
+            // inside a tunnel: no sky light, sodium lamps along the walls
+            for (i in 0..2) { sunColor[i] *= 1f - tk; skyAmb[i] *= 1f - 0.7f * tk; groundAmb[i] *= 1f - 0.4f * tk }
+            skyAmb[0] += 0.22f * tk; skyAmb[1] += 0.15f * tk; skyAmb[2] += 0.06f * tk
+            horizon[0] += (0.12f - horizon[0]) * tk; horizon[1] += (0.09f - horizon[1]) * tk; horizon[2] += (0.06f - horizon[2]) * tk
+            night = max(night, 0.7f * tk)
+        }
         fogDensity = fog
-        lightsOn = smooth(0.2f, 0.55f, night)
+        lightsOn = max(smooth(0.2f, 0.55f, night), max(smooth(0.35f, 0.8f, cl) * 0.85f, tk))
     }
 
     private fun smooth(e0: Float, e1: Float, x: Float): Float {
@@ -688,7 +767,7 @@ class GameRenderer(
         // environment base
         roadBatch.add(0f, 0f, pz, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
         groundBatch.add(w.px, 0f, pz, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
-        val mt = MOUNTAIN_TINT[w.env]
+        val mt = MOUNTAIN_TINT[w.env.coerceIn(0, MOUNTAIN_TINT.size - 1)]
         mountainBatch.add(camX, 0f, camZ, 0f, 0f, 0f, 1f, 1f, 1f, mt[0], mt[1], mt[2], 1f, 0f, 0f, 0f, 0f)
 
         // scenery
@@ -697,6 +776,7 @@ class GameRenderer(
         val lampGlow = lightsOn > 0.05f && q >= 1
         for (it in w.scenery) {
             if (!it.visible || it.s < minS || it.s > maxS) continue
+            if (w.hiddenByZone(it)) continue
             val z = -it.s
             when (it.kind) {
                 World.K_RAIL -> railBatch.add(it.x, 0f, z, it.yaw, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, lightsOn, 0f, 0f)
@@ -718,6 +798,10 @@ class GameRenderer(
                 World.K_SIGN1 -> sign1Batch.add(it.x, 0f, z, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
                 World.K_SIGN2 -> sign2Batch.add(it.x, 0f, z, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
                 World.K_BILLBOARD -> billboardBatch.add(it.x, 0f, z, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, lightsOn, 0f, 0f)
+                World.K_PALM -> palmBatch.add(it.x, 0f, z, it.yaw, 0f, 0f, it.sx, it.sy, it.sz, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                World.K_WAREHOUSE -> warehouseBatch.add(it.x, 0f, z, it.yaw, 0f, 0f, it.sx, it.sy, it.sz, it.r, it.g, it.b, 1f, 0f, lightsOn, 0f, 0f)
+                World.K_CHIMNEY -> chimneyBatch.add(it.x, 0f, z, 0f, 0f, 0f, it.sx, it.sy, it.sz, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                World.K_TANK -> tankBatch.add(it.x, 0f, z, 0f, 0f, 0f, it.sx, it.sy, it.sz, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
                 else -> {}
             }
         }
@@ -727,6 +811,8 @@ class GameRenderer(
                 checkpointBatch.add(0f, 0f, -cs, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 1f, 0f, 0f)
             }
         }
+
+        addZones(w, drawDist)
 
         // coins
         for (c in w.coins) {
@@ -767,6 +853,27 @@ class GameRenderer(
         shadowBatch.add(w.px, 0f, pz, w.yaw, 0f, 0f, pm.width * 1.3f, 1f, pm.length * 1.15f, 1f, 1f, 1f, 0.6f, 0f, 0f, 0f, 0f)
         addVehicleGlows(pm, w.px, pz, w.yaw, brake, false)
 
+        // AI rivals and police
+        for (r in w.rivals) {
+            if (!r.active) continue
+            if (r.s > w.ps + drawDist || r.s < w.ps - 60f) continue
+            val m = playerModels[r.car]
+            val rz = -r.s
+            val rc = r.color
+            playerBatches[r.car].add(r.x, 0f, rz, r.yaw, 0f, 0f, 1f, 1f, 1f,
+                ((rc shr 16) and 0xFF) / 255f, ((rc shr 8) and 0xFF) / 255f, (rc and 0xFF) / 255f, 1f,
+                r.brakeLight, lightsOn, 0f, 0f)
+            addWheels(m, r.x, rz, r.yaw, 0f, r.wheelAngle, 1f)
+            shadowBatch.add(r.x, 0f, rz, r.yaw, 0f, 0f, m.width * 1.3f, 1f, m.length * 1.15f, 1f, 1f, 1f, 0.6f, 0f, 0f, 0f, 0f)
+            addVehicleGlows(m, r.x, rz, r.yaw, r.brakeLight, false)
+            if (r.cop && !r.wrecked) {
+                // roof light bar glow, alternating red / blue
+                val ph = (animTime * 2.6f + r.name * 0.37f) % 1f
+                val red = ph < 0.5f
+                additive.add(r.x, 1.75f, rz, 2.4f, if (red) 1f else 0.15f, 0.12f, if (red) 0.1f else 1f, 0.5f)
+            }
+        }
+
         // skid marks: dark rubber strips laid while sliding, fading out over ~8 s
         val camS = w.ps
         for (k in 0 until w.skidUsed) {
@@ -789,8 +896,130 @@ class GameRenderer(
         }
 
         // weather
-        if (w.env == GameData.ENV_SNOW) addSnow(SNOW_COUNT[q], 0.95f, 0.97f, 1f, 0.75f, 2.2f, 0.07f)
-        else if (w.env == GameData.ENV_DESERT) addSnow(SNOW_COUNT[q] / 4, 0.85f, 0.7f, 0.5f, 0.35f, -0.2f, 0.05f)
+        val open = 1f - w.tunnelK
+        val snowAmt = max(if (w.env == GameData.ENV_SNOW) 0.5f else 0f, w.snowFall) * open
+        if (snowAmt > 0.02f) addSnow((SNOW_COUNT[q] * 1.6f * snowAmt).toInt(), 0.95f, 0.97f, 1f, 0.75f, 2.2f, 0.07f)
+        else if (w.env == GameData.ENV_DESERT && w.weather == GameData.W_CLEAR) addSnow(SNOW_COUNT[q] / 4, 0.85f, 0.7f, 0.5f, 0.35f, -0.2f, 0.05f)
+        val rainAmt = w.rain * open
+        if (rainAmt > 0.02f) {
+            addRain((RAIN_COUNT[q] * rainAmt).toInt(), w.speed)
+            addSplashes((SPLASH_COUNT[q] * rainAmt).toInt(), w)
+        }
+    }
+
+    /** Rain: thin streaks in a box around the camera, wrapping in height and along the road. */
+    private fun addRain(count: Int, carSpeed: Float) {
+        val t = world.time
+        val bright = 0.55f + 0.35f * (1f - night) + world.lightning * 0.6f
+        val len = -(0.55f + min(carSpeed, 60f) * 0.012f)
+        val n = min(count, alphaSprites.capacity - alphaSprites.count - 40)
+        for (i in 0 until n) {
+            val h1 = hash(i * 5 + 11); val h2 = hash(i * 5 + 12); val h3 = hash(i * 5 + 13)
+            val x = camX + (h1 - 0.5f) * 30f
+            var y = (h2 * 12f - t * (13f + h3 * 4f)) % 12f
+            if (y < 0f) y += 12f
+            val period = 44f
+            var uz = (h3 * period + camZ) % period
+            if (uz < 0f) uz += period
+            val z = camZ - uz + 4f
+            alphaSprites.add(x, y - 1f, z, len * (0.8f + h1 * 0.4f), 0.72f * bright, 0.78f * bright, 0.88f * bright, 0.28f)
+        }
+    }
+
+    /** Raindrop splashes on the road ahead: short-lived rings at hashed positions per time slot. */
+    private fun addSplashes(count: Int, w: World) {
+        val t = w.time * 7f
+        val n = min(count, alphaSprites.capacity - alphaSprites.count - 4)
+        for (i in 0 until n) {
+            val slot = floor(t + hash(i * 7 + 3)).toInt()
+            val ph = t + hash(i * 7 + 3) - floor(t + hash(i * 7 + 3))
+            val hx = hash(i * 131 + slot * 17)
+            val hz = hash(i * 71 + slot * 29 + 5)
+            val x = w.px + (hx - 0.5f) * 22f
+            val z = -w.ps - hz * 45f + 6f
+            val a = (1f - ph) * 0.4f
+            alphaSprites.add(x, 0.05f + ph * 0.08f, z, 0.05f + ph * 0.16f, 0.85f, 0.88f, 0.95f, a)
+        }
+    }
+
+    /** Tunnels, bridges, gas stations, parking lots and dealerships. */
+    private fun addZones(w: World, drawDist: Float) {
+        val edge = GameData.ROAD_HALF + GameData.SHOULDER
+        val pi = Math.PI.toFloat()
+        // coast: open sea on one side, all along the road
+        if (w.env == GameData.ENV_COAST) {
+            val sx = World.SEA_SIDE.toFloat()
+            waterBatch.add(sx * (edge + 22f), 0.12f, -w.ps - 150f, if (sx > 0f) 0f else pi, 0f, 0f, 480f, 1f, 1.3f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+        }
+        for (z in w.zones) {
+            if (!z.active) continue
+            if (z.s0 > w.ps + drawDist || z.s1 < w.ps - 60f) continue
+            val sd = z.side.toFloat()
+            when (z.type) {
+                World.ZONE_TUNNEL -> {
+                    var s = z.s0 + 10f
+                    while (s < z.s1) {
+                        if (s > w.ps - 40f && s < w.ps + drawDist) tunnelBatch.add(0f, 0f, -s, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, lightsOn, 0f, 0f)
+                        s += 20f
+                    }
+                    portalBatch.add(0f, 0f, -z.s0 + 0.8f, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                    portalBatch.add(0f, 0f, -z.s1 - 0.8f, pi, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                }
+                World.ZONE_BRIDGE -> {
+                    var s = z.s0 + 10f
+                    while (s < z.s1) {
+                        if (s > w.ps - 40f && s < w.ps + drawDist) bridgeBatch.add(0f, 0f, -s, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                        s += 20f
+                    }
+                    val len = (z.s1 - z.s0 + 120f) / 400f
+                    val cz = -(z.s0 + z.s1) * 0.5f
+                    waterBatch.add(9.9f, 0.12f, cz, 0f, 0f, 0f, 480f, 1f, len, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                    waterBatch.add(-9.9f, 0.12f, cz, pi, 0f, 0f, 480f, 1f, len, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                }
+                else -> {
+                    val ox = sd * (edge + 6f)
+                    val oz = -(z.s0 + z.s1) * 0.5f
+                    val yaw = if (sd > 0f) 0f else pi
+                    when (z.type) {
+                        World.ZONE_GAS -> gasBatch.add(ox, 0f, oz, yaw, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, lightsOn, 0f, 0f)
+                        World.ZONE_PARKING -> {
+                            parkingBatch.add(ox, 0f, oz, yaw, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, lightsOn, 0f, 0f)
+                            // parked cars in the bays
+                            for (k in 0 until 18) {
+                                val hh = hash(z.seed + k * 13)
+                                if (hh < 0.3f) continue
+                                val row = k / 9
+                                val lx = if (row == 0) 9f else 21f
+                                val lz = -25f + (k % 9) * 5.5f + 2.75f
+                                val type = (hash(z.seed + k * 7) * 3f).toInt().coerceIn(0, 2)
+                                val col = World.TRAFFIC_COLORS[(hash(z.seed + k * 5) * World.TRAFFIC_COLORS.size).toInt().coerceIn(0, World.TRAFFIC_COLORS.size - 1)]
+                                val px = ox + sd * lx
+                                val pz2 = oz + sd * lz
+                                val cy = yaw + (if (row == 0) -pi / 2f else pi / 2f)
+                                addParked(trafficModels[type], trafficBatches[type], px, pz2, cy, col)
+                            }
+                        }
+                        World.ZONE_DEALER -> {
+                            dealerBatch.add(ox, 0f, oz, yaw, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, lightsOn, 0f, 0f)
+                            for (k in 0 until 3) {
+                                val car = (z.seed + k * 3) % playerModels.size
+                                val lz = -9f + k * 9f
+                                val col = GameData.PAINT_PALETTE[(z.seed / 7 + k) % GameData.PAINT_PALETTE.size]
+                                addParked(playerModels[car], playerBatches[car], ox + sd * 5f, oz + sd * lz, yaw - 0.6f + k * 0.6f, col)
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+            }
+        }
+    }
+
+    private fun addParked(m: VehicleModel, batch: InstanceBatch, x: Float, z: Float, yaw: Float, color: Int) {
+        batch.add(x, 0f, z, yaw, 0f, 0f, 1f, 1f, 1f,
+            ((color shr 16) and 0xFF) / 255f, ((color shr 8) and 0xFF) / 255f, (color and 0xFF) / 255f, 1f, 0f, 0f, 0f, 0f)
+        addWheels(m, x, z, yaw, 0f, 0f, 1f)
+        shadowBatch.add(x, 0f, z, yaw, 0f, 0f, m.width * 1.25f, 1f, m.length * 1.12f, 1f, 1f, 1f, 0.5f, 0f, 0f, 0f, 0f)
     }
 
     private var blinkPhase = 0f
@@ -872,7 +1101,7 @@ class GameRenderer(
     }
 
     private fun buildShowroom() {
-        val id = showroomCar.coerceIn(0, 3)
+        val id = showroomCar.coerceIn(0, playerModels.size - 1)
         val m = playerModels[id]
         val c = showroomColor
         val cr = ((c shr 16) and 0xFF) / 255f; val cg = ((c shr 8) and 0xFF) / 255f; val cb = (c and 0xFF) / 255f
@@ -938,6 +1167,10 @@ class GameRenderer(
         GLES30.glUniformMatrix4fv(u.viewProj, 1, false, viewProj, 0)
         GLES30.glUniformMatrix4fv(u.lightVP, 1, false, lightVP, 0)
         GLES30.glUniform1f(u.blink, blinkPhase)
+        // police strobe: double flash red, then double flash blue
+        val sp = (animTime * 2.6f) % 1f
+        val flick = (sp * 8f).toInt() % 2 == 0
+        GLES30.glUniform1f(u.siren, if (!flick) 0.5f else if (sp < 0.5f) 1f else 0f)
         GLES30.glUniform1i(u.tex, 0)
         GLES30.glUniform1i(u.shadowMap, 1)
         GLES30.glUniform1i(u.shadowOn, if (useShadows) 1 else 0)
@@ -955,6 +1188,8 @@ class GameRenderer(
         GLES30.glUniform1f(u.night, night)
         GLES30.glUniform1f(u.reflect, REFLECT[q])
         val w = world
+        GLES30.glUniform1f(u.wet, if (showroom) 0f else w.wet * (1f - w.tunnelK))
+        GLES30.glUniform1f(u.flash, if (showroom) 0f else w.lightning * 0.9f * (1f - w.tunnelK))
         if (showroom) {
             GLES30.glUniform3f(u.headPos, 0f, 0f, 0f)
             GLES30.glUniform3f(u.headDir, 0f, 0f, -1f)
@@ -1004,12 +1239,17 @@ class GameRenderer(
         coinBatch.draw()
         railBatch.draw(); lampBatch.draw()
         pineBatch.draw(); snowPineBatch.draw(); treeBatch.draw(); bushBatch.draw(); cactusBatch.draw(); rockBatch.draw()
+        palmBatch.draw(); chimneyBatch.draw(); tankBatch.draw()
+        tunnelBatch.draw(); portalBatch.draw(); bridgeBatch.draw(); gasBatch.draw(); parkingBatch.draw(); dealerBatch.draw()
+        waterBatch.draw()
         // atlas
         bindTex(texAtlas, 5, 1f, 1f)
         sign1Batch.draw(); sign2Batch.draw(); billboardBatch.draw(); checkpointBatch.draw()
         // buildings
         bindTex(texBuilding, 3, Textures.BUILDING_TILE_W, Textures.BUILDING_TILE_H)
         buildingBatch.draw()
+        bindTex(texWhite, 0, 1f, 1f)
+        warehouseBatch.draw()
         // road & ground
         bindTex(if (w.mode == GameData.MODE_TWO_WAY) texRoadTwo else texRoadOne, 1, Textures.ROAD_TILE, 1f)
         roadBatch.draw()
@@ -1263,16 +1503,21 @@ class GameRenderer(
     companion object {
         val DENSITY = floatArrayOf(0.45f, 0.75f, 1f, 1f)
         val PARTICLES = intArrayOf(240, 460, 700, 1000)
-        val DRAW_DIST = floatArrayOf(270f, 370f, 480f)
+        val DRAW_DIST = floatArrayOf(270f, 370f, 480f, 560f)
         val FOG = floatArrayOf(0.0062f, 0.0046f, 0.0036f, 0.0031f)
         val REFLECT = floatArrayOf(0.5f, 1f, 1.1f, 1.25f)
-        val SNOW_COUNT = intArrayOf(110, 220, 360)
+        val SNOW_COUNT = intArrayOf(110, 220, 360, 480)
+        val RAIN_COUNT = intArrayOf(220, 420, 620, 800)
+        val SPLASH_COUNT = intArrayOf(20, 40, 60, 80)
 
         val MOUNTAIN_TINT = arrayOf(
             floatArrayOf(0.42f, 0.47f, 0.56f),
             floatArrayOf(0.78f, 0.52f, 0.36f),
             floatArrayOf(0.93f, 0.95f, 1.0f),
-            floatArrayOf(0.24f, 0.4f, 0.3f)
+            floatArrayOf(0.24f, 0.4f, 0.3f),
+            floatArrayOf(0.36f, 0.5f, 0.42f),
+            floatArrayOf(0.34f, 0.34f, 0.36f),
+            floatArrayOf(0.5f, 0.54f, 0.6f)
         )
 
         private val KEYS = arrayOf(

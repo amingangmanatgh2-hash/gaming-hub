@@ -48,6 +48,42 @@ class Coin {
     var spin = 0f
 }
 
+/** AI car: a street-race rival or a police pursuit vehicle. */
+class Racer {
+    var active = false
+    var cop = false
+    var car = 0
+    var color = 0
+    var x = 0f
+    var s = 0f
+    var speed = 0f
+    var lane = 0
+    var yaw = 0f
+    var wheelAngle = 0f
+    var skill = 1f
+    var finished = false
+    var finishTime = 0f
+    var wrecked = false
+    var spin = 0f
+    var spinVel = 0f
+    var brakeLight = 0f
+    var bumpCd = 0f
+    var laneCd = 0f
+    var name = 0
+}
+
+/** Road-side or road-spanning landmark: tunnel, bridge, gas station, parking area, dealership. */
+class Zone {
+    var active = false
+    var type = 0
+    var s0 = 0f
+    var s1 = 0f
+    var side = 1
+    var seed = 0
+    /** free roam: region the world switches to inside this tunnel (-1 = none) */
+    var regionTo = -1
+}
+
 class SceneryItem {
     var category = 0
     var kind = 0
@@ -156,6 +192,46 @@ class World(private val input: InputState) {
     private var hornPrev = false
     var hornOn = false; private set
 
+    // ------------------------------------------------------------------------ v2: config, weather, modes
+    var cfg = RaceConfig(GameData.MODE_ENDLESS, GameData.ENV_CITY, GameData.TOD_DAY, GameData.W_CLEAR)
+        private set
+    var weather = GameData.W_CLEAR; private set
+    var rain = 0f; private set
+    var snowFall = 0f; private set
+    var wet = 0f; private set
+    var cloud = 0f; private set
+    var fogMul = 1f; private set
+    var lightning = 0f; private set
+    private var thunderT = -1f
+    private var nextFlashT = 4f
+    private var weatherTimer = 0f
+    var raceTime = 0f; private set
+    var position = 1; private set
+    var finishS = 0f; private set
+    var success = false; private set
+    var medal = 0; private set
+    var driftAngle = 0f; private set
+    var drifting = false; private set
+    var driftChain = 0f; private set
+    var driftMult = 1; private set
+    private var driftChainTime = 0f
+    private var driftEndTimer = 0f
+    var bust = 0f; private set
+    var escape = 0f; private set
+    var heat = 1; private set
+    var escapes = 0; private set
+    var takedowns = 0; private set
+    private var copWaveTimer = 0f
+    var sirenLevel = 0f; private set
+    var tunnelK = 0f; private set
+    private var nextZoneS = 0f
+    private var lastRegionS = 0f
+    private var regionIndex = 0
+    var regionSeq = 0; private set
+    val rivals = Array(MAX_RACERS) { Racer() }
+    val zones = Array(MAX_ZONES) { Zone() }
+    val driftEnabled: Boolean get() = mode == GameData.MODE_DRIFT || mode == GameData.MODE_FREE
+
     // ------------------------------------------------------------------------ scoring
     var score = 0.0; private set
     var distance = 0f; private set
@@ -197,6 +273,24 @@ class World(private val input: InputState) {
     @Volatile var hudNearPts = 0
     @Volatile var hudCheckSeq = 0
     @Volatile var hudNitroOn = false
+    @Volatile var hudPosition = 1
+    @Volatile var hudRacers = 0
+    @Volatile var hudToGo = 0f
+    @Volatile var hudRaceTime = 0f
+    @Volatile var hudDriftChain = 0
+    @Volatile var hudDriftMult = 1
+    @Volatile var hudDriftSeq = 0
+    @Volatile var hudDriftBank = 0
+    @Volatile var hudDriftLostSeq = 0
+    @Volatile var hudBust = 0f
+    @Volatile var hudEscape = 0f
+    @Volatile var hudHeat = 1
+    @Volatile var hudEscapes = 0
+    @Volatile var hudEventSeq = 0
+    @Volatile var hudEvent = 0
+    @Volatile var hudNear = 0
+    @Volatile var hudEnv = 0
+    @Volatile var hudWeather = 0
 
     private var rng = 0x2545F491L
 
@@ -222,6 +316,7 @@ class World(private val input: InputState) {
     }
 
     fun startAttract() {
+        cfg = RaceConfig(GameData.MODE_ENDLESS, GameData.ENV_CITY, GameData.TOD_SUNSET, GameData.W_CLEAR)
         mode = GameData.MODE_ENDLESS
         env = GameData.ENV_CITY
         todSetting = GameData.TOD_SUNSET
@@ -235,10 +330,14 @@ class World(private val input: InputState) {
         paused = false
     }
 
-    fun startRace(newMode: Int, newEnv: Int, newTod: Int) {
-        mode = newMode
-        env = newEnv
-        todSetting = newTod
+    fun startRace(newMode: Int, newEnv: Int, newTod: Int) =
+        startRace(GameData.defaultConfig(newMode, newEnv, newTod, GameData.W_CLEAR))
+
+    fun startRace(c: RaceConfig) {
+        cfg = c
+        mode = c.mode
+        env = c.env
+        todSetting = c.tod
         resetRun()
         state = STATE_COUNTDOWN
         countdown = 2.999f
@@ -246,7 +345,7 @@ class World(private val input: InputState) {
         audio?.trigger(AudioEngine.SFX_COUNT)
     }
 
-    fun restart() = startRace(mode, env, todSetting)
+    fun restart() = startRace(cfg)
 
     fun backToAttract() = startAttract()
 
@@ -270,6 +369,23 @@ class World(private val input: InputState) {
         for (c in coins) c.active = false
         nextCoinS = 120f
         particles.clear()
+        // weather starts settled (no fade-in at the start line)
+        weather = cfg.weather.coerceIn(0, 5)
+        rain = GameData.W_RAIN[weather]; snowFall = GameData.W_SNOWFALL[weather]; wet = GameData.W_WET[weather]
+        cloud = GameData.W_CLOUD[weather]; fogMul = GameData.W_FOGMUL[weather]
+        lightning = 0f; thunderT = -1f; nextFlashT = rand(3f, 8f); weatherTimer = rand(70f, 130f)
+        raceTime = 0f; position = 1; success = false; medal = 0; crashedReason = REASON_CRASH; copsOut = false
+        driftAngle = 0f; drifting = false; driftChain = 0f; driftMult = 1; driftChainTime = 0f; driftEndTimer = 0f
+        bust = 0f; escape = 0f; heat = 1; escapes = 0; takedowns = 0; copWaveTimer = 3.5f; sirenLevel = 0f
+        tunnelK = 0f
+        for (r in rivals) r.active = false
+        for (z in zones) z.active = false
+        nextZoneS = if (mode == GameData.MODE_FREE) 500f else 900f
+        lastRegionS = 0f
+        regionIndex = REGION_ORDER.indexOf(env).coerceAtLeast(0)
+        finishS = if ((mode == GameData.MODE_STREET || mode == GameData.MODE_TIME_TRIAL) && cfg.goal > 0f) cfg.goal else 0f
+        if (mode == GameData.MODE_DRIFT || mode == GameData.MODE_CHALLENGE) timeLeft = cfg.timeLimit
+        if (mode == GameData.MODE_STREET) spawnRivals()
         buildScenery()
         // initial traffic
         var s = 45f
@@ -304,7 +420,7 @@ class World(private val input: InputState) {
             for (i in 0 until n) {
                 val it = SceneryItem()
                 it.category = category; it.side = side; it.span = total
-                it.s = -30f + offset + i * spacing
+                it.s = ps - 30f + offset + i * spacing
                 it.seed = seed++
                 generate(it)
                 scenery.add(it)
@@ -314,8 +430,8 @@ class World(private val input: InputState) {
         row(CAT_RAIL, 20f, 1, 0f)
         row(CAT_LAMP, LAMP_SPACING, -1, LAMP_PHASE)
         row(CAT_LAMP, LAMP_SPACING, 1, LAMP_PHASE)
-        val near = if (env == GameData.ENV_CITY) 21f else 8.5f
-        val far = if (env == GameData.ENV_CITY) 30f else 13f
+        val near = when (env) { GameData.ENV_CITY -> 21f; GameData.ENV_INDUSTRIAL -> 26f; else -> 8.5f }
+        val far = when (env) { GameData.ENV_CITY -> 30f; GameData.ENV_INDUSTRIAL -> 24f; else -> 13f }
         row(CAT_NEAR, near, -1, 0f)
         row(CAT_NEAR, near, 1, near * 0.5f)
         row(CAT_FAR, far, -1, 3f)
@@ -418,6 +534,81 @@ class World(private val input: InputState) {
                     it.x = side * (edge + rand(26f, 75f))
                 }
             }
+            GameData.ENV_COAST -> {
+                val p = rand()
+                if (it.side == SEA_SIDE) {
+                    // beach strip, then open sea
+                    if (near && p < 0.55f) {
+                        it.kind = K_PALM; val s = rand(0.85f, 1.25f); it.sx = s; it.sy = s; it.sz = s
+                        it.x = side * (edge + rand(3f, 14f))
+                    } else if (near) {
+                        it.kind = K_ROCK; val s = rand(0.6f, 1.8f); it.sx = s; it.sy = s * 0.7f; it.sz = s
+                        it.r = 0.62f; it.g = 0.58f; it.b = 0.52f
+                        it.x = side * (edge + rand(4f, 18f))
+                    } else it.kind = K_NONE
+                } else if (near) {
+                    if (p < 0.5f) { it.kind = K_PALM; val s = rand(0.8f, 1.2f); it.sx = s; it.sy = s; it.sz = s; it.x = side * (edge + rand(3.5f, 9f)) }
+                    else { it.kind = K_BUSH; val s = rand(0.6f, 1.1f); it.sx = s; it.sy = s * 0.8f; it.sz = s; it.r = 0.42f; it.g = 0.55f; it.b = 0.3f; it.x = side * (edge + rand(3f, 12f)) }
+                } else {
+                    // white beach houses
+                    it.kind = K_BUILDING; it.yaw = 0f
+                    val w = rand(9f, 15f); val h = rand(5f, 13f)
+                    it.sx = w; it.sy = h; it.sz = rand(8f, 13f)
+                    it.x = side * (edge + rand(18f, 50f) + w / 2)
+                    val t = rand()
+                    if (t < 0.6f) { it.r = 0.95f; it.g = 0.94f; it.b = 0.9f } else if (t < 0.8f) { it.r = 0.62f; it.g = 0.78f; it.b = 0.86f } else { it.r = 0.95f; it.g = 0.82f; it.b = 0.62f }
+                }
+            }
+            GameData.ENV_INDUSTRIAL -> {
+                val p = rand()
+                it.yaw = 0f
+                if (near) {
+                    if (p < 0.7f) {
+                        it.kind = K_WAREHOUSE
+                        val w = rand(14f, 22f); it.sx = w; it.sy = rand(7f, 11f); it.sz = rand(16f, 22f)
+                        it.x = side * (edge + rand(7f, 11f) + w / 2)
+                        it.yaw = if (it.side < 0) 0f else Math.PI.toFloat()
+                        val t = rand()
+                        if (t < 0.35f) { it.r = 0.55f; it.g = 0.6f; it.b = 0.66f } else if (t < 0.6f) { it.r = 0.72f; it.g = 0.42f; it.b = 0.3f } else if (t < 0.8f) { it.r = 0.82f; it.g = 0.82f; it.b = 0.78f } else { it.r = 0.36f; it.g = 0.48f; it.b = 0.4f }
+                    } else {
+                        it.kind = K_TANK
+                        val r = rand(3f, 5.5f); it.sx = r; it.sz = r; it.sy = rand(5f, 9f)
+                        it.x = side * (edge + rand(8f, 14f) + r)
+                    }
+                } else {
+                    when {
+                        p < 0.3f -> { it.kind = K_CHIMNEY; val s = rand(0.8f, 1.4f); it.sx = s; it.sy = s; it.sz = s; it.x = side * (edge + rand(40f, 90f)) }
+                        p < 0.75f -> {
+                            it.kind = K_WAREHOUSE
+                            val w = rand(24f, 40f); it.sx = w; it.sy = rand(10f, 18f); it.sz = rand(20f, 30f)
+                            it.x = side * (edge + rand(36f, 70f) + w / 2)
+                            it.r = 0.6f; it.g = 0.62f; it.b = 0.64f
+                        }
+                        else -> { it.kind = K_TANK; val r = rand(6f, 9f); it.sx = r; it.sz = r; it.sy = rand(8f, 14f); it.x = side * (edge + rand(36f, 80f)) }
+                    }
+                }
+            }
+            GameData.ENV_MOUNTAIN -> {
+                val p = rand()
+                if (near) {
+                    when {
+                        p < 0.55f -> { it.kind = K_PINE; val s = rand(0.9f, 1.7f); it.sx = s; it.sy = s * rand(1f, 1.35f); it.sz = s }
+                        p < 0.85f -> { it.kind = K_ROCK; val s = rand(1f, 3.2f); it.sx = s; it.sy = s * rand(0.7f, 1.4f); it.sz = s; it.r = 0.56f; it.g = 0.56f; it.b = 0.58f }
+                        else -> { it.kind = K_SNOWPINE; val s = rand(0.9f, 1.5f); it.sx = s; it.sy = s; it.sz = s }
+                    }
+                    it.x = side * (edge + rand(3.5f, 22f))
+                } else {
+                    if (p < 0.55f) {
+                        // cliff faces
+                        it.kind = K_ROCK; val s = rand(7f, 16f); it.sx = s; it.sy = s * rand(1.1f, 2.0f); it.sz = s
+                        it.r = 0.5f; it.g = 0.5f; it.b = 0.53f
+                        it.x = side * (edge + rand(26f, 70f))
+                    } else {
+                        it.kind = K_PINE; val s = rand(1.5f, 2.6f); it.sx = s; it.sy = s; it.sz = s
+                        it.x = side * (edge + rand(24f, 80f))
+                    }
+                }
+            }
             else -> {
                 val p = rand()
                 if (near) {
@@ -513,7 +704,14 @@ class World(private val input: InputState) {
     }
 
     private fun trafficTarget(): Int {
-        val base = if (state == STATE_ATTRACT) 14 else 13
+        val base = when {
+            state == STATE_ATTRACT -> 14
+            mode == GameData.MODE_DRIFT -> 6
+            mode == GameData.MODE_CHALLENGE -> 20
+            mode == GameData.MODE_FREE -> 10
+            mode == GameData.MODE_STREET || mode == GameData.MODE_POLICE -> 12
+            else -> 13
+        }
         return min(MAX_TRAFFIC - 4, base + (distance / 450f).toInt())
     }
 
@@ -731,6 +929,7 @@ class World(private val input: InputState) {
         }
         shake = max(0f, shake - rawDt * 1.6f)
         nearMissFlash = max(0f, nearMissFlash - rawDt * 2f)
+        if (state != STATE_SHOWROOM) updateWeather(rawDt)
 
         when (state) {
             STATE_SHOWROOM -> {
@@ -797,8 +996,11 @@ class World(private val input: InputState) {
         val maxV = baseMax * (if (nitroActive) GameData.nitroPower(spec, lvlNitro) else 1f)
         if (crashed) {
             speed = max(0f, speed - 16f * dt)
+        } else if (brake && driftEnabled && abs(steerIn) > 0.25f && speed > 10f) {
+            // handbrake turn: rear wheels lock, the car slides and bleeds speed slowly (gas holds it)
+            speed = max(0f, speed - (if (gas) 0.6f else 2.6f) * dt)
         } else if (brake) {
-            speed = max(0f, speed - GameData.brake(spec, lvlBrakes) * dt)
+            speed = max(0f, speed - GameData.brake(spec, lvlBrakes) * min(1f, 0.35f + 0.65f * surfaceGrip()) * dt)
         } else if (gas || nitroActive) {
             val f = 1f - (speed / maxV) * (speed / maxV)
             val acc = spec.accel * (if (nitroActive) 2.0f else 1f)
@@ -814,7 +1016,16 @@ class World(private val input: InputState) {
         val handling = GameData.handling(spec, lvlHandling)
         val speedFactor = (0.35f + speed / 22f).coerceAtMost(1f)
         val targetVx = steerSmooth * handling * speedFactor
-        val grip = GameData.envs[env].grip
+        if (driftEnabled && !crashed) {
+            if (brake && abs(steerIn) > 0.25f && speed > 13f) drifting = true
+            else if (drifting && (abs(steerIn) < 0.1f || speed < 9f)) drifting = false
+            val target = if (drifting) steerSmooth * 0.62f * spec.drift.coerceIn(0.6f, 1.5f) else 0f
+            driftAngle += (target - driftAngle) * min(1f, (if (drifting) 2.6f else 3.4f) * dt)
+        } else {
+            drifting = false
+            driftAngle *= 1f - min(1f, 5f * dt)
+        }
+        val grip = surfaceGrip() * (1f - min(0.55f, abs(driftAngle) * 0.9f))
         vx += (targetVx - vx) * min(1f, grip * 6.5f * dt)
         if (crashed) vx *= 1f - min(1f, 1.8f * dt)
         px += vx * dt
@@ -844,7 +1055,7 @@ class World(private val input: InputState) {
         if (state == STATE_RACING) distance += step
 
         // ---------------- visual dynamics
-        yaw = if (crashed) crashSpin else -atan2(vx, max(speed, 3f))
+        yaw = if (crashed) crashSpin else -atan2(vx, max(speed, 3f)) - driftAngle
         if (crashed) {
             crashSpin += crashSpinVel * dt
             crashSpinVel *= 1f - min(1f, 1.2f * dt)
@@ -855,6 +1066,7 @@ class World(private val input: InputState) {
         var sk = 0f
         if (braking && speed > 12f) sk = ((-lonAcc - 5f) / 9f).coerceIn(0f, 1f) * min(1f, speed / 30f)
         sk = max(sk, ((abs(latAcc) - 8f) / 12f).coerceIn(0f, 1f) * min(1f, speed / 25f))
+        sk = max(sk, (abs(driftAngle) / 0.42f).coerceIn(0f, 1f) * min(1f, speed / 14f))
         if (crashed && speed > 4f) sk = 0.9f
         skid += (sk - skid) * min(1f, 10f * dt)
         brakeHeat = (brakeHeat + (if (braking && speed > 15f) dt * speed / 90f else -dt * 0.18f)).coerceIn(0f, 1f)
@@ -875,14 +1087,17 @@ class World(private val input: InputState) {
                 }
             }
         } else skidLastS = ps
-        val rollTarget = (latAcc * 0.011f).coerceIn(-0.085f, 0.085f) + (vx * 0.004f)
-        rollVel += ((rollTarget - roll) * 70f - rollVel * 9f) * dt
+        // weight transfer: heavier / taller cars roll and pitch more on softer springs
+        val massK = spec.massKg / 1500f
+        val springK = 70f / massK.coerceIn(0.8f, 1.6f)
+        val rollTarget = (latAcc * 0.011f * (0.7f + 0.3f * massK)).coerceIn(-0.1f, 0.1f) + (vx * 0.004f)
+        rollVel += ((rollTarget - roll) * springK - rollVel * 9f) * dt
         roll += rollVel * dt
-        val pitchTarget = (lonAcc * 0.0055f).coerceIn(-0.05f, 0.04f)
-        pitchVel += ((pitchTarget - pitch) * 60f - pitchVel * 8f) * dt
+        val pitchTarget = (lonAcc * 0.0055f * (0.75f + 0.25f * massK)).coerceIn(-0.06f, 0.05f)
+        pitchVel += ((pitchTarget - pitch) * springK * 0.86f - pitchVel * 8f) * dt
         pitch += pitchVel * dt
         if (speed > 3f && rand() < dt * (1.5f + speed * 0.05f)) suspVel += rand(-0.06f, 0.06f) * min(1f, speed / 30f)
-        suspVel += (-suspY * 140f - suspVel * 9f) * dt
+        suspVel += (-suspY * springK * 2f - suspVel * 9f) * dt
         suspY += suspVel * dt
         wheelAngle -= speed / spec.wheelRadius * dt
         steerAngle = (steerSmooth * 0.42f * (1f - min(0.6f, speed / 90f)))
@@ -895,13 +1110,17 @@ class World(private val input: InputState) {
 
         // ---------------- world systems
         updateTraffic(dt, hornPressed)
+        updateRacers(dt)
+        updateZones(dt)
         updateCoins(dt)
         updateScenery()
         particles.update(dt)
 
         if (state == STATE_RACING) {
+            raceTime += dt
             checkCollisions()
-            scoring(dt, step)
+            if (state == STATE_RACING) scoring(dt, step)
+            if (state == STATE_RACING) modeLogic(dt)
         }
         if (state == STATE_ATTRACT) {
             // the demo car never ends: if anything goes wrong, just clear the area
@@ -910,7 +1129,11 @@ class World(private val input: InputState) {
         if (state == STATE_CRASHED) {
             crashTimer += rawDt
             if (crashTimer > 0.9f) timeScale = min(1f, timeScale + rawDt * 0.8f)
-            if (crashTimer > 2.3f) {
+            if (mode == GameData.MODE_FREE && crashTimer > 2.0f) {
+                respawn()
+            } else if (crashTimer > 2.3f) {
+                if (driftChain > 0f) { driftChain = 0f }
+                evaluateResult(false)
                 state = STATE_OVER
                 timeScale = 1f
                 listener?.onGameOver()
@@ -922,6 +1145,578 @@ class World(private val input: InputState) {
 
         updateEngineAudio(if (gas || nitroActive) 1f else 0.15f)
         publish()
+    }
+
+    // ======================================================================== weather
+    /** Weather eases towards its target (≈12 s); free roam picks new weather every 1–2 minutes. */
+    private fun updateWeather(dt: Float) {
+        if (mode == GameData.MODE_FREE && state != STATE_ATTRACT) {
+            weatherTimer -= dt
+            if (weatherTimer <= 0f) {
+                weatherTimer = rand(70f, 140f)
+                val p = rand()
+                var w = when {
+                    p < 0.38f -> GameData.W_CLEAR
+                    p < 0.54f -> GameData.W_LIGHT_RAIN
+                    p < 0.64f -> GameData.W_HEAVY_RAIN
+                    p < 0.76f -> GameData.W_FOG
+                    p < 0.86f -> GameData.W_STORM
+                    else -> GameData.W_SNOW
+                }
+                if (env == GameData.ENV_DESERT && w != GameData.W_FOG) w = GameData.W_CLEAR
+                if (w == GameData.W_SNOW && env != GameData.ENV_SNOW && env != GameData.ENV_MOUNTAIN) w = GameData.W_LIGHT_RAIN
+                weather = w
+            }
+        }
+        val w = weather
+        val k = min(1f, dt * 0.085f)
+        rain += (GameData.W_RAIN[w] - rain) * k
+        snowFall += (GameData.W_SNOWFALL[w] - snowFall) * k
+        cloud += (GameData.W_CLOUD[w] - cloud) * k
+        fogMul += (GameData.W_FOGMUL[w] - fogMul) * k
+        val wt = GameData.W_WET[w]
+        wet += (wt - wet) * (if (wt > wet) k * 1.6f else k * 0.25f)
+        lightning = max(0f, lightning - dt * 3.2f)
+        if (w == GameData.W_STORM && cloud > 0.7f && state != STATE_SHOWROOM) {
+            nextFlashT -= dt
+            if (nextFlashT <= 0f) {
+                lightning = 1f
+                nextFlashT = rand(5f, 13f)
+                thunderT = rand(0.35f, 1.8f)
+            }
+        }
+        if (thunderT > 0f) {
+            thunderT -= dt
+            if (thunderT <= 0f) {
+                audio?.trigger(AudioEngine.SFX_THUNDER)
+                shake = max(shake, 0.12f)
+            }
+        }
+        audio?.let {
+            it.rainLevel = rain * (1f - tunnelK)
+            it.sirenLevel = sirenLevel
+            it.tunnelLevel = tunnelK
+        }
+    }
+
+    /** Grip multiplier from the weather: wet asphalt and fresh snow reduce tyre grip. */
+    fun weatherGrip(): Float = 1f - 0.2f * wet - 0.22f * snowFall
+
+    // ======================================================================== AI racers (rivals / police)
+    private var gapSpeed = 0f
+
+    /** Free distance ahead of (x, s) in that lane, considering traffic, other racers and the player. */
+    private fun laneGap(x: Float, s: Float, self: Racer): Float {
+        var best = 1e9f
+        gapSpeed = 0f
+        for (t in traffic) {
+            if (!t.active) continue
+            if (abs(t.x - x) > 2.2f) continue
+            val d = t.s - s - t.length * 0.5f - 2.4f
+            if (d < -3f) continue
+            val eff = if (t.dir < 0) d * 0.5f else d
+            if (eff < best) { best = eff; gapSpeed = if (t.dir < 0 || t.crashed) 0f else t.speed }
+        }
+        for (o in rivals) {
+            if (!o.active || o === self || o.wrecked) continue
+            if (abs(o.x - x) > 2.0f) continue
+            val d = o.s - s - 4.8f
+            if (d > -2f && d < best) { best = d; gapSpeed = o.speed }
+        }
+        if (!self.cop && abs(px - x) < 2.0f) {
+            val d = ps - s - 4.8f
+            if (d > -2f && d < best) { best = d; gapSpeed = speed }
+        }
+        return max(best, 0f)
+    }
+
+    private fun laneClearFor(l: Int, r: Racer): Boolean {
+        val lx = GameData.LANE_X[l]
+        for (t in traffic) {
+            if (!t.active) continue
+            if (abs(t.x - lx) < 2.4f && abs(t.s - r.s) < t.length * 0.5f + 4.6f) return false
+        }
+        for (o in rivals) {
+            if (!o.active || o === r) continue
+            if (abs(o.x - lx) < 2.2f && abs(o.s - r.s) < 6f) return false
+        }
+        if (!r.cop && abs(px - lx) < 2.2f && abs(ps - r.s) < 6.5f) return false
+        return true
+    }
+
+    private fun spawnRivals() {
+        val n = cfg.rivals.coerceIn(0, MAX_RACERS - 1)
+        val lanes = intArrayOf(3, 1, 0)
+        val offs = floatArrayOf(0f, -8f, -8f)
+        for (i in 0 until n) {
+            val r = rivals[i]
+            r.active = true; r.cop = false
+            r.car = if (i == 0 && cfg.rivalCar >= 0) cfg.rivalCar else RIVAL_CARS[(rand() * RIVAL_CARS.size).toInt().coerceIn(0, RIVAL_CARS.size - 1)]
+            val pal = GameData.PAINT_PALETTE
+            r.color = pal[(rand() * pal.size).toInt().coerceIn(0, pal.size - 1)]
+            r.lane = lanes[i]; r.x = GameData.LANE_X[r.lane]; r.s = offs[i]; r.speed = 0f
+            r.skill = cfg.rivalSkill * (if (i == 0) 1f else 0.95f - 0.025f * i)
+            r.finished = false; r.finishTime = 0f; r.wrecked = false; r.spin = 0f; r.spinVel = 0f
+            r.yaw = 0f; r.bumpCd = 0f; r.laneCd = 1.5f; r.brakeLight = 0f; r.name = i
+        }
+    }
+
+    private var copsOut = false
+
+    private fun spawnCops(n: Int) {
+        var k = 0
+        for (r in rivals) {
+            if (k >= n) break
+            if (r.active) continue
+            r.active = true; r.cop = true; r.car = GameData.CAR_POLICE; r.color = 0xFF14161C.toInt()
+            r.lane = (rand() * 4).toInt().coerceIn(0, 3); r.x = GameData.LANE_X[r.lane]
+            r.s = ps - 110f - k * 20f; r.speed = max(speed * 1.05f, 25f)
+            r.skill = 1f; r.wrecked = false; r.spin = 0f; r.spinVel = 0f; r.yaw = 0f
+            r.bumpCd = 0f; r.laneCd = 0.6f; r.finished = false; r.brakeLight = 0f
+            k++
+        }
+        copsOut = k > 0
+        hudEvent = EV_WAVE; hudEventSeq++
+    }
+
+    private fun updateRacers(dt: Float) {
+        if (state != STATE_RACING && state != STATE_CRASHED) {
+            sirenLevel = max(0f, sirenLevel - dt * 0.8f)
+            return
+        }
+        val pspec = carSpec
+        val playerTop = GameData.topSpeedKmh(pspec, lvlSpeed) / 3.6f
+        var nearestCop = 1e9f
+        for (r in rivals) {
+            if (!r.active) continue
+            val rs = GameData.cars[r.car]
+            r.bumpCd -= dt; r.laneCd -= dt
+            if (r.wrecked) {
+                r.speed = max(0f, r.speed - 14f * dt)
+                r.s += r.speed * dt
+                r.spin += r.spinVel * dt
+                r.spinVel *= 1f - min(1f, 1.4f * dt)
+                r.yaw = r.spin
+                r.brakeLight = 1f
+                r.wheelAngle -= r.speed / rs.wheelRadius * dt
+                if (r.s < ps - 140f) r.active = false
+                continue
+            }
+            val ds = r.s - ps
+            var maxV: Float
+            if (r.cop) {
+                maxV = playerTop * (0.95f + 0.035f * heat)
+                if (ds < -90f) maxV *= 1.14f
+                if (ds > 30f) maxV *= 0.85f
+            } else {
+                maxV = (GameData.topSpeedKmh(rs, 2) / 3.6f * 0.5f + playerTop * 0.5f) * r.skill
+                if (ds < -70f) maxV *= 1.07f else if (ds > 90f) maxV *= 0.95f
+            }
+            val look = 18f + r.speed * 1.2f
+            var gap = laneGap(r.x, r.s, r)
+            var obsSpeed = gapSpeed
+            if (r.laneCd <= 0f && gap < look) {
+                var bestLane = r.lane
+                var bestGap = gap
+                for (d in intArrayOf_m1_p1) {
+                    val l = r.lane + d
+                    if (l < 0 || l > 3 || laneDir(l) < 0) continue
+                    if (!laneClearFor(l, r)) continue
+                    val g = laneGap(GameData.LANE_X[l], r.s, r)
+                    if (g > bestGap + 8f) { bestGap = g; bestLane = l }
+                }
+                if (bestLane != r.lane) {
+                    r.lane = bestLane; r.laneCd = 1.1f
+                    gap = laneGap(GameData.LANE_X[bestLane], r.s, r); obsSpeed = gapSpeed
+                } else r.laneCd = 0.4f
+            }
+            if (r.cop && r.laneCd <= 0f && abs(ds) < 45f && rand() < dt * 1.3f) {
+                // pursuit: line up with the suspect to ram or box in
+                var pl = 0
+                var bd = 99f
+                for (l in 0 until 4) { val dd = abs(px - GameData.LANE_X[l]); if (dd < bd) { bd = dd; pl = l } }
+                if (pl != r.lane && laneDir(pl) > 0) {
+                    val stepL = if (pl > r.lane) r.lane + 1 else r.lane - 1
+                    if (laneClearFor(stepL, r)) { r.lane = stepL; r.laneCd = 1.3f }
+                }
+            }
+            var desired = maxV
+            val safe = 8f + r.speed * (if (r.cop && abs(ds) < 40f) 0.35f else 0.6f)
+            if (gap < safe) desired = min(desired, max(0f, obsSpeed) + gap * 0.25f)
+            val ratio = r.speed / max(maxV, 1f)
+            val f = 1f - ratio * ratio
+            if (desired > r.speed) r.speed += rs.accel * min(r.skill, 1.15f) * max(f, 0.1f) * dt * (if (r.cop) 1.15f else 1f)
+            else r.speed = max(desired, r.speed - 11f * dt)
+            r.brakeLight += ((if (desired < r.speed - 0.5f) 1f else 0f) - r.brakeLight) * min(1f, 10f * dt)
+            val tx = GameData.LANE_X[r.lane]
+            val vxr = ((tx - r.x) * 2.2f).coerceIn(-4.2f, 4.2f)
+            r.x += vxr * dt
+            r.yaw = -atan2(vxr, max(r.speed, 3f))
+            r.s += r.speed * dt
+            r.wheelAngle -= r.speed / rs.wheelRadius * dt
+            // contact with traffic: police units wreck (takedown), rivals lose speed
+            if (r.bumpCd <= 0f) for (t in traffic) {
+                if (!t.active || t.crashed) continue
+                if (abs(t.x - r.x) < (rs.width + t.width) * 0.5f - 0.15f && abs(t.s - r.s) < (rs.length + t.length) * 0.5f - 0.1f) {
+                    if (r.cop) wreckCop(r, t)
+                    else {
+                        r.speed *= 0.45f
+                        r.bumpCd = 1f
+                        t.speed += 2f
+                    }
+                    break
+                }
+            }
+            if (state == STATE_RACING && r.bumpCd <= 0f &&
+                abs(px - r.x) < (pspec.width + rs.width) * 0.5f - 0.05f && abs(ps - r.s) < (pspec.length + rs.length) * 0.5f) {
+                bumpRacer(r)
+            }
+            if (!r.cop && finishS > 0f && !r.finished && r.s >= finishS) { r.finished = true; r.finishTime = raceTime }
+            if (r.cop) {
+                nearestCop = min(nearestCop, abs(ds))
+                if (ds < -320f) r.active = false
+            } else if (finishS == 0f && ds < -400f) r.active = false
+        }
+        sirenLevel = if (nearestCop < 1e8f) (1f - nearestCop / 180f).coerceIn(0f, 1f) else 0f
+    }
+
+    private fun bumpRacer(r: Racer) {
+        val rs = GameData.cars[r.car]
+        val side = if (px >= r.x) 1f else -1f
+        val lateral = abs(px - r.x) > (carSpec.width + rs.width) * 0.33f
+        when {
+            lateral -> { vx += side * 4f; r.x -= side * 0.35f }
+            r.s < ps -> { speed = max(speed, r.speed * 0.98f); r.speed *= 0.85f }
+            else -> { speed *= 0.85f; r.speed = max(r.speed, speed) }
+        }
+        r.bumpCd = 0.6f
+        shake = max(shake, 0.35f)
+        val cx = (px + r.x) * 0.5f
+        val cz = -(ps + r.s) * 0.5f
+        for (k in 0 until 14) {
+            particles.spawn(cx, rand(0.3f, 0.8f), cz, rand(-5f, 5f), rand(1f, 4f), rand(-5f, 5f) - speed * 0.7f,
+                rand(0.25f, 0.5f), 0.08f, 0.02f, 1f, 0.8f, 0.3f, 1f, true, -9f, 0.5f, 1f, 0.4f, 0.05f)
+        }
+        audio?.trigger(AudioEngine.SFX_HIT)
+        if (r.cop) bust = min(1f, bust + 0.12f)
+    }
+
+    private fun wreckCop(r: Racer, t: TrafficCar) {
+        r.wrecked = true
+        val side = if (r.x >= t.x) 1f else -1f
+        r.spinVel = side * rand(2.5f, 4f)
+        r.spin = r.yaw
+        r.speed *= 0.4f
+        t.crashed = true
+        t.spinVel = -side * rand(1.2f, 2.5f)
+        t.crashVx = -side * rand(1.5f, 3f)
+        takedowns++
+        score += 500.0 * heat
+        hudEvent = EV_TAKEDOWN; hudEventSeq++
+        audio?.trigger(AudioEngine.SFX_CRASH)
+        val cx = (r.x + t.x) * 0.5f
+        val cz = -(r.s + t.s) * 0.5f
+        for (k in 0 until 30) {
+            particles.spawn(cx, rand(0.3f, 1.2f), cz, rand(-7f, 7f), rand(1f, 7f), rand(-7f, 7f),
+                rand(0.35f, 0.8f), 0.1f, 0.02f, 1f, 0.85f, 0.4f, 1f, true, -12f, 0.6f, 1f, 0.35f, 0.05f)
+        }
+        for (k in 0 until 10) {
+            particles.spawn(cx + rand(-1f, 1f), rand(0.4f, 1.2f), cz + rand(-1f, 1f), rand(-1f, 1f), rand(0.8f, 2f), rand(-1f, 1f),
+                rand(1.5f, 2.5f), 0.8f, 3.6f, 0.3f, 0.3f, 0.32f, 0.6f, false, 0.2f, 0.5f)
+        }
+    }
+
+    // ======================================================================== mode objectives
+    private fun medalFor(v: Float): Int = when {
+        cfg.gold > 0f && v >= cfg.gold -> 3
+        cfg.silver > 0f && v >= cfg.silver -> 2
+        cfg.bronze > 0f && v >= cfg.bronze -> 1
+        else -> 0
+    }
+
+    private fun finishRace(reason: Int) {
+        crashedReason = reason
+        state = STATE_OVER
+        timeScale = 1f
+        listener?.onGameOver()
+    }
+
+    /** Result of a run that ended by crashing (or being busted). */
+    private fun evaluateResult(@Suppress("UNUSED_PARAMETER") finished: Boolean) {
+        when (mode) {
+            GameData.MODE_DRIFT -> { medal = medalFor(score.toFloat()); success = medal > 0 }
+            GameData.MODE_CHALLENGE -> { medal = medalFor(nearMisses.toFloat()); success = medal > 0 }
+            GameData.MODE_POLICE -> success = cfg.goal > 0f && escapes >= cfg.goal.toInt()
+            GameData.MODE_ENDLESS, GameData.MODE_TWO_WAY, GameData.MODE_TIME_ATTACK -> success = cfg.goal > 0f && score >= cfg.goal
+            else -> success = false
+        }
+    }
+
+    private fun modeLogic(dt: Float) {
+        when (mode) {
+            GameData.MODE_STREET -> {
+                var ahead = 0
+                for (r in rivals) if (r.active && !r.cop && (r.finished || r.s > ps)) ahead++
+                position = 1 + ahead
+                if (finishS > 0f && ps >= finishS) {
+                    success = true
+                    medal = when (position) { 1 -> 3; 2 -> 2; 3 -> 1; else -> 0 }
+                    score = (5 - position) * 1000.0 + nearMisses * 50.0
+                    finishRace(REASON_FINISH)
+                }
+            }
+            GameData.MODE_TIME_TRIAL -> {
+                if (finishS > 0f && ps >= finishS) {
+                    success = true
+                    medal = when {
+                        raceTime <= cfg.gold -> 3
+                        raceTime <= cfg.silver -> 2
+                        raceTime <= cfg.bronze -> 1
+                        else -> 0
+                    }
+                    // leaderboard value: average speed (km/h × 10)
+                    score = (cfg.goal / max(raceTime, 1f) * 36f).toDouble()
+                    finishRace(REASON_FINISH)
+                }
+            }
+            GameData.MODE_DRIFT -> {
+                driftScoring(dt)
+                timeLeft -= dt
+                if (timeLeft <= 0f) {
+                    timeLeft = 0f
+                    bankDrift()
+                    medal = medalFor(score.toFloat()); success = medal > 0
+                    finishRace(REASON_TIME)
+                }
+            }
+            GameData.MODE_CHALLENGE -> {
+                timeLeft -= dt
+                if (cfg.gold > 0f && nearMisses >= cfg.gold) {
+                    medal = 3; success = true
+                    finishRace(REASON_FINISH)
+                } else if (timeLeft <= 0f) {
+                    timeLeft = 0f
+                    medal = medalFor(nearMisses.toFloat()); success = medal > 0
+                    finishRace(REASON_TIME)
+                }
+            }
+            GameData.MODE_POLICE -> policeLogic(dt)
+            GameData.MODE_ENDLESS, GameData.MODE_TWO_WAY, GameData.MODE_TIME_ATTACK -> {
+                // story missions: reach the target score
+                if (cfg.missionId >= 0 && cfg.goal > 0f && score >= cfg.goal) {
+                    success = true
+                    hudEvent = EV_GOAL; hudEventSeq++
+                    finishRace(REASON_FINISH)
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun driftScoring(dt: Float) {
+        val ang = abs(driftAngle)
+        if (ang > 0.14f && speed > 11f) {
+            driftChainTime += dt
+            driftMult = min(5, 1 + (driftChainTime / 2.2f).toInt())
+            driftChain += Math.toDegrees(ang.toDouble()).toFloat() * speedKmh * dt * 0.05f * driftMult
+            driftEndTimer = 0f
+        } else if (driftChain > 0f) {
+            driftEndTimer += dt
+            if (driftEndTimer > 0.7f) bankDrift()
+        }
+        if (scraping > 0.5f && driftChain > 0f) {
+            driftChain = 0f; driftChainTime = 0f; driftMult = 1
+            hudDriftLostSeq++
+        }
+    }
+
+    private fun bankDrift() {
+        if (driftChain >= 1f) {
+            score += driftChain
+            hudDriftBank = driftChain.toInt()
+            hudDriftSeq++
+            audio?.trigger(AudioEngine.SFX_NEAR)
+        }
+        driftChain = 0f; driftChainTime = 0f; driftMult = 1
+    }
+
+    private fun policeLogic(dt: Float) {
+        if (!copsOut) {
+            copWaveTimer -= dt
+            if (copWaveTimer <= 0f) spawnCops(min(MAX_RACERS, heat + 1))
+            bust = max(0f, bust - dt * 0.3f)
+            return
+        }
+        var active = 0
+        var close = 0
+        var allFar = true
+        var ahead = false
+        var behind = false
+        for (r in rivals) {
+            if (!r.active || !r.cop || r.wrecked) continue
+            active++
+            val ds = r.s - ps
+            if (ds > -150f) allFar = false
+            if (abs(ds) < 11f && abs(r.x - px) < 4.2f) close++
+            if (ds > 2f && ds < 12f && abs(r.x - px) < 2.6f) ahead = true
+            if (ds < -2f && ds > -12f && abs(r.x - px) < 2.6f) behind = true
+        }
+        if (active == 0) escape = 1f
+        else if (allFar) escape += dt / 5f
+        else escape = max(0f, escape - dt * 0.6f)
+        val slow = speedKmh < 70f
+        when {
+            close > 0 && slow -> bust += dt * 0.42f * close
+            ahead && behind -> bust += dt * 0.3f
+            close == 0 -> bust -= dt * 0.18f
+        }
+        bust = bust.coerceIn(0f, 1f)
+        if (escape >= 1f) {
+            escapes++
+            escape = 0f
+            score += 1500.0 * heat
+            heat = min(5, heat + 1)
+            for (r in rivals) if (r.cop) r.active = false
+            copsOut = false
+            copWaveTimer = 9f
+            bust = 0f
+            hudEvent = EV_ESCAPE; hudEventSeq++
+            audio?.trigger(AudioEngine.SFX_CHECKPOINT)
+            if (cfg.goal > 0f && escapes >= cfg.goal.toInt()) {
+                success = true
+                finishRace(REASON_FINISH)
+            }
+            return
+        }
+        if (bust >= 1f) {
+            success = false
+            finishRace(REASON_BUSTED)
+        }
+    }
+
+    /** Free roam: no game over — the car is put back on the road after a crash. */
+    private fun respawn() {
+        state = STATE_RACING
+        timeScale = 1f; crashTimer = 0f
+        crashSpin = 0f; crashSpinVel = 0f; vx = 0f; yaw = 0f; driftAngle = 0f; drifting = false
+        var best = 0
+        var bd = 99f
+        for (l in 0 until 4) { val d = abs(px - GameData.LANE_X[l]); if (d < bd) { bd = d; best = l } }
+        px = GameData.LANE_X[best]
+        for (t in traffic) if (t.active && t.s > ps - 25f && t.s < ps + 70f) t.active = false
+        speed = 8f
+        shake = 0f
+        combo = 0
+    }
+
+    /** Free roam: the player ends the drive from the pause menu. */
+    fun endFreeRoam() {
+        if (state == STATE_RACING || state == STATE_CRASHED || state == STATE_COUNTDOWN) {
+            success = true
+            paused = false
+            finishRace(REASON_FINISH)
+        }
+    }
+
+    /** Free roam: swap the car without leaving the road. */
+    fun swapCar(id: Int, color: Int, speedLvl: Int, handlingLvl: Int, brakeLvl: Int, nitroLvl: Int) {
+        configureCar(id, color, speedLvl, handlingLvl, brakeLvl, nitroLvl)
+        speed = min(speed, GameData.topSpeedKmh(carSpec, speedLvl) / 3.6f)
+        for (k in 0 until 24) {
+            particles.spawn(px + rand(-1.2f, 1.2f), rand(0.2f, 1.4f), -ps + rand(-2f, 2f), rand(-1f, 1f), rand(0.5f, 2f), rand(-1f, 1f) - speed * 0.5f,
+                rand(0.5f, 0.9f), 0.3f, 0.05f, 0.4f, 0.9f, 1f, 0.9f, true, 0f, 0.5f)
+        }
+    }
+
+    // ======================================================================== landmarks / regions
+    private fun pickZoneType(): Int {
+        val p = rand()
+        return when (env) {
+            GameData.ENV_CITY -> when { p < 0.28f -> ZONE_TUNNEL; p < 0.48f -> ZONE_GAS; p < 0.66f -> ZONE_PARKING; p < 0.86f -> ZONE_DEALER; else -> ZONE_BRIDGE }
+            GameData.ENV_DESERT -> when { p < 0.45f -> ZONE_GAS; p < 0.7f -> ZONE_BRIDGE; else -> ZONE_TUNNEL }
+            GameData.ENV_SNOW, GameData.ENV_MOUNTAIN -> when { p < 0.55f -> ZONE_TUNNEL; p < 0.78f -> ZONE_BRIDGE; else -> ZONE_GAS }
+            GameData.ENV_FOREST -> when { p < 0.35f -> ZONE_BRIDGE; p < 0.6f -> ZONE_TUNNEL; p < 0.85f -> ZONE_GAS; else -> ZONE_PARKING }
+            GameData.ENV_COAST -> when { p < 0.45f -> ZONE_BRIDGE; p < 0.65f -> ZONE_GAS; p < 0.82f -> ZONE_PARKING; else -> ZONE_TUNNEL }
+            else -> when { p < 0.35f -> ZONE_PARKING; p < 0.6f -> ZONE_GAS; p < 0.8f -> ZONE_BRIDGE; else -> ZONE_TUNNEL }
+        }
+    }
+
+    private fun updateZones(dt: Float) {
+        while (ps + 900f > nextZoneS) {
+            var slot: Zone? = null
+            for (z in zones) if (!z.active) { slot = z; break }
+            val z = slot ?: break
+            z.active = true
+            z.seed = (rand() * 100000f).toInt()
+            z.regionTo = -1
+            z.side = if (rand() < 0.5f) -1 else 1
+            val regionDue = mode == GameData.MODE_FREE && nextZoneS - lastRegionS > REGION_LENGTH
+            z.type = if (regionDue) ZONE_TUNNEL else pickZoneType()
+            val len = when (z.type) {
+                ZONE_TUNNEL -> rand(240f, 380f)
+                ZONE_BRIDGE -> rand(180f, 300f)
+                else -> 70f
+            }
+            z.s0 = nextZoneS; z.s1 = nextZoneS + len
+            if (regionDue) {
+                regionIndex = (regionIndex + 1) % REGION_ORDER.size
+                z.regionTo = REGION_ORDER[regionIndex]
+                lastRegionS = z.s1
+            }
+            nextZoneS = z.s1 + rand(550f, 1200f) * (if (mode == GameData.MODE_FREE) 0.8f else 1f)
+        }
+        var inT = 0f
+        for (z in zones) {
+            if (!z.active) continue
+            if (z.s1 < ps - 80f) { z.active = false; continue }
+            if (z.type == ZONE_TUNNEL) {
+                val a = ps - z.s0
+                val b = z.s1 - ps
+                if (a > -6f && b > -6f) inT = max(inT, ((min(a, b) + 6f) / 30f).coerceIn(0f, 1f))
+                if (z.regionTo >= 0 && ps > (z.s0 + z.s1) * 0.5f) {
+                    switchRegion(z.regionTo)
+                    z.regionTo = -1
+                }
+            }
+        }
+        tunnelK += (inT - tunnelK) * min(1f, dt * 5f)
+    }
+
+    /** Free roam: the next region is swapped in while the player is deep inside a tunnel. */
+    private fun switchRegion(newEnv: Int) {
+        env = newEnv
+        envVersion++
+        regionSeq++
+        buildScenery()
+        hudEvent = EV_REGION; hudEventSeq++
+    }
+
+    /** Props are hidden where a landmark occupies the space (inside tunnels, over bridges, next to stations). */
+    fun hiddenByZone(it: SceneryItem): Boolean {
+        if (it.category == CAT_RAIL) return false
+        for (z in zones) {
+            if (!z.active) continue
+            when (z.type) {
+                ZONE_TUNNEL -> if (it.s > z.s0 - 12f && it.s < z.s1 + 12f && abs(it.x) < 80f) return true
+                ZONE_BRIDGE -> if (it.category != CAT_LAMP && it.s > z.s0 - 10f && it.s < z.s1 + 10f) return true
+                else -> if (it.category >= CAT_NEAR && it.side == z.side && it.s > z.s0 - 30f && it.s < z.s1 + 30f && abs(it.x) < 60f) return true
+            }
+        }
+        return false
+    }
+
+    /** True while (x, s) is inside a tunnel or on a bridge (for the renderer and audio). */
+    fun zoneAt(s: Float, type: Int): Zone? {
+        for (z in zones) if (z.active && z.type == type && s >= z.s0 && s <= z.s1) return z
+        return null
+    }
+
+    /** Tyre grip on the current surface: car tyres × environment × weather (all-terrain cars lose less). */
+    fun surfaceGrip(): Float {
+        val spec = carSpec
+        var surf = GameData.envs[env].grip * weatherGrip()
+        if (spec.allTerrain) surf = 1f - (1f - surf) * 0.45f
+        return spec.grip * surf
     }
 
     private fun spawnCarEffects(dt: Float, brake: Boolean) {
@@ -969,6 +1764,16 @@ class World(private val input: InputState) {
                 particles.spawn(px + lx * ca + rear * sa, 0.2f, baseZ - lx * sa + rear * ca,
                     rand(-0.4f, 0.4f), rand(0.4f, 1.1f), -speed * 0.25f + rand(-0.5f, 0.5f), rand(0.8f, 1.5f), 0.35f, 2.2f,
                     0.8f, 0.8f, 0.82f, 0.28f + skid * 0.25f, false, 0.25f, 0.9f)
+            }
+        }
+        // water spray from the tyres on a wet road
+        if (wet > 0.3f && speed > 12f && rand() < dt * 40f * wet) {
+            val rear = spec.length * 0.31f
+            for (k2 in 0..1) {
+                val lx = (k2 * 2 - 1) * (spec.width * 0.5f - 0.15f)
+                particles.spawn(px + lx * ca + rear * sa, 0.25f, baseZ - lx * sa + rear * ca + 0.3f,
+                    (k2 * 2 - 1) * rand(0.3f, 1.2f), rand(0.5f, 1.5f), -speed * 0.3f, rand(0.4f, 0.7f), 0.3f, 1.8f,
+                    0.78f, 0.8f, 0.84f, 0.22f * wet, false, -1.5f, 0.8f)
             }
         }
         if (speed > 18f && (env == GameData.ENV_SNOW || env == GameData.ENV_DESERT) && rand() < dt * 18f) {
@@ -1047,7 +1852,7 @@ class World(private val input: InputState) {
         val kmh = speedKmh
         if (kmh > topSpeedKmh) topSpeedKmh = kmh
         x2Active = mode == GameData.MODE_TWO_WAY && px < -0.3f && kmh >= 50f
-        if (kmh >= 50f) {
+        if (kmh >= 50f && mode != GameData.MODE_DRIFT && mode != GameData.MODE_TIME_TRIAL && mode != GameData.MODE_STREET) {
             score += step * (kmh / 50f) * (if (x2Active) 2.0 else 1.0) * 0.9
         }
         // near misses
@@ -1066,7 +1871,7 @@ class World(private val input: InputState) {
                     nearMisses++
                     val mult = min(5f, 1f + (combo - 1) * 0.5f)
                     val pts = (120f * mult * (if (oncoming) 2f else 1f) * (if (gap < 0.45f) 1.5f else 1f)).toInt()
-                    score += pts
+                    if (mode == GameData.MODE_DRIFT) { if (driftChain > 0f) driftChain += pts * 0.5f } else score += pts
                     nitro = min(1f, nitro + 0.11f)
                     nearMissFlash = 1f
                     shake = max(shake, 0.12f)
@@ -1107,6 +1912,13 @@ class World(private val input: InputState) {
         ps -= step
         nextCoinS -= step
         nextCheckpointS -= step
+        if (finishS > 0f) finishS -= step
+        nextZoneS -= step
+        lastRegionS -= step
+        for (r in rivals) if (r.active) r.s -= step
+        for (z in zones) if (z.active) { z.s0 -= step; z.s1 -= step }
+        for (k in 0 until skidUsed) skidS[k] -= step
+        skidLastS -= step
         for (t in traffic) if (t.active) t.s -= step
         for (c in coins) if (c.active) c.s -= step
         for (it in scenery) it.s -= step
@@ -1154,10 +1966,36 @@ class World(private val input: InputState) {
         hudCountdown = countdown
         hudState = state
         hudNitroOn = nitroActive
+        hudPosition = position
+        var n = 0
+        for (r in rivals) if (r.active && !r.cop) n++
+        hudRacers = n
+        hudToGo = if (finishS > 0f) max(0f, finishS - ps) else 0f
+        hudRaceTime = raceTime
+        hudDriftChain = driftChain.toInt()
+        hudDriftMult = driftMult
+        hudBust = bust
+        hudEscape = escape
+        hudHeat = heat
+        hudEscapes = escapes
+        hudNear = nearMisses
+        hudEnv = env
+        hudWeather = weather
     }
 
     /** Coins awarded for the finished run. */
-    fun coinsEarned(): Int = coinsCollected * COIN_VALUE + (score / 55.0).toInt()
+    fun coinsEarned(): Int {
+        val base = coinsCollected * COIN_VALUE
+        return when (mode) {
+            GameData.MODE_STREET -> base + (if (success) intArrayOf(0, 1500, 800, 400, 150)[position.coerceIn(1, 4)] else 0) + (distance / 20f).toInt()
+            GameData.MODE_DRIFT -> base + (score / 22.0).toInt() + medal * 300
+            GameData.MODE_TIME_TRIAL -> base + (if (success) 300 + medal * 350 else 0) + (distance / 25f).toInt()
+            GameData.MODE_POLICE -> base + escapes * 600 + takedowns * 150 + (distance / 30f).toInt()
+            GameData.MODE_CHALLENGE -> base + nearMisses * 30 + medal * 300
+            GameData.MODE_FREE -> base + (distance / 40f).toInt()
+            else -> base + (score / 55.0).toInt()
+        }
+    }
 
     companion object {
         const val STATE_ATTRACT = 0
@@ -1170,6 +2008,29 @@ class World(private val input: InputState) {
 
         const val REASON_CRASH = 0
         const val REASON_TIME = 1
+        const val REASON_BUSTED = 2
+        const val REASON_FINISH = 3
+
+        const val REGION_LENGTH = 2100f
+        val RIVAL_CARS = intArrayOf(GameData.CAR_SPORTS, GameData.CAR_MUSCLE, GameData.CAR_SUPER, GameData.CAR_SEDAN,
+            GameData.CAR_CLASSIC, GameData.CAR_RACE)
+        const val MAX_RACERS = 4
+        const val MAX_ZONES = 6
+        const val ZONE_TUNNEL = 1
+        const val ZONE_BRIDGE = 2
+        const val ZONE_GAS = 3
+        const val ZONE_PARKING = 4
+        const val ZONE_DEALER = 5
+
+        const val EV_ESCAPE = 1
+        const val EV_TAKEDOWN = 2
+        const val EV_WAVE = 3
+        const val EV_REGION = 4
+        const val EV_GOAL = 5
+
+        /** free-roam region sequence (one continuous journey) */
+        val REGION_ORDER = intArrayOf(GameData.ENV_CITY, GameData.ENV_FOREST, GameData.ENV_MOUNTAIN, GameData.ENV_SNOW,
+            GameData.ENV_COAST, GameData.ENV_INDUSTRIAL, GameData.ENV_DESERT)
 
         const val MAX_TRAFFIC = 36
         const val MAX_COINS = 30
@@ -1206,6 +2067,12 @@ class World(private val input: InputState) {
         const val K_SIGN1 = 9
         const val K_SIGN2 = 10
         const val K_BILLBOARD = 11
+        const val K_PALM = 12
+        const val K_WAREHOUSE = 13
+        const val K_CHIMNEY = 14
+        const val K_TANK = 15
+        /** coast: the sea is on this side of the road */
+        const val SEA_SIDE = 1
 
         private val TMP_LANES = IntArray(2)
         private val TMP_CLEAR = FloatArray(4)
@@ -1222,7 +2089,13 @@ class World(private val input: InputState) {
             floatArrayOf(-0.42f, 0.32f, 2.3f, 0.42f, 0.32f, 2.3f),
             floatArrayOf(-0.55f, 0.3f, 2.57f, 0.55f, 0.3f, 2.57f),
             floatArrayOf(0.55f, 0.4f, 2.5f),
-            floatArrayOf(-0.12f, 0.36f, 2.4f, 0.12f, 0.36f, 2.4f)
+            floatArrayOf(-0.12f, 0.36f, 2.4f, 0.12f, 0.36f, 2.4f),
+            floatArrayOf(-0.5f, 0.3f, 2.45f),
+            floatArrayOf(-0.54f, 0.31f, 2.5f, 0.54f, 0.31f, 2.5f),
+            floatArrayOf(0.62f, 0.5f, 2.81f),
+            floatArrayOf(-0.62f, 0.56f, 2.17f),
+            floatArrayOf(-0.5f, 0.3f, 2.55f, 0.5f, 0.3f, 2.55f),
+            floatArrayOf(-0.15f, 0.34f, 2.45f, 0.15f, 0.34f, 2.45f)
         )
     }
 }

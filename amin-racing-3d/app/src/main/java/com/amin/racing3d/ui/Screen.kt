@@ -21,7 +21,16 @@ class RunResult(
     val coins: Int,
     val timeUp: Boolean,
     val newRecord: Boolean,
-    val best: Int
+    val best: Int,
+    /** World.REASON_* */
+    val reason: Int = 0,
+    val success: Boolean = false,
+    val medal: Int = 0,
+    val position: Int = 0,
+    val racers: Int = 0,
+    val raceTime: Float = 0f,
+    val escapes: Int = 0,
+    val takedowns: Int = 0
 )
 
 /** Everything a screen needs from the activity. */
@@ -37,6 +46,10 @@ interface GameHost {
     fun resumeRace()
     fun restartRace()
     fun quitToMenu()
+    /** Free roam: end the drive and collect the rewards. */
+    fun endFreeRoam()
+    /** Free roam: switch to another owned car without leaving the road. */
+    fun swapCar(car: Int)
     fun showroom(car: Int, color: Int)
     fun rotateShowroom(deltaRadians: Float, dragging: Boolean)
     fun leaveShowroom()
