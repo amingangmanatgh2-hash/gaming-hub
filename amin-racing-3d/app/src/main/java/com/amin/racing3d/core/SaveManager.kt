@@ -1,0 +1,221 @@
+package com.amin.racing3d.core
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.amin.racing3d.game.GameData
+
+/** One entry in the local scoreboard. */
+class ScoreEntry(val score: Int, val car: Int, val env: Int, val distance: Int, val time: Long)
+
+/**
+ * Persistent offline storage based on SharedPreferences.
+ * Stores coins, garage, upgrades, paints, high scores, settings and unlocked environments.
+ */
+class SaveManager(context: Context) {
+    private val prefs: SharedPreferences =
+        context.applicationContext.getSharedPreferences("amin_racing_3d_save", Context.MODE_PRIVATE)
+
+    // ----- Economy -------------------------------------------------------------------------
+    var coins: Int
+        get() = prefs.getInt(K_COINS, START_COINS)
+        set(v) = prefs.edit().putInt(K_COINS, v.coerceAtLeast(0)).apply()
+
+    fun spend(amount: Int): Boolean {
+        if (coins < amount) return false
+        coins -= amount
+        return true
+    }
+
+    fun addCoins(amount: Int) {
+        coins += amount
+    }
+
+    // ----- Garage --------------------------------------------------------------------------
+    fun isCarOwned(id: Int): Boolean = (prefs.getInt(K_OWNED, 1) and (1 shl id)) != 0
+
+    fun setCarOwned(id: Int) {
+        prefs.edit().putInt(K_OWNED, prefs.getInt(K_OWNED, 1) or (1 shl id)).apply()
+    }
+
+    var selectedCar: Int
+        get() = prefs.getInt(K_SELECTED_CAR, 0).coerceIn(0, GameData.cars.size - 1)
+        set(v) = prefs.edit().putInt(K_SELECTED_CAR, v).apply()
+
+    fun upgradeLevel(car: Int, type: Int): Int = prefs.getInt("upg_${car}_$type", 0)
+
+    fun setUpgradeLevel(car: Int, type: Int, level: Int) {
+        prefs.edit().putInt("upg_${car}_$type", level.coerceIn(0, GameData.MAX_UPGRADE)).apply()
+    }
+
+    fun paintIndex(car: Int): Int = prefs.getInt("paint_$car", defaultPaint(car))
+
+    fun setPaintIndex(car: Int, idx: Int) {
+        prefs.edit().putInt("paint_$car", idx).apply()
+    }
+
+    private fun defaultPaint(car: Int) = when (car) {
+        GameData.CAR_SPORTS -> 0
+        GameData.CAR_MUSCLE -> 2
+        GameData.CAR_SUV -> 7
+        else -> 1
+    }
+
+    fun paintColor(car: Int): Int {
+        val p = GameData.PAINT_PALETTE
+        return p[paintIndex(car).coerceIn(0, p.size - 1)]
+    }
+
+    // ----- Environments / selection -------------------------------------------------------
+    fun isEnvUnlocked(id: Int): Boolean = (prefs.getInt(K_ENVS, 1) and (1 shl id)) != 0
+
+    fun unlockEnv(id: Int) {
+        prefs.edit().putInt(K_ENVS, prefs.getInt(K_ENVS, 1) or (1 shl id)).apply()
+    }
+
+    var selectedEnv: Int
+        get() = prefs.getInt(K_SEL_ENV, 0)
+        set(v) = prefs.edit().putInt(K_SEL_ENV, v).apply()
+
+    var selectedMode: Int
+        get() = prefs.getInt(K_SEL_MODE, GameData.MODE_TWO_WAY)
+        set(v) = prefs.edit().putInt(K_SEL_MODE, v).apply()
+
+    var selectedTod: Int
+        get() = prefs.getInt(K_SEL_TOD, GameData.TOD_DAY)
+        set(v) = prefs.edit().putInt(K_SEL_TOD, v).apply()
+
+    // ----- Scores -----------------------------------------------------------------------------
+    fun highScore(mode: Int): Int = prefs.getInt("hs_$mode", 0)
+
+    fun scores(mode: Int): List<ScoreEntry> {
+        val raw = prefs.getString("board_$mode", "") ?: ""
+        if (raw.isEmpty()) return emptyList()
+        val out = ArrayList<ScoreEntry>()
+        for (part in raw.split(';')) {
+            val f = part.split(':')
+            if (f.size < 5) continue
+            try {
+                out.add(ScoreEntry(f[0].toInt(), f[1].toInt(), f[2].toInt(), f[3].toInt(), f[4].toLong()))
+            } catch (_: NumberFormatException) {
+            }
+        }
+        return out
+    }
+
+    /** Records a finished run. Returns true when it is a new personal best for the mode. */
+    fun submitScore(mode: Int, entry: ScoreEntry): Boolean {
+        val list = ArrayList(scores(mode))
+        list.add(entry)
+        list.sortByDescending { it.score }
+        while (list.size > 10) list.removeAt(list.size - 1)
+        val serialized = list.joinToString(";") { "${it.score}:${it.car}:${it.env}:${it.distance}:${it.time}" }
+        val best = highScore(mode)
+        val isRecord = entry.score > best
+        val e = prefs.edit().putString("board_$mode", serialized)
+        if (isRecord) e.putInt("hs_$mode", entry.score)
+        e.putLong(K_TOTAL_DIST, prefs.getLong(K_TOTAL_DIST, 0L) + entry.distance)
+        e.apply()
+        return isRecord
+    }
+
+    // ----- Settings ---------------------------------------------------------------------------
+    var language: String
+        get() = prefs.getString(K_LANG, Lang.FA) ?: Lang.FA
+        set(v) = prefs.edit().putString(K_LANG, v).apply()
+
+    /** 0 = tilt, 1 = touch buttons */
+    var controlMode: Int
+        get() = prefs.getInt(K_CONTROL, CONTROL_TILT)
+        set(v) = prefs.edit().putInt(K_CONTROL, v).apply()
+
+    var sensitivity: Float
+        get() = prefs.getFloat(K_SENS, 0.55f)
+        set(v) = prefs.edit().putFloat(K_SENS, v.coerceIn(0f, 1f)).apply()
+
+    var tiltOffset: Float
+        get() = prefs.getFloat(K_TILT_OFFSET, 0f)
+        set(v) = prefs.edit().putFloat(K_TILT_OFFSET, v).apply()
+
+    /** 0 low, 1 medium, 2 high */
+    var graphics: Int
+        get() = prefs.getInt(K_GFX, 1)
+        set(v) = prefs.edit().putInt(K_GFX, v.coerceIn(0, 2)).apply()
+
+    var autoQuality: Boolean
+        get() = prefs.getBoolean(K_AUTO_Q, true)
+        set(v) = prefs.edit().putBoolean(K_AUTO_Q, v).apply()
+
+    var sfxOn: Boolean
+        get() = prefs.getBoolean(K_SFX, true)
+        set(v) = prefs.edit().putBoolean(K_SFX, v).apply()
+
+    var musicOn: Boolean
+        get() = prefs.getBoolean(K_MUSIC, true)
+        set(v) = prefs.edit().putBoolean(K_MUSIC, v).apply()
+
+    var muted: Boolean
+        get() = prefs.getBoolean(K_MUTE, false)
+        set(v) = prefs.edit().putBoolean(K_MUTE, v).apply()
+
+    var cameraShake: Boolean
+        get() = prefs.getBoolean(K_SHAKE, true)
+        set(v) = prefs.edit().putBoolean(K_SHAKE, v).apply()
+
+    var showFps: Boolean
+        get() = prefs.getBoolean(K_FPS, false)
+        set(v) = prefs.edit().putBoolean(K_FPS, v).apply()
+
+    var vibration: Boolean
+        get() = prefs.getBoolean(K_VIBRATE, true)
+        set(v) = prefs.edit().putBoolean(K_VIBRATE, v).apply()
+
+    var autoGas: Boolean
+        get() = prefs.getBoolean(K_AUTOGAS, false)
+        set(v) = prefs.edit().putBoolean(K_AUTOGAS, v).apply()
+
+    var firstLaunchDone: Boolean
+        get() = prefs.getBoolean(K_FIRST, false)
+        set(v) = prefs.edit().putBoolean(K_FIRST, v).apply()
+
+    /** Erases progress but keeps language and control settings. */
+    fun resetProgress() {
+        val lang = language
+        val control = controlMode
+        val sens = sensitivity
+        val gfx = graphics
+        prefs.edit().clear().apply()
+        language = lang
+        controlMode = control
+        sensitivity = sens
+        graphics = gfx
+    }
+
+    companion object {
+        const val START_COINS = 2500
+        const val CONTROL_TILT = 0
+        const val CONTROL_TOUCH = 1
+
+        private const val K_COINS = "coins"
+        private const val K_OWNED = "owned_cars"
+        private const val K_SELECTED_CAR = "selected_car"
+        private const val K_ENVS = "unlocked_envs"
+        private const val K_SEL_ENV = "sel_env"
+        private const val K_SEL_MODE = "sel_mode"
+        private const val K_SEL_TOD = "sel_tod"
+        private const val K_TOTAL_DIST = "total_distance"
+        private const val K_LANG = "language"
+        private const val K_CONTROL = "control_mode"
+        private const val K_SENS = "sensitivity"
+        private const val K_TILT_OFFSET = "tilt_offset"
+        private const val K_GFX = "graphics"
+        private const val K_AUTO_Q = "auto_quality"
+        private const val K_SFX = "sfx"
+        private const val K_MUSIC = "music"
+        private const val K_MUTE = "mute"
+        private const val K_SHAKE = "camera_shake"
+        private const val K_FPS = "show_fps"
+        private const val K_VIBRATE = "vibration"
+        private const val K_AUTOGAS = "auto_gas"
+        private const val K_FIRST = "first_launch_done"
+    }
+}

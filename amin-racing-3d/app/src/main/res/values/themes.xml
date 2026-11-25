@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AminRacing" parent="android:Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/bg_dark</item>
+        <item name="android:colorAccent">@color/neon_cyan</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/bg_dark</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:fontFamily">@font/vazirmatn_regular</item>
+    </style>
+    <style name="Theme.AminRacing.Splash" parent="Theme.AminRacing">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+</resources>

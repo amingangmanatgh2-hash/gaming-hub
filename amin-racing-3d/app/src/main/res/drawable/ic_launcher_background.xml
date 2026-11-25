@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor" xmlns:aapt="http://schemas.android.com/aapt">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="0" android:endY="108"
+                android:startColor="#FF0B1030" android:endColor="#FF2A0838" />
+        </aapt:attr>
+    </path>
+    <!-- perspective road -->
+    <path android:fillColor="#FF151A2C" android:pathData="M44,30 L64,30 L100,108 L8,108 Z" />
+    <path android:fillColor="#FF00E5FF" android:pathData="M44,30 L45.5,30 L12,108 L8,108 Z" />
+    <path android:fillColor="#FFFF2D95" android:pathData="M62.5,30 L64,30 L100,108 L96,108 Z" />
+    <path android:fillColor="#88FFFFFF" android:pathData="M53.4,34 L54.6,34 L55,44 L53,44 Z M52.8,52 L55.2,52 L56,66 L52,66 Z M52,76 L56,76 L57.2,96 L50.8,96 Z" />
+    <!-- horizon glow -->
+    <path android:fillColor="#3300E5FF" android:pathData="M0,28 h108 v4 h-108 z" />
+</vector>

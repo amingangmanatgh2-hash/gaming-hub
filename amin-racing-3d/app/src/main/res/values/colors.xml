@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_dark">#FF070A14</color>
+    <color name="bg_panel">#E6101828</color>
+    <color name="neon_cyan">#FF00E5FF</color>
+    <color name="neon_pink">#FFFF2D95</color>
+    <color name="neon_yellow">#FFFFD23F</color>
+    <color name="neon_green">#FF39FF88</color>
+    <color name="text_main">#FFF2F6FF</color>
+    <color name="text_dim">#FF8A97B8</color>
+    <color name="ic_bg_top">#FF0B1030</color>
+    <color name="ic_bg_bottom">#FF2A0838</color>
+</resources>
