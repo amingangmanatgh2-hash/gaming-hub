@@ -108,6 +108,18 @@ alive drift || exit 1
 demo 7 --es demo modes
 shot 21-mode-select-weather
 
+demo 7 --es demo story
+shot 22-story-map
+
+demo 8 --es demo dialogue --ei mission 3
+shot 23-story-dialogue
+alive story || exit 1
+
+demo 6 --es demo mission --ei mission 1 --ei car 0 --ei gfx 2 --ez autogas true --ei control 1
+sleep 30
+shot 24-story-mission-hud
+alive mission || exit 1
+
 # ---------------------------------------------------------------- English UI (fresh launch)
 adb shell am force-stop "$PKG"
 sleep 1

@@ -95,6 +95,33 @@ class SaveManager(context: Context) {
         get() = prefs.getInt("sel_weather", GameData.W_CLEAR).coerceIn(0, GameData.weatherNames.size - 1)
         set(v) = prefs.edit().putInt("sel_weather", v).apply()
 
+    /** check GitHub for a newer version while the game loads (only when online) */
+    var autoUpdateCheck: Boolean
+        get() = prefs.getBoolean("auto_update_check", true)
+        set(v) = prefs.edit().putBoolean("auto_update_check", v).apply()
+
+    /** version the player chose to skip in the update dialog */
+    var skippedUpdate: String
+        get() = prefs.getString("skipped_update", "") ?: ""
+        set(v) = prefs.edit().putString("skipped_update", v).apply()
+
+    // ----- Story ---------------------------------------------------------------------------
+    /** number of story missions completed in order (mission i is unlocked when i <= progress) */
+    var storyProgress: Int
+        get() = prefs.getInt("story_progress", 0)
+        set(v) = prefs.edit().putInt("story_progress", v).apply()
+
+    fun storyCompleted(mission: Int): Boolean = prefs.getBoolean("story_done_$mission", false)
+
+    /** Records a passed mission. Returns true the first time (reward is paid only once). */
+    fun completeStoryMission(mission: Int): Boolean {
+        val first = !storyCompleted(mission)
+        val e = prefs.edit().putBoolean("story_done_$mission", true)
+        if (mission + 1 > storyProgress) e.putInt("story_progress", mission + 1)
+        e.apply()
+        return first
+    }
+
     /** best medal per mode (0 none .. 3 gold) */
     fun bestMedal(mode: Int): Int = prefs.getInt("medal_$mode", 0)
 

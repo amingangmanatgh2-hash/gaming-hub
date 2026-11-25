@@ -13,6 +13,7 @@ import com.amin.racing3d.R
 import com.amin.racing3d.audio.AudioEngine
 import com.amin.racing3d.core.Lang
 import com.amin.racing3d.game.GameData
+import com.amin.racing3d.game.StoryData
 import com.amin.racing3d.game.World
 
 /** Animates children of a container in one after another. */
@@ -75,6 +76,11 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
 
         // ---- start side: game modes (only modes that are implemented and playable)
         val modes = Ui.vbox(ctx, Gravity.START)
+        // story first: the campaign with chapters, characters and unlockable cars
+        val storyDone = (StoryData.missions.indices).count { save.storyCompleted(it) }
+        modes.addView(modeCard(R.string.story_title, 0, Ui.YELLOW, str(R.string.menu_story_sub, Lang.num(storyDone), Lang.num(StoryData.missions.size))) {
+            host.push(StoryScreen(host))
+        }, Ui.lp(Ui.dp(262f)))
         val groups = arrayOf(
             Triple(R.string.menu_traffic, R.string.menu_traffic_sub, intArrayOf(GameData.MODE_TWO_WAY, GameData.MODE_ENDLESS, GameData.MODE_CHALLENGE)),
             Triple(R.string.mode_street, R.string.menu_street_sub, intArrayOf(GameData.MODE_STREET)),
@@ -88,7 +94,7 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
             modes.addView(modeCard(g.first, g.second, accents[i]) {
                 if (save.selectedMode !in g.third) save.selectedMode = g.third[0]
                 host.push(ModeSelectScreen(host, g.third, g.first))
-            }, Ui.lp(Ui.dp(262f), topDp = if (i == 0) 0f else 7f))
+            }, Ui.lp(Ui.dp(262f), topDp = 7f))
         }
         val modesScroll = ScrollView(ctx)
         modesScroll.isVerticalScrollBarEnabled = false
@@ -153,14 +159,14 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         return card
     }
 
-    private fun modeCard(title: Int, sub: Int, accent: Int, onClick: () -> Unit): View {
+    private fun modeCard(title: Int, sub: Int, accent: Int, subText: String? = null, onClick: () -> Unit): View {
         val card = Ui.vbox(ctx, Gravity.START)
         card.setPadding(Ui.dp(14f), Ui.dp(6f), Ui.dp(14f), Ui.dp(7f))
         card.background = Ui.gradient(Ui.withAlpha(accent, 0x38), Ui.withAlpha(0xFF0D1424.toInt(), 0xD8), Ui.withAlpha(accent, 0xAA), 14f,
             GradientDrawable.Orientation.LEFT_RIGHT)
         val t = Ui.text(ctx, str(title), 16f, accent, Ui.bold)
         card.addView(t)
-        card.addView(Ui.text(ctx, str(sub), 10.5f, Ui.DIM))
+        card.addView(Ui.text(ctx, subText ?: str(sub), 10.5f, Ui.DIM))
         card.isClickable = true
         card.setOnClickListener { Ui.onClickSound?.invoke(); onClick() }
         Ui.pressable(card)
@@ -475,6 +481,8 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
             else -> R.string.gameover_title
         }
         p.addView(Ui.glowTitle(ctx, str(titleRes), 28f, if (r.success) Ui.GREEN else Ui.PINK), Ui.lp(Ui.WRAP))
+        val mission = if (r.missionId >= 0) StoryData.missions.getOrNull(r.missionId) else null
+        if (mission != null) p.addView(missionResult(mission), Ui.lp(topDp = 4f, bottomDp = 8f))
         val reasonRes = when {
             r.reason == World.REASON_BUSTED -> R.string.busted_sub
             r.mode == GameData.MODE_STREET && r.success -> 0
@@ -542,11 +550,27 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
         stat(R.string.coins_earned, "+" + Lang.num(r.coins), Ui.YELLOW)
         p.addView(stats, Ui.lp())
 
-        p.addView(Ui.button(ctx, str(if (r.mode == GameData.MODE_FREE) R.string.drive_again else R.string.retry), Ui.GREEN, true, 19f) { host.restartRace() }, Ui.lp(topDp = 6f))
+        val next = r.missionId + 1
+        val storyDone = mission != null && r.missionPassed && next >= StoryData.missions.size
+        if (mission != null && r.missionPassed && next < StoryData.missions.size) {
+            p.addView(Ui.button(ctx, str(R.string.story_next), Ui.YELLOW, true, 19f) {
+                host.quitToMenu(); host.push(StoryScreen(host)); host.push(DialogueScreen(host, next, afterRace = true))
+            }, Ui.lp(topDp = 6f))
+            p.addView(Ui.button(ctx, str(R.string.retry), Ui.GREEN, false, 15f) { host.restartRace() }, Ui.lp(topDp = 8f))
+        } else if (storyDone && r.missionReward > 0) {
+            p.addView(Ui.button(ctx, str(R.string.story_epilogue), Ui.YELLOW, true, 19f) {
+                host.quitToMenu(); host.push(StoryScreen(host)); host.push(DialogueScreen(host, -1))
+            }, Ui.lp(topDp = 6f))
+        } else {
+            p.addView(Ui.button(ctx, str(if (r.mode == GameData.MODE_FREE) R.string.drive_again else R.string.retry), Ui.GREEN, true, 19f) { host.restartRace() }, Ui.lp(topDp = 6f))
+        }
         val row = Ui.hbox(ctx)
         val lp1 = LinearLayout.LayoutParams(0, Ui.WRAP, 1f).also { it.marginEnd = Ui.dp(5f) }
         val lp2 = LinearLayout.LayoutParams(0, Ui.WRAP, 1f).also { it.marginStart = Ui.dp(5f) }
-        row.addView(Ui.button(ctx, str(R.string.menu_garage), Ui.PINK, false, 15f) {
+        if (mission != null) row.addView(Ui.button(ctx, str(R.string.story_map), Ui.PINK, false, 15f) {
+            host.quitToMenu(); host.push(StoryScreen(host))
+        }, lp1)
+        else row.addView(Ui.button(ctx, str(R.string.menu_garage), Ui.PINK, false, 15f) {
             host.quitToMenu(); host.push(GarageScreen(host))
         }, lp1)
         row.addView(Ui.button(ctx, str(R.string.main_menu), Ui.CYAN, false, 15f) { host.quitToMenu() }, lp2)
@@ -563,6 +587,30 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
         p.translationY = Ui.dp(60f).toFloat(); p.alpha = 0f
         p.animate().translationY(0f).alpha(1f).setDuration(380).setInterpolator(DecelerateInterpolator(2f)).start()
         return root
+    }
+
+    /** Story: passed/failed banner, the speaker's reaction, reward and unlocked car. */
+    private fun missionResult(m: StoryData.Mission): View {
+        val box = Ui.vbox(ctx)
+        val accent = if (r.missionPassed) Ui.GREEN else Ui.RED
+        box.background = Ui.bg(Ui.withAlpha(accent, 0x22), Ui.withAlpha(accent, 0x88), 12f)
+        box.setPadding(Ui.dp(12f), Ui.dp(8f), Ui.dp(12f), Ui.dp(10f))
+        box.addView(Ui.text(ctx, str(R.string.story_mission_n, Lang.num(r.missionId + 1)) + "  " + (if (Lang.isFa) m.titleFa else m.titleEn), 13f, Ui.YELLOW, Ui.bold), Ui.lp(Ui.WRAP))
+        box.addView(Ui.text(ctx, str(if (r.missionPassed) R.string.story_passed else R.string.story_failed), 17f, accent, Ui.black), Ui.lp(Ui.WRAP))
+        val line = if (r.missionPassed) m.win else m.lose
+        val c = StoryData.characters[line.who]
+        val q = Ui.text(ctx, (if (Lang.isFa) c.fa else c.en) + ": «" + (if (Lang.isFa) line.fa else line.en) + "»", 12.5f, c.color)
+        q.textDirection = if (Lang.isFa) View.TEXT_DIRECTION_RTL else View.TEXT_DIRECTION_LTR
+        box.addView(q, Ui.lp(topDp = 4f))
+        if (!r.missionPassed) box.addView(Ui.text(ctx, StoryScreen.objectiveText(ctx, m), 11.5f, Ui.DIM), Ui.lp(topDp = 4f))
+        if (r.missionReward > 0) box.addView(Ui.text(ctx, str(R.string.story_reward, Lang.num(r.missionReward)), 14f, Ui.YELLOW, Ui.bold), Ui.lp(Ui.WRAP, topDp = 6f))
+        if (r.unlockedCar >= 0) {
+            val u = Ui.text(ctx, "🚗 " + str(R.string.story_car_unlocked, str(GameData.cars[r.unlockedCar].nameRes)), 14f, Ui.BG, Ui.black)
+            u.background = Ui.gradient(Ui.PINK, 0xFFB388FF.toInt(), 0, 12f, GradientDrawable.Orientation.LEFT_RIGHT)
+            u.setPadding(Ui.dp(12f), Ui.dp(4f), Ui.dp(12f), Ui.dp(4f))
+            box.addView(u, Ui.lp(Ui.WRAP, topDp = 6f))
+        }
+        return box
     }
 
     override fun onBack() = host.quitToMenu()

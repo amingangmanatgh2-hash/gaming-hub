@@ -358,6 +358,12 @@ class SettingsScreen(host: GameHost) : Screen(host) {
         col.addView(toggleRow(R.string.set_mute, save.muted) { save.muted = it }, Ui.lp())
         col.addView(toggleRow(R.string.set_vibrate, save.vibration) { save.vibration = it }, Ui.lp())
 
+        // ---- updates (GitHub releases, only when online)
+        col.addView(sectionTitle(str(R.string.upd_title)), Ui.lp())
+        col.addView(toggleRow(R.string.upd_auto, save.autoUpdateCheck) { save.autoUpdateCheck = it }, Ui.lp())
+        col.addView(Ui.text(ctx, str(R.string.upd_installed, Lang.digits(com.amin.racing3d.core.UpdateChecker.installedVersion(ctx))), 12f, Ui.DIM), Ui.lp(topDp = 4f))
+        col.addView(Ui.button(ctx, str(R.string.upd_check_now), Ui.CYAN, false, 15f) { host.checkUpdatesNow() }, Ui.lp(topDp = 6f))
+
         // ---- reset
         col.addView(Ui.button(ctx, str(R.string.reset_progress), Ui.RED, false, 14f) {
             host.confirm(str(R.string.reset_confirm)) {

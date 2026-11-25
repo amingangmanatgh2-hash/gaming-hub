@@ -30,7 +30,14 @@ class RunResult(
     val racers: Int = 0,
     val raceTime: Float = 0f,
     val escapes: Int = 0,
-    val takedowns: Int = 0
+    val takedowns: Int = 0,
+    /** story mission index (-1 quick play) */
+    val missionId: Int = -1,
+    val missionPassed: Boolean = false,
+    /** coins paid for the mission (first completion only) */
+    val missionReward: Int = 0,
+    /** car unlocked by this mission (-1 none) */
+    val unlockedCar: Int = -1
 )
 
 /** Everything a screen needs from the activity. */
@@ -48,6 +55,10 @@ interface GameHost {
     fun quitToMenu()
     /** Free roam: end the drive and collect the rewards. */
     fun endFreeRoam()
+    /** Starts story mission [index] (StoryData.missions). */
+    fun startMission(index: Int)
+    /** Manually checks GitHub for a newer release (settings). */
+    fun checkUpdatesNow()
     /** Free roam: switch to another owned car without leaving the road. */
     fun swapCar(car: Int)
     fun showroom(car: Int, color: Int)

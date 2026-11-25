@@ -23,13 +23,17 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.amin.racing3d.audio.AudioEngine
 import com.amin.racing3d.core.Lang
 import com.amin.racing3d.core.SaveManager
 import com.amin.racing3d.core.ScoreEntry
+import com.amin.racing3d.core.UpdateChecker
 import com.amin.racing3d.game.GameData
 import com.amin.racing3d.game.GameListener
+import com.amin.racing3d.game.RaceConfig
+import com.amin.racing3d.game.StoryData
 import com.amin.racing3d.game.World
 import com.amin.racing3d.input.InputState
 import com.amin.racing3d.input.TiltController
@@ -125,6 +129,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         buildLayout()
         applySettings()
         tilt.displayRotation = currentRotation()
+        startUpdateCheck(manual = false)
 
         val car = selectedOwnedCar()
         val color = save.paintColor(car)
@@ -229,6 +234,11 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         val bar = LoadingBar(this)
         bar.tag = "bar"
         bottom.addView(bar, LinearLayout.LayoutParams(Ui.MATCH, Ui.dp(8f)).also { it.topMargin = Ui.dp(6f) })
+        // GitHub update check status (filled in by startUpdateCheck)
+        val upd = Ui.text(this, "", 11.5f, Ui.DIM, Ui.bold)
+        upd.gravity = Gravity.CENTER
+        upd.tag = "upd"
+        bottom.addView(upd, Ui.lp(Ui.MATCH, topDp = 6f))
         f.addView(bottom, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP, Gravity.BOTTOM))
         loadTipTime = SystemClock.uptimeMillis()
         handler.post(loadTicker)
@@ -324,6 +334,8 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         if (i.hasExtra("autogas")) save.autoGas = i.getBooleanExtra("autogas", true)
         if (i.hasExtra("fps")) save.showFps = i.getBooleanExtra("fps", false)
         dismissConfirm()
+        dismissUpdateDialog()
+        updateDialogShown = true   // automated demo runs: never cover screenshots with the update dialog
         if (inRace) quitToMenu()
         applySettings()
         when (demo) {
@@ -334,6 +346,12 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
             "scores" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.ScoresScreen(this)) }
             "upgrades" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.GarageScreen(this)); push(com.amin.racing3d.ui.UpgradeScreen(this, save.selectedCar)) }
             "pause" -> { startRace(); handler.postDelayed({ pauseRace() }, 5000) }
+            "story" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.StoryScreen(this)) }
+            "dialogue" -> {
+                replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.StoryScreen(this))
+                push(com.amin.racing3d.ui.DialogueScreen(this, intent.getIntExtra("mission", 0).coerceIn(0, StoryData.missions.size - 1)))
+            }
+            "mission" -> startMission(intent.getIntExtra("mission", 0).coerceIn(0, StoryData.missions.size - 1))
             else -> replaceAll(MainMenuScreen(this))
         }
     }
@@ -503,17 +521,32 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         return if (save.isCarOwned(c)) c else 0
     }
 
+    /** story mission being played (-1 = quick play); restart replays the same mission */
+    private var currentMission = -1
+
+    override fun startMission(index: Int) {
+        val m = StoryData.missions.getOrNull(index) ?: return
+        currentMission = index
+        launchRace(m.config)
+        val goal = com.amin.racing3d.ui.StoryScreen.objectiveText(this, m)
+        handler.postDelayed({ if (inRace && currentMission == index) toast(goal, Ui.YELLOW) }, 3400)
+    }
+
     override fun startRace() {
+        currentMission = -1
+        val mode = save.selectedMode.coerceIn(0, GameData.NUM_MODES - 1)
+        val env = if (save.selectedEnv in GameData.envs.indices && save.isEnvUnlocked(save.selectedEnv)) save.selectedEnv else GameData.ENV_CITY
+        launchRace(GameData.defaultConfig(mode, env, save.selectedTod, save.selectedWeather))
+    }
+
+    private fun launchRace(cfg: RaceConfig) {
+        val mode = cfg.mode
         val car = selectedOwnedCar()
         val color = save.paintColor(car)
         val lSpeed = save.upgradeLevel(car, GameData.UPG_SPEED)
         val lHandling = save.upgradeLevel(car, GameData.UPG_HANDLING)
         val lBrakes = save.upgradeLevel(car, GameData.UPG_BRAKES)
         val lNitro = save.upgradeLevel(car, GameData.UPG_NITRO)
-        val mode = save.selectedMode.coerceIn(0, GameData.NUM_MODES - 1)
-        val env = if (save.selectedEnv in GameData.envs.indices && save.isEnvUnlocked(save.selectedEnv)) save.selectedEnv else GameData.ENV_CITY
-        val tod = save.selectedTod
-        val cfg = GameData.defaultConfig(mode, env, tod, save.selectedWeather)
         inRace = true
         racePaused = false
         clearScreens()
@@ -553,7 +586,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         }
     }
 
-    override fun restartRace() = startRace()
+    override fun restartRace() = if (currentMission >= 0) startMission(currentMission) else startRace()
 
     override fun quitToMenu() {
         inRace = false
@@ -602,10 +635,27 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         val counts = extra == null || mode == GameData.MODE_FREE ||
             !((mode == GameData.MODE_STREET || mode == GameData.MODE_TIME_TRIAL) && !extra.success)
         val record = counts && score > 0 && save.submitScore(mode, ScoreEntry(score, car, env, distance.toInt(), System.currentTimeMillis()))
-        if (extra != null) save.submitMedal(mode, extra.medal)
+        if (extra != null && currentMission < 0) save.submitMedal(mode, extra.medal)
+        // story: pass/fail, one-time reward and car unlock
+        var mPassed = false
+        var mReward = 0
+        var mCar = -1
+        val mission = if (currentMission >= 0) StoryData.missions.getOrNull(currentMission) else null
+        if (mission != null && extra != null) {
+            mPassed = StoryData.passed(mission, extra.success, extra.medal, extra.position)
+            if (mPassed && save.completeStoryMission(currentMission)) {
+                mReward = mission.reward
+                save.addCoins(mReward)
+                if (mission.unlockCar >= 0 && !save.isCarOwned(mission.unlockCar)) {
+                    save.setCarOwned(mission.unlockCar)
+                    mCar = mission.unlockCar
+                }
+            }
+        }
         val result = if (extra == null) RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode))
         else RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode),
-            extra.reason, extra.success, extra.medal, extra.position, extra.racers, extra.raceTime, extra.escapes, extra.takedowns)
+            extra.reason, extra.success, extra.medal, extra.position, extra.racers, extra.raceTime, extra.escapes, extra.takedowns,
+            currentMission, mPassed, mReward, mCar)
         replaceAll(GameOverScreen(this, result))
         if (record) audio.trigger(AudioEngine.SFX_CHECKPOINT)
     }
@@ -803,13 +853,130 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         }
     }
 
+    // ================================================================= update check (GitHub releases)
+    private var updateResult: UpdateChecker.Result? = null
+    /** once per app process (survives recreate() on language change) */
+    private var updateDialogShown: Boolean
+        get() = UpdateChecker.dialogShown
+        set(v) { UpdateChecker.dialogShown = v }
+    private var menuReady = false
+    private var updateView: View? = null
+    private var updateChecking = false
+
+    private fun startUpdateCheck(manual: Boolean) {
+        if (!manual && !save.autoUpdateCheck) {
+            setUpdateStatus(getString(R.string.upd_disabled), Ui.DIM)
+            return
+        }
+        if (updateChecking) return
+        updateChecking = true
+        setUpdateStatus(getString(R.string.upd_checking), Ui.DIM)
+        UpdateChecker.check(this) { r ->
+            updateChecking = false
+            updateResult = r
+            when (r.state) {
+                UpdateChecker.OFFLINE -> setUpdateStatus(getString(R.string.upd_offline), Ui.DIM)
+                UpdateChecker.FAILED -> setUpdateStatus(getString(R.string.upd_failed), Ui.YELLOW)
+                UpdateChecker.UP_TO_DATE -> setUpdateStatus(getString(R.string.upd_latest, Lang.digits(r.current)), Ui.GREEN)
+                UpdateChecker.AVAILABLE -> setUpdateStatus(getString(R.string.upd_available, Lang.digits(r.latest ?: "")), Ui.YELLOW)
+            }
+            if (manual) {
+                when (r.state) {
+                    UpdateChecker.AVAILABLE -> showUpdateDialog(r)
+                    UpdateChecker.OFFLINE -> toast(getString(R.string.upd_offline), Ui.YELLOW)
+                    UpdateChecker.FAILED -> toast(getString(R.string.upd_failed), Ui.YELLOW)
+                    else -> toast(getString(R.string.upd_latest, Lang.digits(r.current)), Ui.GREEN)
+                }
+            } else maybeShowUpdateDialog()
+        }
+    }
+
+    private fun setUpdateStatus(msg: String, color: Int) {
+        val t = loadingView?.findViewWithTag<TextView>("upd") ?: return
+        t.text = msg
+        t.setTextColor(color)
+    }
+
+    override fun checkUpdatesNow() = startUpdateCheck(manual = true)
+
+    /** After loading, on the menu only (never interrupts a race); once per launch; respects "skip". */
+    private fun maybeShowUpdateDialog() {
+        val r = updateResult ?: return
+        if (r.state != UpdateChecker.AVAILABLE || !menuReady || inRace || updateDialogShown) return
+        if (save.skippedUpdate == r.latest) return
+        handler.postDelayed({ if (!inRace && updateView == null) showUpdateDialog(r) }, 700)
+    }
+
+    private fun showUpdateDialog(r: UpdateChecker.Result) {
+        dismissUpdateDialog()
+        updateDialogShown = true
+        val overlay = FrameLayout(this)
+        overlay.setBackgroundColor(0xB0000000.toInt())
+        overlay.isClickable = true
+        overlay.layoutDirection = Lang.layoutDirection
+        val p = Ui.panel(this, true, Ui.withAlpha(Ui.GREEN, 0xAA))
+        p.gravity = Gravity.CENTER_HORIZONTAL
+        p.isClickable = true
+        p.addView(Ui.glowTitle(this, getString(R.string.upd_dialog_title), 22f, Ui.GREEN), LinearLayout.LayoutParams(Ui.WRAP, Ui.WRAP))
+        val vers = Ui.text(this, getString(R.string.upd_versions, Lang.digits(r.current), Lang.digits(r.latest ?: "")), 14f, Ui.TEXT, Ui.bold)
+        vers.gravity = Gravity.CENTER
+        p.addView(vers, LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP).also { it.topMargin = Ui.dp(8f) })
+        val notes = r.notes
+        if (notes != null) {
+            val sv = ScrollView(this)
+            val nt = Ui.text(this, notes, 12f, Ui.DIM)
+            nt.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
+            sv.addView(nt)
+            p.addView(sv, LinearLayout.LayoutParams(Ui.MATCH, Ui.dp(96f)).also { it.topMargin = Ui.dp(8f) })
+        }
+        p.addView(Ui.text(this, getString(R.string.upd_hint), 11f, Ui.DIM), LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP).also { it.topMargin = Ui.dp(8f) })
+        val row = Ui.hbox(this)
+        val lp1 = LinearLayout.LayoutParams(0, Ui.WRAP, 1f).also { it.marginEnd = Ui.dp(6f) }
+        val lp2 = LinearLayout.LayoutParams(0, Ui.WRAP, 1f).also { it.marginStart = Ui.dp(6f) }
+        row.addView(Ui.button(this, getString(R.string.upd_download), Ui.GREEN, true, 16f) {
+            dismissUpdateDialog()
+            openUrl(r.pageUrl ?: UpdateChecker.RELEASES_PAGE)
+        }, lp1)
+        row.addView(Ui.button(this, getString(R.string.upd_later), Ui.CYAN, false, 15f) { dismissUpdateDialog() }, lp2)
+        p.addView(row, LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP).also { it.topMargin = Ui.dp(12f) })
+        val skip = Ui.text(this, getString(R.string.upd_skip), 12f, Ui.DIM, Ui.bold)
+        skip.gravity = Gravity.CENTER
+        skip.setPadding(0, Ui.dp(10f), 0, Ui.dp(2f))
+        skip.setOnClickListener { save.skippedUpdate = r.latest ?: ""; dismissUpdateDialog() }
+        p.addView(skip, LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP))
+        overlay.addView(p, FrameLayout.LayoutParams(minOf(Ui.dp(400f), resources.displayMetrics.widthPixels - Ui.dp(40f)), Ui.WRAP, Gravity.CENTER))
+        overlay.setOnClickListener { dismissUpdateDialog() }
+        root.addView(overlay, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+        overlay.alpha = 0f
+        overlay.animate().alpha(1f).setDuration(180).start()
+        p.scaleX = 0.88f; p.scaleY = 0.88f
+        p.animate().scaleX(1f).scaleY(1f).setDuration(240).start()
+        updateView = overlay
+        audio.trigger(AudioEngine.SFX_CHECKPOINT)
+    }
+
+    private fun dismissUpdateDialog() {
+        updateView?.let { root.removeView(it) }
+        updateView = null
+    }
+
+    private fun openUrl(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            toast(getString(R.string.upd_no_browser), Ui.YELLOW)
+        }
+    }
+
     private fun showMenuAfterLoad() {
+        menuReady = true
         replaceAll(MainMenuScreen(this))
         if (reopenSettings) {
             reopenSettings = false
             push(SettingsScreen(this))
         }
         handleDemoIntent(intent)
+        maybeShowUpdateDialog()
     }
 
     override fun onFps(fps: Int) {
