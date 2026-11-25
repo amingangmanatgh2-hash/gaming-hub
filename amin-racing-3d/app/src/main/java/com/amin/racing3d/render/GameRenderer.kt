@@ -838,7 +838,7 @@ class GameRenderer(
         }
     }
 
-    private fun addVehicleGlows(m: VehicleModel, x: Float, z: Float, yaw: Float, brake: Float, facingCamera: Boolean) {
+    private fun addVehicleGlows(m: VehicleModel, x: Float, z: Float, yaw: Float, brake: Float, facingCamera: Boolean, flare: Float = 1f) {
         val ca = cos(yaw); val sa = sin(yaw)
         val lo = lightsOn
         if (lo > 0.02f) {
@@ -849,8 +849,8 @@ class GameRenderer(
                 val wx = x + lx * ca + lz * sa
                 val wz = z - lx * sa + lz * ca
                 if (facingCamera) {
-                    additive.add(wx, ly, wz, 2.4f, 1f, 0.95f, 0.85f, 0.5f * lo)
-                    additive.add(wx, ly, wz, 0.7f, 1f, 1f, 1f, 0.95f * lo)
+                    additive.add(wx, ly, wz, 2.4f * flare, 1f, 0.95f, 0.85f, 0.5f * lo * flare)
+                    additive.add(wx, ly, wz, 0.7f * (0.5f + 0.5f * flare), 1f, 1f, 1f, 0.95f * lo)
                 } else {
                     additive.add(wx, ly, wz, 0.9f, 1f, 0.95f, 0.85f, 0.35f * lo)
                 }
@@ -883,7 +883,7 @@ class GameRenderer(
         addWheels(m, 0f, 0f, yaw, 0.25f, 0f, 1f)
         shadowBatch.add(0f, 0f, 0f, yaw, 0f, 0f, m.width * 1.4f, 1f, m.length * 1.2f, 1f, 1f, 1f, 0.7f, 0f, 0f, 0f, 0f)
         lightsOn = 1f
-        addVehicleGlows(m, 0f, 0f, yaw, 0f, true)
+        addVehicleGlows(m, 0f, 0f, yaw, 0f, true, 0.3f)
         // floating neon dust
         val t = animTime
         for (i in 0 until 40) {

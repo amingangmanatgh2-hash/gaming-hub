@@ -36,7 +36,7 @@ demo() {
 
 # ---------------------------------------------------------------- portrait, Persian
 adb shell am start -W -n "$ACT"
-sleep 25
+sleep 70
 shot 01-main-menu-fa
 alive menu || exit 1
 
@@ -84,7 +84,7 @@ sleep 4
 adb shell am force-stop "$PKG"
 sleep 1
 adb shell am start -n "$ACT" --es demo settings --es lang en >/dev/null
-sleep 25
+sleep 70
 shot 14-settings-english
 demo 6 --es demo scores
 shot 15-scoreboard-english
