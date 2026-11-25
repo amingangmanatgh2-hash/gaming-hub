@@ -227,6 +227,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         }
         if (i.hasExtra("tod")) save.selectedTod = i.getIntExtra("tod", 0).coerceIn(0, 3)
         if (i.hasExtra("autogas")) save.autoGas = i.getBooleanExtra("autogas", true)
+        if (i.hasExtra("fps")) save.showFps = i.getBooleanExtra("fps", false)
         dismissConfirm()
         if (inRace) quitToMenu()
         applySettings()

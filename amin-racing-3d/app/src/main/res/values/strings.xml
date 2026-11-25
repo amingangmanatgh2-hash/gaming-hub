@@ -131,4 +131,5 @@
     <string name="checkpoint_sign">ایست بازرسی</string>
     <string name="on_label">روشن</string>
     <string name="off_label">خاموش</string>
+    <string name="audio_title">صدا</string>
 </resources>

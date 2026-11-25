@@ -197,9 +197,18 @@ class HudView(context: Context, private val world: World, private val input: Inp
             gaugeX = w - padR - gaugeR
             gaugeY = padT + 78f * d + gaugeR
         } else {
-            gaugeR = (h * 0.13f).coerceIn(44f * d, 84f * d)
-            gaugeX = w / 2f
-            gaugeY = h - padB - gaugeR * 0.85f - 22f * d
+            // landscape: keep the centre (the car) clear – the gauge sits on the left side
+            gaugeR = (h * 0.12f).coerceIn(40f * d, 76f * d)
+            val below = gaugeR + 36f * d   // nitro bar + label under the dial
+            if (touchSteering) {
+                val arrowsTop = buttons[B_LEFT].r.top
+                gaugeX = padL + b + gap / 2f
+                gaugeY = arrowsTop - 8f * d - below
+                if (gaugeY - gaugeR < padT + 56f * d) gaugeY = padT + 56f * d + gaugeR
+            } else {
+                gaugeX = padL + b + gap + gaugeR + 18f * d
+                gaugeY = h - padB - below
+            }
         }
     }
 

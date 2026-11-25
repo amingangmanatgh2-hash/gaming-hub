@@ -440,11 +440,16 @@ class GameRenderer(
         var targetRoll = 0f
         when (w.state) {
             World.STATE_SHOWROOM -> {
-                val dist = if (portrait) 9.5f else 7.2f
+                // Portrait: the garage panel covers the lower half, so aim below the car to place it
+                // in the upper part of the screen. Landscape: the panel is on the right, so aim to the
+                // right of the car to place it in the left half.
+                val dist = if (portrait) 13.5f else 8.4f
                 val ang = 0.55f
-                tx = sin(ang) * dist; ty = if (portrait) 2.6f else 2.0f; tz = cos(ang) * dist
-                lx = 0f; ly = if (portrait) 0.55f else 0.7f; lz = 0f
-                targetFov = if (portrait) 55f else 38f
+                tx = sin(ang) * dist; ty = if (portrait) 3.4f else 2.1f; tz = cos(ang) * dist
+                val shift = if (portrait) 0f else 2.3f
+                lx = cos(ang) * shift; ly = if (portrait) -2.3f else 0.6f; lz = -sin(ang) * shift
+                tx += lx; tz += lz
+                targetFov = if (portrait) 58f else 40f
             }
             World.STATE_ATTRACT -> {
                 val a = w.time * 0.12f

@@ -53,8 +53,9 @@ class GarageScreen(host: GameHost) : Screen(host) {
         // car name + arrows
         val nameRow = Ui.hbox(ctx, Gravity.CENTER)
         nameRow.setPadding(Ui.dp(12f), Ui.dp(4f), Ui.dp(12f), 0)
-        val prev = Ui.button(ctx, "‹", Ui.CYAN, false, 26f) { step(-1) }
-        val next = Ui.button(ctx, "›", Ui.CYAN, false, 26f) { step(1) }
+        // arrows point outward in both reading directions
+        val prev = Ui.button(ctx, if (Lang.isFa) "›" else "‹", Ui.CYAN, false, 26f) { step(-1) }
+        val next = Ui.button(ctx, if (Lang.isFa) "‹" else "›", Ui.CYAN, false, 26f) { step(1) }
         prev.setPadding(Ui.dp(18f), 0, Ui.dp(18f), Ui.dp(4f))
         next.setPadding(Ui.dp(18f), 0, Ui.dp(18f), Ui.dp(4f))
         val nameCol = Ui.vbox(ctx, Gravity.CENTER)
@@ -85,8 +86,13 @@ class GarageScreen(host: GameHost) : Screen(host) {
             box.addView(scroll, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP, Gravity.BOTTOM))
             column.addView(box, LinearLayout.LayoutParams(Ui.MATCH, h))
         } else {
+            // the 3D car is framed on the left, so the panel always sits on the right
             val body = Ui.hbox(ctx, Gravity.TOP)
+            body.layoutDirection = View.LAYOUT_DIRECTION_LTR
+            scroll.layoutDirection = Lang.layoutDirection
+            panel.layoutDirection = Lang.layoutDirection
             val left = Ui.vbox(ctx, Gravity.CENTER_HORIZONTAL)
+            nameRow.layoutDirection = Lang.layoutDirection
             left.addView(nameRow, Ui.lp())
             body.addView(left, LinearLayout.LayoutParams(0, Ui.MATCH, 1f))
             val lp = LinearLayout.LayoutParams(minOf(Ui.dp(360f), (ctx.resources.displayMetrics.widthPixels * 0.46f).toInt()), Ui.MATCH)
@@ -335,7 +341,7 @@ class SettingsScreen(host: GameHost) : Screen(host) {
         col.addView(toggleRow(R.string.set_fps, save.showFps) { save.showFps = it }, Ui.lp())
 
         // ---- audio
-        col.addView(sectionTitle(str(R.string.set_sound)), Ui.lp())
+        col.addView(sectionTitle(str(R.string.audio_title)), Ui.lp())
         col.addView(toggleRow(R.string.set_sound, save.sfxOn) { save.sfxOn = it }, Ui.lp())
         col.addView(toggleRow(R.string.set_music, save.musicOn) { save.musicOn = it }, Ui.lp())
         col.addView(toggleRow(R.string.set_mute, save.muted) { save.muted = it }, Ui.lp())

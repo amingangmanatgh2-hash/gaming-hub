@@ -128,4 +128,5 @@
     <string name="checkpoint_sign">CHECKPOINT</string>
     <string name="on_label">ON</string>
     <string name="off_label">OFF</string>
+    <string name="audio_title">Audio</string>
 </resources>
