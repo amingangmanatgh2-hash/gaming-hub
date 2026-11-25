@@ -12,6 +12,7 @@ import android.widget.ScrollView
 import com.amin.racing3d.R
 import com.amin.racing3d.audio.AudioEngine
 import com.amin.racing3d.core.Lang
+import com.amin.racing3d.core.Progression
 import com.amin.racing3d.game.GameData
 import com.amin.racing3d.game.StoryData
 import com.amin.racing3d.game.World
@@ -107,7 +108,9 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         val side = Ui.vbox(ctx, Gravity.END)
         val bw = Ui.dp(190f)
         side.addView(Ui.button(ctx, str(R.string.menu_garage), Ui.PINK, true, 17f) { host.push(GarageScreen(host)) }, LinearLayout.LayoutParams(bw, Ui.WRAP))
-        side.addView(Ui.button(ctx, str(R.string.menu_scores), Ui.YELLOW, false, 15f) { host.push(ScoresScreen(host)) }, LinearLayout.LayoutParams(bw, Ui.WRAP).also { it.topMargin = Ui.dp(10f) })
+        val open = host.progression.dailiesOpen()
+        val progLabel = str(R.string.menu_progress) + if (open > 0) "  •" + Lang.num(open) else "  ✓"
+        side.addView(Ui.button(ctx, progLabel, Ui.YELLOW, false, 15f) { host.push(ProgressScreen(host)) }, LinearLayout.LayoutParams(bw, Ui.WRAP).also { it.topMargin = Ui.dp(10f) })
         side.addView(Ui.button(ctx, str(R.string.menu_settings), Ui.GREEN, false, 15f) { host.push(SettingsScreen(host)) }, LinearLayout.LayoutParams(bw, Ui.WRAP).also { it.topMargin = Ui.dp(10f) })
         side.addView(Ui.button(ctx, str(R.string.menu_exit), Ui.RED, false, 13f) {
             host.confirm(str(R.string.exit_confirm)) { host.exitGame() }
@@ -146,6 +149,9 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         val card = Ui.hbox(ctx)
         card.setPadding(Ui.dp(8f), Ui.dp(6f), Ui.dp(14f), Ui.dp(6f))
         card.background = Ui.bg(Ui.withAlpha(0xFF0D1424.toInt(), 0xC8), Ui.withAlpha(Ui.CYAN, 0x55), 22f, 1f)
+        card.isClickable = true
+        card.setOnClickListener { Ui.onClickSound?.invoke(); host.push(ProgressScreen(host, 2)) }
+        Ui.pressable(card)
         val badge = Ui.text(ctx, Lang.num(save.level()), 16f, Ui.BG, Ui.bold)
         badge.gravity = Gravity.CENTER
         badge.background = Ui.gradient(Ui.CYAN, Ui.PINK, 0, 20f)
@@ -526,6 +532,8 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
             p.addView(Ui.text(ctx, str(R.string.best) + ": " + Lang.num(r.best), 13f, Ui.YELLOW, Ui.bold), Ui.lp(Ui.WRAP, topDp = 2f))
         }
 
+        if (r.rewards.isNotEmpty()) p.addView(rewardsBox(), Ui.lp(topDp = 10f))
+
         val stats = Ui.vbox(ctx)
         stats.setPadding(0, Ui.dp(10f), 0, Ui.dp(6f))
         fun stat(label: Int, value: String, color: Int = Ui.TEXT) {
@@ -587,6 +595,26 @@ class GameOverScreen(host: GameHost, private val r: RunResult) : Screen(host) {
         p.translationY = Ui.dp(60f).toFloat(); p.alpha = 0f
         p.animate().translationY(0f).alpha(1f).setDuration(380).setInterpolator(DecelerateInterpolator(2f)).start()
         return root
+    }
+
+    /** Daily challenges / achievements / level-ups earned by this run, revealed one by one. */
+    private fun rewardsBox(): View {
+        val box = Ui.vbox(ctx)
+        box.background = Ui.bg(Ui.withAlpha(Ui.YELLOW, 0x1C), Ui.withAlpha(Ui.YELLOW, 0x88), 12f)
+        box.setPadding(Ui.dp(12f), Ui.dp(8f), Ui.dp(12f), Ui.dp(8f))
+        box.addView(Ui.text(ctx, str(R.string.prog_rewards), 13f, Ui.YELLOW, Ui.black), Ui.lp(Ui.WRAP))
+        for ((i, rw) in r.rewards.withIndex()) {
+            val row = Ui.hbox(ctx)
+            row.setPadding(0, Ui.dp(3f), 0, Ui.dp(3f))
+            val col = when (rw.kind) { Progression.KIND_ACHIEVEMENT -> Ui.PINK; Progression.KIND_LEVEL -> Ui.CYAN; else -> Ui.GREEN }
+            row.addView(Ui.text(ctx, rw.title(), 13f, col, Ui.bold), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            row.addView(Ui.text(ctx, "+" + Lang.num(rw.coins) + " ●", 13f, Ui.YELLOW, Ui.bold))
+            box.addView(row, Ui.lp())
+            row.alpha = 0f; row.translationX = Ui.dp(if (Lang.isFa) -30f else 30f).toFloat()
+            row.animate().alpha(1f).translationX(0f).setStartDelay(500L + i * 260L).setDuration(300).start()
+        }
+        if (r.rewards.any { it.kind == Progression.KIND_ACHIEVEMENT }) host.sfx(com.amin.racing3d.audio.AudioEngine.SFX_CHECKPOINT)
+        return box
     }
 
     /** Story: passed/failed banner, the speaker's reaction, reward and unlocked car. */

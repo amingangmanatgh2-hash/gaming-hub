@@ -21,6 +21,7 @@ uniform highp int uTexMode;
 uniform vec2 uTexScale;
 uniform float uBlink;
 uniform float uSiren;
+uniform vec3 uInterior;
 out vec3 vWorld;
 out vec3 vNormal;
 out vec3 vColor;
@@ -29,13 +30,22 @@ out vec4 vShadowPos;
 out float vEmis;
 out float vSpec;
 out float vAlpha;
+out float vFinish;
+out float vGlassTint;
 void main() {
     mat4 m = mat4(iM0, iM1, iM2, iM3);
     vec4 w = m * vec4(aPos, 1.0);
     vWorld = w.xyz;
     vNormal = mat3(m) * aNormal;
-    vColor = mix(aColor.rgb, aColor.rgb * iTint.rgb, aColor.a);
+    // paint mask: 1 = body paint (instance tint), 0.5 = interior trim (uInterior), 0 = fixed colour
+    if (aColor.a > 0.3 && aColor.a < 0.7) vColor = aColor.rgb * uInterior;
+    else vColor = mix(aColor.rgb, aColor.rgb * iTint.rgb, aColor.a);
     vAlpha = iTint.a;
+    // car instances pack paint finish + window tint into the alpha: a = 1 - (finish * 0.25 + tint)
+    float pk = clamp(1.0 - iTint.a, 0.0, 1.0);
+    float fin = floor(pk * 4.0 + 0.02);
+    vGlassTint = max(pk - fin * 0.25, 0.0);
+    vFinish = aColor.a > 0.75 ? fin : 0.0;
     float t = aMat.x;
     float e = 0.0;
     if (t > 0.5) {
@@ -78,6 +88,8 @@ in vec4 vShadowPos;
 in float vEmis;
 in float vSpec;
 in float vAlpha;
+in float vFinish;
+in float vGlassTint;
 uniform sampler2D uTex;
 uniform sampler2DShadow uShadowMap;
 uniform highp int uTexMode;
@@ -152,6 +164,23 @@ void main() {
         windowLit = step(0.75, tx.a);
     }
     vec3 N = normalize(vNormal);
+    // custom paint finishes (player car): 1 metallic, 2 matte, 3 chrome
+    float flake = 0.0;
+    float chrome = 0.0;
+    if (vFinish > 0.5) {
+        if (vFinish < 1.5) {
+            flake = fract(sin(dot(floor(vWorld * 140.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+            spec = 0.95;
+            albedo *= 0.92 + 0.16 * flake;
+        } else if (vFinish < 2.5) {
+            spec = 0.03;
+            albedo *= 0.9;
+        } else {
+            chrome = 1.0;
+            spec = 1.0;
+            albedo = mix(albedo, vec3(0.85), 0.2) * 0.32;
+        }
+    }
     // wet asphalt / ground: darker albedo, mirror-like puddles that break up with a cheap world-space noise
     float wetK = 0.0;
     if (uWet > 0.01 && (uTexMode == 1 || uTexMode == 2) && N.y > 0.8) {
@@ -201,7 +230,14 @@ void main() {
         float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
         vec3 env = mix(uFogColor, uSkyTop, clamp(R.y * 1.4 + 0.25, 0.0, 1.0));
         float rk = (fres * 0.65 + 0.08) * spec * uReflect + wetK * 0.35;
-        col = mix(col, env, clamp(rk, 0.0, 0.85));
+        if (chrome > 0.5) {
+            // mirror finish: tinted environment dominates, bright sun hotspot
+            rk = 0.55 + 0.4 * fres;
+            env *= mix(vec3(1.0), vColor * 1.6 + 0.25, 0.5);
+            col += uSunColor * pow(max(dot(N, H), 0.0), 220.0) * 3.0 * sh;
+        }
+        col = mix(col, env, clamp(rk, 0.0, 0.92));
+        if (flake > 0.93) col += uSunColor * (flake - 0.93) * 14.0 * ndl * sh;
     }
     col += vColor * vEmis * 2.4;
     col += vec3(1.0, 0.82, 0.5) * windowLit * uNight * 1.1;
@@ -213,7 +249,9 @@ void main() {
     if (uGlass > 0.0) {
         // glass: more opaque (mirror-like) at grazing angles, tinted otherwise
         float fr = pow(1.0 - max(dot(N, V), 0.0), 2.0);
-        alpha = clamp(uGlass + fr * 0.55, 0.0, 0.97);
+        float tint = vGlassTint * 4.0;
+        alpha = clamp(uGlass + tint * 0.62 + fr * 0.55, 0.0, 0.97);
+        col *= 1.0 - tint * 0.72;
     }
     fragColor = vec4(col, alpha);
 }

@@ -37,14 +37,19 @@ class RunResult(
     /** coins paid for the mission (first completion only) */
     val missionReward: Int = 0,
     /** car unlocked by this mission (-1 none) */
-    val unlockedCar: Int = -1
+    val unlockedCar: Int = -1,
+    /** daily challenges, achievements and level-ups earned by this run */
+    val rewards: List<com.amin.racing3d.core.Progression.Reward> = emptyList()
 )
 
 /** Everything a screen needs from the activity. */
 interface GameHost {
     val activity: Activity
     val save: SaveManager
+    val progression: com.amin.racing3d.core.Progression
     val tiltAvailable: Boolean
+    /** sensor used for tilt steering: "gyro", "gravity", "accelerometer" or "none" */
+    val tiltSensor: String
     val ultraSupported: Boolean
     fun push(screen: Screen)
     fun replaceAll(screen: Screen)
@@ -61,7 +66,10 @@ interface GameHost {
     fun checkUpdatesNow()
     /** Free roam: switch to another owned car without leaving the road. */
     fun swapCar(car: Int)
-    fun showroom(car: Int, color: Int)
+    /** Shows [car] in the 3D showroom; [custom] = Garage 2.0 options to preview (null = stock). */
+    fun showroom(car: Int, color: Int, custom: IntArray? = null)
+    /** Garage inspection camera: zoom (0.42..1.45, smaller = closer) and elevation (radians). */
+    fun showroomCamera(zoom: Float, elevation: Float)
     fun rotateShowroom(deltaRadians: Float, dragging: Boolean)
     fun leaveShowroom()
     fun sfx(id: Int)
@@ -86,6 +94,23 @@ abstract class Screen(protected val host: GameHost) {
     abstract fun build(): View
     open fun onBack() = host.back()
     open fun onHidden() {}
+
+    /**
+     * Unlocks achievements earned outside a run (purchases, upgrades, customization) and
+     * announces each one after the purchase toast. Returns true when coins were awarded.
+     */
+    protected fun announceUnlocks(): Boolean {
+        val fresh = ArrayList<com.amin.racing3d.core.Progression.Reward>()
+        host.progression.checkAchievements(fresh)
+        val h = android.os.Handler(android.os.Looper.getMainLooper())
+        for ((i, r) in fresh.withIndex()) {
+            h.postDelayed({
+                host.sfx(com.amin.racing3d.audio.AudioEngine.SFX_COIN)
+                host.toast(str(R.string.ach_unlocked_toast, r.title(), com.amin.racing3d.core.Lang.num(r.coins)), Ui.YELLOW)
+            }, 1300L + i * 2400L)
+        }
+        return fresh.isNotEmpty()
+    }
 
     protected val portrait: Boolean
         get() {

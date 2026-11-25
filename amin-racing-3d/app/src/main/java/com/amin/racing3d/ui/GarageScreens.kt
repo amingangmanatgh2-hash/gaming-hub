@@ -29,22 +29,8 @@ class GarageScreen(host: GameHost) : Screen(host) {
     override fun build(): View {
         val root = FrameLayout(ctx)
 
-        // drag-to-rotate surface (transparent, under the UI)
-        val drag = View(ctx)
-        var lastX = 0f
-        drag.setOnTouchListener { _, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { lastX = ev.x; host.rotateShowroom(0f, true) }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = ev.x - lastX
-                    lastX = ev.x
-                    host.rotateShowroom(dx * 0.012f, true)
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> host.rotateShowroom(0f, false)
-            }
-            true
-        }
-        root.addView(drag, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+        // inspection surface (transparent, under the UI): rotate, tilt, pinch zoom, double-tap reset
+        root.addView(inspectSurface(host), FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
 
         val column = LinearLayout(ctx)
         column.orientation = LinearLayout.VERTICAL
@@ -118,7 +104,7 @@ class GarageScreen(host: GameHost) : Screen(host) {
     private fun refresh(animate: Boolean) {
         val spec = GameData.cars[car]
         val owned = save.isCarOwned(car)
-        host.showroom(car, GameData.PAINT_PALETTE[previewPaint])
+        host.showroom(car, GameData.PAINT_PALETTE[previewPaint], if (owned) save.customs(car) else null)
         nameView.text = str(spec.nameRes)
         priceView.text = when {
             !owned -> "🔒 " + Lang.num(spec.price) + " " + str(R.string.coins)
@@ -199,6 +185,9 @@ class GarageScreen(host: GameHost) : Screen(host) {
                     refresh(false)
                 }, Ui.lp(topDp = 14f))
             }
+            panel.addView(Ui.button(ctx, str(R.string.cus_open), Ui.PINK, true, 16f) {
+                host.push(CustomizeScreen(host, car))
+            }, Ui.lp(topDp = 8f))
             panel.addView(Ui.button(ctx, str(R.string.upgrade_shop), Ui.YELLOW, false, 16f) {
                 host.push(UpgradeScreen(host, car))
             }, Ui.lp(topDp = 8f))
@@ -215,17 +204,249 @@ class GarageScreen(host: GameHost) : Screen(host) {
                         save.selectedCar = car
                         host.sfx(AudioEngine.SFX_BUY)
                         host.toast(str(R.string.purchased), Ui.GREEN)
+                        announceUnlocks()
                         refreshCoins()
                         refresh(false)
                     } else host.toast(str(R.string.not_enough_coins), Ui.RED)
                 }
             }, Ui.lp(topDp = 14f))
         }
+        panel.addView(Ui.text(ctx, str(R.string.inspect_hint), 11f, Ui.DIM), Ui.lp(topDp = 10f))
         if (animate) staggerIn(panel, 0L, 14f)
     }
 
     override fun onBack() {
+        Inspect.reset()
         host.leaveShowroom()
+        host.back()
+    }
+}
+
+// =====================================================================================
+/** Garage camera state shared by the garage and the customization screen. */
+internal object Inspect {
+    var zoom = 1f
+    var elev = 0.18f
+    fun reset() { zoom = 1f; elev = 0.18f }
+}
+
+/**
+ * Transparent touch surface over the 3D car: horizontal drag rotates, vertical drag changes the
+ * camera height, two-finger pinch zooms in to inspect details, double tap resets the view.
+ */
+@SuppressLint("ClickableViewAccessibility")
+internal fun inspectSurface(host: GameHost): View {
+    val ctx = host.activity
+    val v = View(ctx)
+    var lastX = 0f
+    var lastY = 0f
+    var lastTap = 0L
+    val scale = android.view.ScaleGestureDetector(ctx, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+            Inspect.zoom = (Inspect.zoom / d.scaleFactor).coerceIn(0.42f, 1.45f)
+            host.showroomCamera(Inspect.zoom, Inspect.elev)
+            return true
+        }
+    })
+    host.showroomCamera(Inspect.zoom, Inspect.elev)
+    v.setOnTouchListener { _, ev ->
+        scale.onTouchEvent(ev)
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastX = ev.x; lastY = ev.y
+                host.rotateShowroom(0f, true)
+                val now = android.os.SystemClock.uptimeMillis()
+                if (now - lastTap < 300) { Inspect.reset(); host.showroomCamera(Inspect.zoom, Inspect.elev) }
+                lastTap = now
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> { lastX = ev.getX(0); lastY = ev.getY(0) }
+            MotionEvent.ACTION_MOVE -> {
+                if (ev.pointerCount == 1 && !scale.isInProgress) {
+                    val dx = ev.x - lastX
+                    val dy = ev.y - lastY
+                    host.rotateShowroom(dx * 0.012f, true)
+                    Inspect.elev = (Inspect.elev + dy * 0.004f).coerceIn(0.02f, 1.15f)
+                    host.showroomCamera(Inspect.zoom, Inspect.elev)
+                }
+                lastX = ev.getX(0); lastY = ev.getY(0)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> host.rotateShowroom(0f, false)
+        }
+        true
+    }
+    return v
+}
+
+// =====================================================================================
+/**
+ * Garage 2.0 customization: paint finish, rims, rim colour, calipers, spoiler, window tint,
+ * underglow neon, nitro flame colour and interior. Every option is previewed live on the 3D car;
+ * options are bought once per car and can be switched freely afterwards.
+ */
+class CustomizeScreen(host: GameHost, private val car: Int) : Screen(host) {
+    override val dim = 0f
+    private var cat = 0
+    private val preview = save.customs(car)
+    private lateinit var catRow: LinearLayout
+    private lateinit var options: LinearLayout
+    private lateinit var action: LinearLayout
+
+    override fun build(): View {
+        val root = FrameLayout(ctx)
+        root.addView(inspectSurface(host), FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+        val column = LinearLayout(ctx)
+        column.orientation = LinearLayout.VERTICAL
+        column.addView(header(str(R.string.cus_title) + " — " + str(GameData.cars[car].nameRes)), LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP))
+
+        val panel = Ui.panel(ctx, true, Ui.withAlpha(Ui.PINK, 0x66))
+        catRow = Ui.vbox(ctx)
+        panel.addView(catRow, Ui.lp())
+        options = Ui.vbox(ctx)
+        panel.addView(options, Ui.lp(topDp = 8f))
+        action = Ui.vbox(ctx)
+        panel.addView(action, Ui.lp(topDp = 8f))
+        val scroll = ScrollView(ctx)
+        scroll.isVerticalScrollBarEnabled = false
+        scroll.addView(panel, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP))
+
+        if (portrait) {
+            column.addView(View(ctx), LinearLayout.LayoutParams(Ui.MATCH, 0, 1f))
+            val lp = LinearLayout.LayoutParams(Ui.MATCH, (ctx.resources.displayMetrics.heightPixels * 0.5f).toInt())
+            lp.setMargins(Ui.dp(10f), 0, Ui.dp(10f), Ui.dp(10f))
+            column.addView(scroll, lp)
+        } else {
+            val body = Ui.hbox(ctx, Gravity.TOP)
+            body.layoutDirection = View.LAYOUT_DIRECTION_LTR
+            scroll.layoutDirection = Lang.layoutDirection
+            panel.layoutDirection = Lang.layoutDirection
+            body.addView(View(ctx), LinearLayout.LayoutParams(0, Ui.MATCH, 1f))
+            val lp = LinearLayout.LayoutParams(minOf(Ui.dp(380f), (ctx.resources.displayMetrics.widthPixels * 0.48f).toInt()), Ui.MATCH)
+            lp.setMargins(0, 0, Ui.dp(10f), Ui.dp(10f))
+            body.addView(scroll, lp)
+            column.addView(body, LinearLayout.LayoutParams(Ui.MATCH, 0, 1f))
+        }
+        root.addView(column, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+        buildCategories()
+        showPreview()
+        fill()
+        return root
+    }
+
+    private fun color() = save.paintColor(car)
+    private fun showPreview() = host.showroom(car, color(), preview.copyOf())
+
+    private fun buildCategories() {
+        catRow.removeAllViews()
+        var row: LinearLayout? = null
+        for (c in 0 until GameData.NUM_CUS) {
+            if (c % 3 == 0) { row = Ui.hbox(ctx, Gravity.CENTER); catRow.addView(row, Ui.lp(topDp = if (c == 0) 0f else 5f)) }
+            val sel = c == cat
+            val names = GameData.customCategories[c]
+            val chip = Ui.text(ctx, if (Lang.isFa) names[0] else names[1], 12f, if (sel) Ui.BG else Ui.TEXT, Ui.bold)
+            chip.gravity = Gravity.CENTER
+            chip.setPadding(Ui.dp(6f), Ui.dp(7f), Ui.dp(6f), Ui.dp(7f))
+            chip.background = if (sel) Ui.gradient(Ui.PINK, 0xFFB388FF.toInt(), 0, 12f, GradientDrawable.Orientation.LEFT_RIGHT)
+                else Ui.bg(Ui.PANEL_LIGHT, Ui.withAlpha(Ui.PINK, 0x55), 12f, 1f)
+            chip.isClickable = true
+            chip.setOnClickListener {
+                host.sfx(AudioEngine.SFX_CLICK)
+                // leaving a category drops an unbought preview back to the owned selection
+                if (!save.ownsCustom(car, cat, preview[cat])) preview[cat] = save.custom(car, cat)
+                cat = c
+                focusCamera()
+                buildCategories(); showPreview(); fill()
+            }
+            row!!.addView(chip, LinearLayout.LayoutParams(0, Ui.WRAP, 1f).also { it.marginStart = Ui.dp(3f); it.marginEnd = Ui.dp(3f) })
+        }
+    }
+
+    /** move the camera to the part being customised */
+    private fun focusCamera() {
+        when (cat) {
+            GameData.CUS_RIM, GameData.CUS_RIM_COLOR, GameData.CUS_CALIPER -> { Inspect.zoom = 0.55f; Inspect.elev = 0.08f }
+            GameData.CUS_INTERIOR, GameData.CUS_TINT -> { Inspect.zoom = 0.6f; Inspect.elev = 0.75f }
+            GameData.CUS_NEON -> { Inspect.zoom = 0.9f; Inspect.elev = 0.05f }
+            GameData.CUS_SPOILER -> { Inspect.zoom = 0.75f; Inspect.elev = 0.4f }
+            else -> Inspect.reset()
+        }
+        host.showroomCamera(Inspect.zoom, Inspect.elev)
+    }
+
+    private fun fill() {
+        options.removeAllViews()
+        action.removeAllViews()
+        val opts = GameData.customOptions[cat]
+        if (cat == GameData.CUS_SPOILER && GameData.hasFactoryWing(car)) {
+            options.addView(Ui.text(ctx, str(R.string.cus_factory_wing), 13f, Ui.YELLOW, Ui.bold), Ui.lp())
+            return
+        }
+        val desc = when (cat) {
+            GameData.CUS_FLAME -> str(R.string.cus_flame_hint)
+            GameData.CUS_NEON -> str(R.string.cus_neon_hint)
+            GameData.CUS_FINISH -> str(R.string.cus_finish_hint)
+            else -> null
+        }
+        if (desc != null) options.addView(Ui.text(ctx, desc, 11.5f, Ui.DIM), Ui.lp(bottomDp = 4f))
+        for ((i, o) in opts.withIndex()) {
+            val owned = save.ownsCustom(car, cat, i)
+            val sel = preview[cat] == i
+            val equipped = save.custom(car, cat) == i
+            val row = Ui.hbox(ctx)
+            row.setPadding(Ui.dp(10f), Ui.dp(8f), Ui.dp(12f), Ui.dp(8f))
+            row.background = Ui.bg(if (sel) Ui.withAlpha(Ui.PINK, 0x30) else Ui.PANEL_LIGHT, if (sel) Ui.PINK else 0, 12f, 1.5f)
+            val hasColor = cat == GameData.CUS_RIM_COLOR || cat == GameData.CUS_CALIPER || cat == GameData.CUS_FLAME ||
+                (cat == GameData.CUS_NEON && i > 0) || cat == GameData.CUS_INTERIOR
+            if (hasColor) {
+                val sw = View(ctx)
+                sw.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(o.rgb or 0xFF000000.toInt())
+                    setStroke(Ui.dp(1.5f), Ui.withAlpha(Ui.TEXT, 0x88))
+                }
+                row.addView(sw, LinearLayout.LayoutParams(Ui.dp(22f), Ui.dp(22f)).also { it.marginEnd = Ui.dp(10f) })
+            }
+            row.addView(Ui.text(ctx, if (Lang.isFa) o.fa else o.en, 14f, Ui.TEXT, Ui.bold), LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+            val state = when {
+                equipped -> "✓ " + str(R.string.cus_equipped)
+                owned -> str(R.string.cus_owned)
+                else -> "● " + Lang.num(o.price)
+            }
+            row.addView(Ui.text(ctx, state, 12.5f, if (equipped) Ui.GREEN else if (owned) Ui.CYAN else Ui.YELLOW, Ui.bold))
+            row.isClickable = true
+            row.setOnClickListener {
+                host.sfx(AudioEngine.SFX_CLICK)
+                preview[cat] = i
+                if (owned) save.setCustom(car, cat, i)
+                showPreview(); fill()
+            }
+            Ui.pressable(row)
+            options.addView(row, Ui.lp(topDp = 5f))
+        }
+        // buy button for a previewed option that is not owned yet
+        val p = preview[cat]
+        if (!save.ownsCustom(car, cat, p)) {
+            val o = opts[p]
+            action.addView(Ui.button(ctx, str(R.string.cus_buy, if (Lang.isFa) o.fa else o.en, Lang.num(o.price)), Ui.YELLOW, true, 16f) {
+                if (save.coins < o.price) { host.toast(str(R.string.not_enough_coins), Ui.RED); return@button }
+                val c = cat
+                host.confirm(str(R.string.cus_buy, if (Lang.isFa) o.fa else o.en, Lang.num(o.price)) + "?") {
+                    if (save.spend(o.price)) {
+                        save.setOwnsCustom(car, c, p)
+                        save.setCustom(car, c, p)
+                        host.sfx(AudioEngine.SFX_BUY)
+                        host.toast(str(R.string.purchased), Ui.GREEN)
+                        announceUnlocks()
+                        refreshCoins()
+                        if (c == cat) fill()
+                    } else host.toast(str(R.string.not_enough_coins), Ui.RED)
+                }
+            }, Ui.lp())
+        }
+    }
+
+    override fun onBack() {
+        Inspect.reset()
+        host.showroomCamera(Inspect.zoom, Inspect.elev)
         host.back()
     }
 }
@@ -284,6 +505,7 @@ class UpgradeScreen(host: GameHost, private val car: Int) : Screen(host) {
                         save.setUpgradeLevel(car, u, lvl + 1)
                         host.sfx(AudioEngine.SFX_BUY)
                         host.toast(str(GameData.upgradeNames[u]) + " ↑ " + Lang.num(lvl + 1), colors[u])
+                        announceUnlocks()
                         refreshCoins()
                         fill()
                     } else host.toast(str(R.string.not_enough_coins), Ui.RED)
@@ -312,6 +534,12 @@ class SettingsScreen(host: GameHost) : Screen(host) {
                 save.controlMode = it
                 host.applySettings()
             }, Ui.lp())
+            val sensor = when (host.tiltSensor) {
+                "gyro" -> str(R.string.tilt_src_gyro)
+                "gravity" -> str(R.string.tilt_src_gravity)
+                else -> str(R.string.tilt_src_accel)
+            }
+            col.addView(Ui.text(ctx, str(R.string.tilt_sensor_info, sensor), 11.5f, Ui.DIM), Ui.lp(topDp = 4f))
         } else {
             val n = Ui.text(ctx, str(R.string.no_tilt_sensor), 13f, Ui.YELLOW)
             col.addView(n, Ui.lp())

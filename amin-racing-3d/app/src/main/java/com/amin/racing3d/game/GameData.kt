@@ -191,6 +191,59 @@ object GameData {
     val weatherNames = intArrayOf(R.string.w_clear, R.string.w_light_rain, R.string.w_heavy_rain, R.string.w_snow, R.string.w_fog, R.string.w_storm)
 
     /** Quick-play objective for each mode (story missions define their own). */
+    // ------------------------------------------------------------------ Garage 2.0 customization
+    const val CUS_FINISH = 0
+    const val CUS_RIM = 1
+    const val CUS_RIM_COLOR = 2
+    const val CUS_CALIPER = 3
+    const val CUS_SPOILER = 4
+    const val CUS_TINT = 5
+    const val CUS_NEON = 6
+    const val CUS_FLAME = 7
+    const val CUS_INTERIOR = 8
+    const val NUM_CUS = 9
+
+    /** One purchasable option. [rgb] = colour (0xRRGGBB) or a parameter for the renderer. */
+    class CustomOption(val fa: String, val en: String, val price: Int, val rgb: Int = 0xFFFFFF)
+
+    val customCategories = arrayOf(
+        arrayOf("پرداخت رنگ", "Paint finish"), arrayOf("رینگ", "Rims"), arrayOf("رنگ رینگ", "Rim colour"),
+        arrayOf("کالیپر ترمز", "Brake calipers"), arrayOf("اسپویلر", "Spoiler"), arrayOf("دودی شیشه", "Window tint"),
+        arrayOf("نئون زیر ماشین", "Underglow neon"), arrayOf("شعلهٔ اگزوز", "Exhaust flame"), arrayOf("رنگ داخلی", "Interior")
+    )
+
+    val customOptions: Array<Array<CustomOption>> = arrayOf(
+        arrayOf(CustomOption("براق", "Gloss", 0), CustomOption("متالیک", "Metallic", 1500),
+            CustomOption("مات", "Matte", 2000), CustomOption("کروم", "Chrome", 4500)),
+        arrayOf(CustomOption("اسپرت ۱۰ پره", "Sport 10-spoke", 0), CustomOption("توربین", "Turbine", 1200),
+            CustomOption("کاسه‌ای کلاسیک", "Deep dish", 1500)),
+        arrayOf(CustomOption("نقره‌ای", "Silver", 0, 0xFFFFFF), CustomOption("مشکی", "Black", 400, 0x26272B),
+            CustomOption("طلایی", "Gold", 700, 0xFFC64D), CustomOption("برنز", "Bronze", 500, 0xB8743F),
+            CustomOption("فیروزه‌ای", "Cyan", 600, 0x33E0FF), CustomOption("قرمز", "Red", 500, 0xE5222E)),
+        arrayOf(CustomOption("قرمز", "Red", 0, 0xD91420), CustomOption("زرد", "Yellow", 300, 0xFFC800),
+            CustomOption("آبی", "Blue", 300, 0x1E5BFF), CustomOption("سبز", "Green", 300, 0x18C24A),
+            CustomOption("مشکی", "Black", 300, 0x1A1A1C), CustomOption("طلایی", "Gold", 500, 0xE0A632)),
+        arrayOf(CustomOption("کارخانه", "Stock", 0), CustomOption("داک‌تیل", "Ducktail", 1500),
+            CustomOption("بال GT", "GT wing", 2500), CustomOption("بال GT کربنی", "Carbon GT wing", 3500)),
+        arrayOf(CustomOption("بدون دودی", "None", 0), CustomOption("روشن", "Light", 500),
+            CustomOption("تیره", "Dark", 800), CustomOption("لیموزینی", "Limo", 1200)),
+        arrayOf(CustomOption("خاموش", "Off", 0), CustomOption("فیروزه‌ای", "Cyan", 2000, 0x00E5FF),
+            CustomOption("صورتی", "Pink", 2000, 0xFF2D95), CustomOption("سبز", "Green", 2000, 0x39FF88),
+            CustomOption("بنفش", "Purple", 2000, 0x9B5CFF), CustomOption("طلایی", "Gold", 2000, 0xFFC23D)),
+        arrayOf(CustomOption("آبی نیترو", "Nitro blue", 0, 0x7FB8FF), CustomOption("نارنجی", "Orange", 1200, 0xFF8A1F),
+            CustomOption("سبز", "Green", 1200, 0x49FF6A), CustomOption("بنفش", "Purple", 1200, 0xC05CFF),
+            CustomOption("قرمز", "Red", 1200, 0xFF2B2B)),
+        arrayOf(CustomOption("مشکی", "Black", 0, 0x23262D), CustomOption("چرم قرمز", "Red leather", 800, 0x8A1C22),
+            CustomOption("کرم", "Tan", 800, 0x9C7350), CustomOption("سفید", "White", 800, 0xC9C6C0),
+            CustomOption("آبی", "Blue", 800, 0x23407A))
+    )
+
+    /** cars with a factory rear wing: aftermarket spoilers would clash with it */
+    fun hasFactoryWing(car: Int) = car == CAR_SPORTS || car == CAR_SUPER || car == CAR_RACE
+
+    /** window tint level packed into the instance alpha (0..0.2) */
+    val TINT_LEVELS = floatArrayOf(0f, 0.07f, 0.13f, 0.2f)
+
     fun defaultConfig(mode: Int, env: Int, tod: Int, weather: Int): RaceConfig = when (mode) {
         MODE_STREET -> RaceConfig(mode, env, tod, weather, goal = 3000f, rivals = 3, rivalSkill = 1f)
         MODE_DRIFT -> RaceConfig(mode, env, tod, weather, gold = 30000f, silver = 17000f, bronze = 8000f, timeLimit = 90f)

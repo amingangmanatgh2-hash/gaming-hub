@@ -20,6 +20,9 @@ class VehicleModel(
 ) {
     /** Window glass (translucent pass), shares the vertex buffer of [mesh]. */
     val glass: Mesh? = MeshBuilder.takeGlass()
+    /** spoiler mount: top of the rear deck (measured from the painted body) */
+    val deckY: Float = MeshBuilder.lastDeckY
+    val deckZ: Float = MeshBuilder.lastDeckZ
     /** player cars get painted performance brake calipers */
     var sporty = false
 }
@@ -96,18 +99,18 @@ object Models {
         val zSeat = (zt0 + zt1) * 0.5f + (zt1 - zt0) * 0.12f
         for (side in 0..1) {
             val sx = (side * 2 - 1) * hwIn * 0.45f
-            b.color(0xFF23262D.toInt(), 0f, 0, 0.2f)
+            b.color(WHITE, 0.5f, 0, 0.2f)
             b.box(sx, ya + hc * 0.32f, zSeat, 0.44f, hc * 0.64f, 0.13f)
             b.color(0xFF8E1B2A.toInt(), 0f, 0, 0.25f)
             b.box(sx, ya + hc * 0.32f, zSeat - 0.07f, 0.16f, hc * 0.56f, 0.012f)
-            b.color(0xFF23262D.toInt(), 0f, 0, 0.2f)
+            b.color(WHITE, 0.5f, 0, 0.2f)
             b.box(sx, ya + hc * 0.74f, zSeat + 0.01f, 0.24f, hc * 0.2f, 0.1f)
             b.box(sx, ya + hc * 0.62f, zSeat + 0.01f, 0.04f, hc * 0.1f, 0.03f)
         }
         // rear bench when the cabin is long enough
         if (zt1 - zt0 > 1.0f) {
             val zr = zt1 - 0.12f
-            b.color(0xFF23262D.toInt(), 0f, 0, 0.2f)
+            b.color(WHITE, 0.5f, 0, 0.2f)
             b.box(0f, ya + hc * 0.28f, zr, iw - 0.1f, hc * 0.56f, 0.13f)
             for (side in 0..1) b.box((side * 2 - 1) * hwIn * 0.45f, ya + hc * 0.66f, zr + 0.01f, 0.24f, hc * 0.18f, 0.1f)
         }
@@ -837,7 +840,12 @@ object Models {
     // --------------------------------------------------------------------------------------
     // Wheel (radius 1, width 0.7, detailed rim on +X side)
     // --------------------------------------------------------------------------------------
-    fun wheel(): Mesh {
+    /**
+     * Wheel with rim [style]: 0 sport 10-spoke, 1 turbine (16 thin curved spokes), 2 deep-dish
+     * classic (wide polished lip, 5 broad spokes). Rim face parts carry paint mask 1, so the
+     * instance tint sets the rim colour (white = original metal colours).
+     */
+    fun wheel(style: Int = 0): Mesh {
         val b = MeshBuilder()
         b.color(0xFF18181A.toInt(), 0f, 0, 0.05f)
         b.cylinderX(0f, 0f, 0f, 0.96f, 0.7f, 26, capNeg = true, capPos = false)
@@ -871,24 +879,59 @@ object Models {
         }
         b.color(0xFF5B5F68.toInt(), 0f, 0, 0.5f)
         b.diskX(0.15f, 0f, 0f, 0.24f, 14, true)
-        // rim: barrel, ten-spoke face (5 split spokes), centre cap
+        // rim barrel
         b.color(0xFF25282E.toInt(), 0f, 0, 0.3f)
         b.ringX(0.29f, 0f, 0f, 0.6f, 0.63f, 26, true)
-        b.color(0xFF7E838C.toInt(), 0f, 0, 0.6f)
-        b.ringX(0.3f, 0f, 0f, 0.18f, 0.3f, 18, true)
-        b.color(0xFFD9DEE6.toInt(), 0f, 0, 1f)
-        for (i in 0 until 5) {
-            val a = (i * 72f) * (Math.PI / 180f).toFloat()
-            b.spokeX(0.34f, 0f, 0f, a - 0.11f, 0.12f, 0.63f, 0.06f, 0.035f)
-            b.spokeX(0.34f, 0f, 0f, a + 0.11f, 0.12f, 0.63f, 0.06f, 0.035f)
+        when (style) {
+            1 -> {
+                // turbine: 16 thin spokes with a twist, small hub
+                b.color(0xFF7E838C.toInt(), 1f, 0, 0.6f)
+                b.ringX(0.3f, 0f, 0f, 0.16f, 0.24f, 18, true)
+                b.color(0xFFD0D5DD.toInt(), 1f, 0, 1f)
+                for (i in 0 until 16) {
+                    val a = i * (Math.PI.toFloat() / 8f)
+                    b.spokeX(0.34f, 0f, 0f, a, 0.14f, 0.36f, 0.03f, 0.028f)
+                    b.spokeX(0.341f, 0f, 0f, a + 0.09f, 0.34f, 0.62f, 0.028f, 0.022f)
+                }
+                b.ringX(0.342f, 0f, 0f, 0.33f, 0.37f, 24, true)
+                b.diskX(0.345f, 0f, 0f, 0.12f, 12, true)
+            }
+            2 -> {
+                // deep dish: polished wide lip, recessed 5 broad spokes, riveted lip ring
+                b.color(CHROME, 0f, 0, 1f)
+                b.ringX(0.355f, 0f, 0f, 0.5f, 0.64f, 26, true)
+                b.color(0xFF3A3D44.toInt(), 0f, 0, 0.6f)
+                for (i in 0 until 16) {
+                    val a = i * (Math.PI.toFloat() / 8f)
+                    b.box(0.358f, cos(a) * 0.57f, sin(a) * 0.57f, 0.008f, 0.022f, 0.022f)
+                }
+                b.color(0xFFC9CED6.toInt(), 1f, 0, 0.9f)
+                for (i in 0 until 5) {
+                    val a = (i * 72f) * (Math.PI / 180f).toFloat()
+                    b.spokeX(0.25f, 0f, 0f, a, 0.12f, 0.5f, 0.13f, 0.16f)
+                }
+                b.ringX(0.252f, 0f, 0f, 0.46f, 0.5f, 22, true)
+                b.diskX(0.255f, 0f, 0f, 0.15f, 12, true)
+            }
+            else -> {
+                // sport: ten-spoke face (5 split spokes), centre cap
+                b.color(0xFF7E838C.toInt(), 1f, 0, 0.6f)
+                b.ringX(0.3f, 0f, 0f, 0.18f, 0.3f, 18, true)
+                b.color(0xFFD9DEE6.toInt(), 1f, 0, 1f)
+                for (i in 0 until 5) {
+                    val a = (i * 72f) * (Math.PI / 180f).toFloat()
+                    b.spokeX(0.34f, 0f, 0f, a - 0.11f, 0.12f, 0.63f, 0.06f, 0.035f)
+                    b.spokeX(0.34f, 0f, 0f, a + 0.11f, 0.12f, 0.63f, 0.06f, 0.035f)
+                }
+                b.color(0xFF9EA3AB.toInt(), 0f, 0, 0.9f)
+                for (i in 0 until 5) {
+                    val a = (i * 72f + 36f) * (Math.PI / 180f).toFloat()
+                    b.box(0.345f, cos(a) * 0.15f, sin(a) * 0.15f, 0.01f, 0.035f, 0.035f)
+                }
+                b.color(0xFFD9DEE6.toInt(), 1f, 0, 1f)
+                b.diskX(0.345f, 0f, 0f, 0.11f, 12, true)
+            }
         }
-        b.color(0xFF9EA3AB.toInt(), 0f, 0, 0.9f)
-        for (i in 0 until 5) {
-            val a = (i * 72f + 36f) * (Math.PI / 180f).toFloat()
-            b.box(0.345f, cos(a) * 0.15f, sin(a) * 0.15f, 0.01f, 0.035f, 0.035f)
-        }
-        b.color(0xFFD9DEE6.toInt(), 0f, 0, 1f)
-        b.diskX(0.345f, 0f, 0f, 0.11f, 12, true)
         b.color(0xFFC81E28.toInt(), 0f, 0, 0.5f)
         b.diskX(0.347f, 0f, 0f, 0.05f, 10, true)
         return b.build()
@@ -922,6 +965,31 @@ object Models {
         }
         b.color(0xFFE8E8E8.toInt(), 0f, 0, 0.4f)
         b.box(0.252f, sin(1.2f) * 0.46f, cos(1.2f) * 0.46f, 0.004f, 0.06f, 0.2f)
+        return b.build()
+    }
+
+    /**
+     * Aftermarket spoiler in mount space: origin = rear deck centre, +Z = rearwards, unit width
+     * (scaled by the car width). kind 1 ducktail lip, 2 GT wing (painted), 3 GT wing (carbon).
+     */
+    fun spoiler(kind: Int): Mesh {
+        val b = MeshBuilder()
+        if (kind == 1) {
+            paint(b)
+            b.taper(-0.46f, 0.46f, -0.12f, 0.2f, 0f, -0.44f, 0.44f, 0.08f, 0.22f, 0.07f, bottom = false)
+            b.box(0f, 0.035f, 0.21f, 0.88f, 0.07f, 0.03f)
+        } else {
+            // swan-neck uprights + end plates + main plane + gurney flap
+            b.color(0xFF1B1C20.toInt(), 0f, 0, 0.5f)
+            b.box(-0.3f, 0.16f, 0.06f, 0.035f, 0.32f, 0.16f)
+            b.box(0.3f, 0.16f, 0.06f, 0.035f, 0.32f, 0.16f)
+            if (kind == 3) b.color(0xFF1E2024.toInt(), 0f, 0, 0.85f) else paint(b)
+            b.taper(-0.52f, 0.52f, -0.08f, 0.24f, 0.33f, -0.52f, 0.52f, -0.04f, 0.24f, 0.375f, bottom = true)
+            b.color(0xFF141518.toInt(), 0f, 0, 0.4f)
+            b.box(0f, 0.385f, 0.235f, 1.04f, 0.035f, 0.012f)
+            b.box(-0.525f, 0.33f, 0.08f, 0.012f, 0.16f, 0.36f)
+            b.box(0.525f, 0.33f, 0.08f, 0.012f, 0.16f, 0.36f)
+        }
         return b.build()
     }
 

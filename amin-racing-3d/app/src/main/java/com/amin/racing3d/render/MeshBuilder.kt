@@ -368,7 +368,27 @@ class MeshBuilder {
         tri(a, c, b); tri(a, d, c)
     }
 
+    /**
+     * Rear deck of a car body (top of the painted surface over the rear axle area, centre line):
+     * mounting point for aftermarket spoilers. Only painted, non-glass vertices count.
+     */
+    private fun measureDeck() {
+        val f = Mesh.FLOATS_PER_VERTEX
+        var maxZ = -1e9f
+        for (i in 0 until vCount) { val o = i * f; if (verts[o + 9] > 0.75f && verts[o + 2] > maxZ) maxZ = verts[o + 2] }
+        var deckY = 0f
+        for (i in 0 until vCount) {
+            val o = i * f
+            if (verts[o + 9] < 0.75f) continue
+            val x = verts[o]; val y = verts[o + 1]; val z = verts[o + 2]
+            if (kotlin.math.abs(x) < 0.4f && z > maxZ - 0.75f && z < maxZ - 0.12f && y > deckY) deckY = y
+        }
+        lastDeckY = deckY
+        lastDeckZ = maxZ - 0.38f
+    }
+
     fun build(): Mesh {
+        measureDeck()
         val ids = IntArray(1)
         GLES30.glGenBuffers(1, ids, 0)
         val vb = Gl.floatBuffer(vCount * Mesh.FLOATS_PER_VERTEX)
@@ -405,6 +425,9 @@ class MeshBuilder {
     companion object {
         /** Glass part of the most recently built mesh (GL thread only). */
         var lastGlass: Mesh? = null
+        /** rear deck (spoiler mount) of the most recently built mesh */
+        var lastDeckY = 0f
+        var lastDeckZ = 0f
 
         fun takeGlass(): Mesh? { val g = lastGlass; lastGlass = null; return g }
     }

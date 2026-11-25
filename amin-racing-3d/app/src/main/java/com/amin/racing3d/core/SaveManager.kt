@@ -15,6 +15,24 @@ class SaveManager(context: Context) {
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences("amin_racing_3d_save", Context.MODE_PRIVATE)
 
+    // ----- raw access for the progression system (new keys only) ----------------------------
+    fun prefInt(key: String, def: Int = 0): Int = prefs.getInt(key, def)
+    fun putPrefInt(key: String, v: Int) = prefs.edit().putInt(key, v).apply()
+    fun prefLong(key: String, def: Long = 0L): Long = prefs.getLong(key, def)
+    fun putPrefLong(key: String, v: Long) = prefs.edit().putLong(key, v).apply()
+    fun prefString(key: String, def: String = ""): String = prefs.getString(key, def) ?: def
+    fun putPrefString(key: String, v: String) = prefs.edit().putString(key, v).apply()
+
+    // ----- Garage 2.0 customization (per car; option 0 is always owned) ----------------------
+    fun custom(car: Int, cat: Int): Int = prefs.getInt("cus_${cat}_$car", 0)
+    fun setCustom(car: Int, cat: Int, opt: Int) = prefs.edit().putInt("cus_${cat}_$car", opt).apply()
+    fun ownsCustom(car: Int, cat: Int, opt: Int): Boolean = opt == 0 || (prefs.getInt("cusown_${cat}_$car", 0) and (1 shl opt)) != 0
+    fun setOwnsCustom(car: Int, cat: Int, opt: Int) {
+        prefs.edit().putInt("cusown_${cat}_$car", prefs.getInt("cusown_${cat}_$car", 0) or (1 shl opt)).apply()
+    }
+    /** all categories of a car (selected options) */
+    fun customs(car: Int): IntArray = IntArray(GameData.NUM_CUS) { custom(car, it) }
+
     // ----- Economy -------------------------------------------------------------------------
     var coins: Int
         get() = prefs.getInt(K_COINS, START_COINS)

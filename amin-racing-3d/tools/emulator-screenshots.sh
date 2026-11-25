@@ -120,6 +120,25 @@ sleep 30
 shot 24-story-mission-hud
 alive mission || exit 1
 
+# ---------------------------------------------------------------- v2 progression + Garage 2.0
+demo 7 --es demo progress --ei tab 0
+shot 25-progress-daily
+demo 7 --es demo progress --ei tab 1
+shot 26-progress-achievements
+alive progress || exit 1
+
+# sports car: chrome finish, turbine rims in gold, blue calipers, dark tint, cyan neon, red interior
+demo 8 --es demo customize --ei car 0 --ei gfx 2 --es custom "3,1,2,2,0,2,2,0,1"
+shot 27-garage-customize
+# muscle car (no factory wing): GT wing, matte finish, deep dish rims
+demo 8 --es demo customize --ei car 1 --ei gfx 2 --es custom "2,2,1,1,2,1,3,2,2"
+shot 28-garage-customize-wing
+# customised car in a night race (neon, wing, hot brakes)
+demo 6 --es demo race --ei mode 0 --ei env 0 --ei tod 2 --ei weather 0 --ei car 1 --ei gfx 2 --ez autogas true --ei control 1
+sleep 26
+shot 29-custom-car-night-race
+alive garage2 || exit 1
+
 # ---------------------------------------------------------------- English UI (fresh launch)
 adb shell am force-stop "$PKG"
 sleep 1

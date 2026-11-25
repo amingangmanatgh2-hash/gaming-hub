@@ -27,6 +27,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.amin.racing3d.audio.AudioEngine
 import com.amin.racing3d.core.Lang
+import com.amin.racing3d.core.Progression
 import com.amin.racing3d.core.SaveManager
 import com.amin.racing3d.core.ScoreEntry
 import com.amin.racing3d.core.UpdateChecker
@@ -57,8 +58,10 @@ import com.amin.racing3d.ui.Ui
 class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudView.Listener {
 
     override lateinit var save: SaveManager
+    override val progression: Progression by lazy { Progression(save) }
     override val activity: Activity get() = this
     override val tiltAvailable: Boolean get() = tilt.available
+    override val tiltSensor: String get() = tilt.sensorName
     override val ultraSupported: Boolean get() = renderer.ultraSupported
 
     private val input = InputState()
@@ -121,6 +124,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         // the loading scene shows the player's own car in its paint
         renderer.showroomCar = selectedOwnedCar()
         renderer.showroomColor = save.paintColor(renderer.showroomCar)
+        renderer.showroomCustom = save.customs(renderer.showroomCar)
         renderer.qualityLevel = save.graphics
 
         Ui.onClickSound = { audio.trigger(AudioEngine.SFX_CLICK) }
@@ -333,6 +337,13 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         if (i.hasExtra("tod")) save.selectedTod = i.getIntExtra("tod", 0).coerceIn(0, 3)
         if (i.hasExtra("autogas")) save.autoGas = i.getBooleanExtra("autogas", true)
         if (i.hasExtra("fps")) save.showFps = i.getBooleanExtra("fps", false)
+        // debug: "custom" = comma list of Garage 2.0 options for the selected car (granted + equipped)
+        i.getStringExtra("custom")?.split(',')?.forEachIndexed { cat, v ->
+            val opt = v.trim().toIntOrNull() ?: return@forEachIndexed
+            if (cat < GameData.NUM_CUS && opt in GameData.customOptions[cat].indices) {
+                save.setOwnsCustom(save.selectedCar, cat, opt); save.setCustom(save.selectedCar, cat, opt)
+            }
+        }
         dismissConfirm()
         dismissUpdateDialog()
         updateDialogShown = true   // automated demo runs: never cover screenshots with the update dialog
@@ -347,6 +358,11 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
             "upgrades" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.GarageScreen(this)); push(com.amin.racing3d.ui.UpgradeScreen(this, save.selectedCar)) }
             "pause" -> { startRace(); handler.postDelayed({ pauseRace() }, 5000) }
             "story" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.StoryScreen(this)) }
+            "progress" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.ProgressScreen(this, i.getIntExtra("tab", 0))) }
+            "customize" -> {
+                replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.GarageScreen(this))
+                push(com.amin.racing3d.ui.CustomizeScreen(this, save.selectedCar))
+            }
             "dialogue" -> {
                 replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.StoryScreen(this))
                 push(com.amin.racing3d.ui.DialogueScreen(this, intent.getIntExtra("mission", 0).coerceIn(0, StoryData.missions.size - 1)))
@@ -547,6 +563,8 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         val lHandling = save.upgradeLevel(car, GameData.UPG_HANDLING)
         val lBrakes = save.upgradeLevel(car, GameData.UPG_BRAKES)
         val lNitro = save.upgradeLevel(car, GameData.UPG_NITRO)
+        val cus = save.customs(car)
+        renderer.playerCustom = cus
         inRace = true
         racePaused = false
         clearScreens()
@@ -559,6 +577,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         glView.queueEvent {
             world.paused = false
             world.configureCar(car, color, lSpeed, lHandling, lBrakes, lNitro)
+            world.flameStyle = cus[GameData.CUS_FLAME]
             world.startRace(cfg)
             renderer.resetTiming()
         }
@@ -617,7 +636,9 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         val lH = save.upgradeLevel(car, GameData.UPG_HANDLING)
         val lB = save.upgradeLevel(car, GameData.UPG_BRAKES)
         val lN = save.upgradeLevel(car, GameData.UPG_NITRO)
-        glView.queueEvent { world.swapCar(car, color, lS, lH, lB, lN) }
+        val cus = save.customs(car)
+        renderer.playerCustom = cus
+        glView.queueEvent { world.swapCar(car, color, lS, lH, lB, lN); world.flameStyle = cus[GameData.CUS_FLAME] }
         resumeRace()
     }
 
@@ -630,6 +651,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         hud.visibility = View.GONE
         updateTiltListening()
         save.addCoins(earned)
+        val levelBefore = save.level()
         save.recordRun(score, distance, near, topSpeed)
         // street races / time trials only count on the leaderboard when they were finished
         val counts = extra == null || mode == GameData.MODE_FREE ||
@@ -652,18 +674,23 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
                 }
             }
         }
-        val result = if (extra == null) RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode))
+        if (mPassed) save.xp += 150
+        val rewards = progression.onRun(Progression.RunInfo(mode, score, distance, topSpeed, near, combo,
+            extra?.success ?: false, extra?.medal ?: 0, extra?.position ?: 0, extra?.escapes ?: 0, extra?.takedowns ?: 0,
+            mPassed, car), levelBefore)
+        val result = if (extra == null) RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode), rewards = rewards)
         else RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode),
             extra.reason, extra.success, extra.medal, extra.position, extra.racers, extra.raceTime, extra.escapes, extra.takedowns,
-            currentMission, mPassed, mReward, mCar)
+            currentMission, mPassed, mReward, mCar, rewards)
         replaceAll(GameOverScreen(this, result))
         if (record) audio.trigger(AudioEngine.SFX_CHECKPOINT)
     }
 
     // ================================================================= showroom
-    override fun showroom(car: Int, color: Int) {
+    override fun showroom(car: Int, color: Int, custom: IntArray?) {
         renderer.showroomCar = car
         renderer.showroomColor = color
+        renderer.showroomCustom = custom ?: IntArray(GameData.NUM_CUS)
         glView.queueEvent {
             if (world.state != World.STATE_SHOWROOM) world.startShowroom()
         }
@@ -674,8 +701,15 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         renderer.showroomYaw = renderer.showroomYaw + deltaRadians
     }
 
+    override fun showroomCamera(zoom: Float, elevation: Float) {
+        renderer.showroomZoom = zoom.coerceIn(0.42f, 1.45f)
+        renderer.showroomElev = elevation.coerceIn(0.02f, 1.15f)
+    }
+
     override fun leaveShowroom() {
         renderer.showroomDragging = false
+        renderer.showroomZoom = 1f
+        renderer.showroomElev = 0.18f
         val car = selectedOwnedCar()
         val color = save.paintColor(car)
         glView.queueEvent {
@@ -805,6 +839,10 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
     // ================================================================= GameListener (GL thread)
     override fun onNearMiss(points: Int, combo: Int, oncoming: Boolean) {
         handler.post { vibrate(18, 70) }
+    }
+
+    override fun onHardBrake(strength: Float) {
+        handler.post { vibrate((14 + 22 * strength).toLong(), (60 + 120 * strength).toInt()) }
     }
 
     override fun onCrash() {

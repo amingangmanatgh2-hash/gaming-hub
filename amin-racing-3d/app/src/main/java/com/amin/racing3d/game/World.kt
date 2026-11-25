@@ -107,6 +107,8 @@ interface GameListener {
     fun onCrash()
     fun onCheckpoint(bonusSeconds: Int)
     fun onGameOver()
+    /** brake pedal pressed at speed; [strength] 0..1 (for a short haptic pulse) */
+    fun onHardBrake(strength: Float) {}
 }
 
 /**
@@ -996,28 +998,35 @@ class World(private val input: InputState) {
         val maxV = baseMax * (if (nitroActive) GameData.nitroPower(spec, lvlNitro) else 1f)
         if (crashed) {
             speed = max(0f, speed - 16f * dt)
-        } else if (brake && driftEnabled && abs(steerIn) > 0.25f && speed > 10f) {
+        } else if (handbrakeTurn(brake, gas, steerIn)) {
             // handbrake turn: rear wheels lock, the car slides and bleeds speed slowly (gas holds it)
             speed = max(0f, speed - (if (gas) 0.6f else 2.6f) * dt)
+            brakeHold = 0f
         } else if (brake) {
-            speed = max(0f, speed - GameData.brake(spec, lvlBrakes) * min(1f, 0.35f + 0.65f * surfaceGrip()) * dt)
+            speed = max(0f, speed - brakeDecel(spec) * dt)
         } else if (gas || nitroActive) {
             val f = 1f - (speed / maxV) * (speed / maxV)
             val acc = spec.accel * (if (nitroActive) 2.0f else 1f)
             if (speed < maxV) speed += acc * max(f, 0.06f) * dt
             else speed -= (speed - maxV) * 1.2f * dt
         } else {
-            speed = max(0f, speed - (1.4f + speed * 0.018f) * dt)
+            // engine braking + rolling resistance + drag when coasting
+            speed = max(0f, speed - (2.0f + speed * 0.026f) * dt)
         }
+        if (brake && !crashed) brakeHold = min(1f, brakeHold + dt * 6f) else brakeHold = 0f
         braking = brake && speed > 0.5f
+        if (braking && brakeHold > 0f && state == STATE_RACING && !brakePrev && speed > 14f) listener?.onHardBrake(min(1f, speed / 60f))
+        brakePrev = braking && brakeHold > 0f
 
         // ---------------- steering / lateral physics
-        steerSmooth += (steerIn - steerSmooth) * min(1f, 9f * dt)
+        // tilt input is already filtered by the sensor: follow it almost directly; buttons ramp in
+        val steerRate = if (input.useTilt && state != STATE_ATTRACT) 24f else 11f
+        steerSmooth += (steerIn - steerSmooth) * min(1f, steerRate * dt)
         val handling = GameData.handling(spec, lvlHandling)
         val speedFactor = (0.35f + speed / 22f).coerceAtMost(1f)
         val targetVx = steerSmooth * handling * speedFactor
         if (driftEnabled && !crashed) {
-            if (brake && abs(steerIn) > 0.25f && speed > 13f) drifting = true
+            if (handbrakeTurn(brake, gas, steerIn) && speed > 13f) drifting = true
             else if (drifting && (abs(steerIn) < 0.1f || speed < 9f)) drifting = false
             val target = if (drifting) steerSmooth * 0.62f * spec.drift.coerceIn(0.6f, 1.5f) else 0f
             driftAngle += (target - driftAngle) * min(1f, (if (drifting) 2.6f else 3.4f) * dt)
@@ -1026,7 +1035,8 @@ class World(private val input: InputState) {
             driftAngle *= 1f - min(1f, 5f * dt)
         }
         val grip = surfaceGrip() * (1f - min(0.55f, abs(driftAngle) * 0.9f))
-        vx += (targetVx - vx) * min(1f, grip * 6.5f * dt)
+        // lateral response: faster for better-handling cars (old fixed 6.5 felt laggy)
+        vx += (targetVx - vx) * min(1f, grip * (5.6f + handling * 0.36f) * dt)
         if (crashed) vx *= 1f - min(1f, 1.8f * dt)
         px += vx * dt
         val maxX = GameData.ROAD_HALF + GameData.SHOULDER - spec.width * 0.5f - 0.05f
@@ -1064,7 +1074,7 @@ class World(private val input: InputState) {
         val lonAcc = (speed - prevSpeed) / max(dt, 1e-4f)
         prevVx = vx; prevSpeed = speed
         var sk = 0f
-        if (braking && speed > 12f) sk = ((-lonAcc - 5f) / 9f).coerceIn(0f, 1f) * min(1f, speed / 30f)
+        if (braking && speed > 12f) sk = ((-lonAcc - 17f) / 14f).coerceIn(0f, 1f) * min(1f, speed / 30f) * (1.25f - 0.5f * surfaceGrip().coerceAtMost(1f))
         sk = max(sk, ((abs(latAcc) - 8f) / 12f).coerceIn(0f, 1f) * min(1f, speed / 25f))
         sk = max(sk, (abs(driftAngle) / 0.42f).coerceIn(0f, 1f) * min(1f, speed / 14f))
         if (crashed && speed > 4f) sk = 0.9f
@@ -1712,6 +1722,37 @@ class World(private val input: InputState) {
     }
 
     /** Tyre grip on the current surface: car tyres × environment × weather (all-terrain cars lose less). */
+    /** nitro flame colour (garage option GameData.CUS_FLAME) */
+    @Volatile var flameStyle = 0
+
+    /** 0→1 over the first ~0.17 s of a brake press (initial bite, nose dive) */
+    private var brakeHold = 0f
+    private var brakePrev = false
+
+    /**
+     * Handbrake slide instead of normal braking. Drift mode: brake + steer (that's the mode's
+     * technique). Free roam: only brake + gas + steer, so plain braking always stops the car.
+     * All other modes: never — the brake pedal always brakes.
+     */
+    private fun handbrakeTurn(brake: Boolean, gas: Boolean, steerIn: Float): Boolean {
+        if (!brake || !driftEnabled || speed <= 10f || abs(steerIn) <= 0.3f) return false
+        return mode == GameData.MODE_DRIFT || gas
+    }
+
+    /**
+     * Brake deceleration in m/s². Strong arcade braking that still differs per car (brake stat,
+     * mass, brake upgrades) and per surface: ~22–36 m/s² on dry tarmac with a quick initial bite,
+     * plus aerodynamic drag at high speed; wet/snow roads lengthen the stopping distance.
+     */
+    private fun brakeDecel(spec: CarSpec): Float {
+        val base = GameData.brake(spec, lvlBrakes) * 1.85f
+        val massMul = (1.12f - spec.massKg / 9000f).coerceIn(0.82f, 1.05f)
+        val aero = speed * 0.075f
+        val bite = 0.7f + 0.3f * brakeHold
+        val surf = min(1.05f, 0.42f + 0.6f * surfaceGrip())
+        return (base * massMul + aero) * bite * surf
+    }
+
     fun surfaceGrip(): Float {
         val spec = carSpec
         var surf = GameData.envs[env].grip * weatherGrip()
@@ -1733,17 +1774,18 @@ class World(private val input: InputState) {
                 val wz = baseZ - lx * sa + lz * ca
                 val wy = ly + suspY
                 if (nitroActive) {
-                    // layered nitro flame: white-hot core, blue cone, violet tail; longer with speed
+                    // layered nitro flame: white-hot core, coloured cone and tail (garage option); longer with speed
                     val len = 1f + min(1f, speed / 60f)
+                    val fc = FLAME_COLORS[flameStyle.coerceIn(0, FLAME_COLORS.size - 1)]
                     particles.spawn(wx, wy, wz, rand(-0.15f, 0.15f), rand(-0.05f, 0.1f), -speed + rand(8f, 11f) * len,
-                        rand(0.05f, 0.08f), 0.2f, 0.06f, 1f, 1f, 1f, 1f, true, 0f, 0f, 0.6f, 0.8f, 1f)
+                        rand(0.05f, 0.08f), 0.2f, 0.06f, 1f, 1f, 1f, 1f, true, 0f, 0f, fc[0], fc[1], fc[2])
                     for (k in 0 until 2) {
                         particles.spawn(wx + rand(-0.04f, 0.04f), wy + rand(-0.03f, 0.03f), wz,
                             rand(-0.4f, 0.4f), rand(-0.1f, 0.3f), -speed + rand(5f, 9f) * len,
-                            rand(0.1f, 0.2f), 0.34f, 0.1f, 0.5f, 0.72f, 1f, 1f, true, 0f, 0f, 0.85f, 0.35f, 1f)
+                            rand(0.1f, 0.2f), 0.34f, 0.1f, fc[3], fc[4], fc[5], 1f, true, 0f, 0f, fc[6], fc[7], fc[8])
                     }
                     if (rand() < 0.5f) particles.spawn(wx, wy, wz, rand(-0.6f, 0.6f), rand(0f, 0.5f), -speed + rand(2f, 5f),
-                        rand(0.18f, 0.3f), 0.42f, 0.15f, 0.55f, 0.25f, 0.95f, 0.7f, true, 0f, 0.5f, 0.2f, 0.05f, 0.4f)
+                        rand(0.18f, 0.3f), 0.42f, 0.15f, fc[9], fc[10], fc[11], 0.7f, true, 0f, 0.5f, fc[12], fc[13], fc[14])
                 } else if (burst) {
                     // exhaust backfire on lift-off / upshift: short orange fireball and a spark
                     for (k in 0 until 3) {
@@ -1998,6 +2040,14 @@ class World(private val input: InputState) {
     }
 
     companion object {
+        /** per flame style: core end rgb, cone start rgb, cone end rgb, tail start rgb, tail end rgb */
+        val FLAME_COLORS = arrayOf(
+            floatArrayOf(0.6f, 0.8f, 1f, 0.5f, 0.72f, 1f, 0.85f, 0.35f, 1f, 0.55f, 0.25f, 0.95f, 0.2f, 0.05f, 0.4f),
+            floatArrayOf(1f, 0.8f, 0.4f, 1f, 0.6f, 0.15f, 1f, 0.25f, 0.05f, 0.9f, 0.3f, 0.05f, 0.3f, 0.05f, 0f),
+            floatArrayOf(0.7f, 1f, 0.6f, 0.35f, 1f, 0.4f, 0.1f, 0.7f, 0.2f, 0.2f, 0.8f, 0.3f, 0.02f, 0.25f, 0.05f),
+            floatArrayOf(0.85f, 0.6f, 1f, 0.75f, 0.35f, 1f, 1f, 0.2f, 0.8f, 0.6f, 0.15f, 0.9f, 0.25f, 0.02f, 0.35f),
+            floatArrayOf(1f, 0.6f, 0.5f, 1f, 0.25f, 0.2f, 0.8f, 0.05f, 0.05f, 0.9f, 0.1f, 0.1f, 0.3f, 0f, 0.02f)
+        )
         const val STATE_ATTRACT = 0
         const val STATE_SHOWROOM = 1
         const val STATE_COUNTDOWN = 2

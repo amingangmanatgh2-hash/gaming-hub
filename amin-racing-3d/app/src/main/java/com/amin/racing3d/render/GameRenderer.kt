@@ -44,6 +44,12 @@ class GameRenderer(
     @Volatile var showroomColor = 0xFF00B8FF.toInt()
     @Volatile var showroomYaw = 0f
     @Volatile var showroomDragging = false
+    /** garage camera: distance multiplier (pinch) and elevation angle (vertical drag) */
+    @Volatile var showroomZoom = 1f
+    @Volatile var showroomElev = 0.18f
+    /** Garage 2.0 options (GameData.CUS_*) of the player's car in races / of the showroom preview */
+    @Volatile var playerCustom = IntArray(GameData.NUM_CUS)
+    @Volatile var showroomCustom = IntArray(GameData.NUM_CUS)
     @Volatile var simulationPaused = false
 
     // ------------------------------------------------------------------ loading (real progress)
@@ -107,6 +113,11 @@ class GameRenderer(
     private lateinit var playerBatches: Array<InstanceBatch>
     private lateinit var trafficBatches: Array<InstanceBatch>
     private lateinit var wheelBatch: InstanceBatch
+    /** rim styles 1 (turbine) and 2 (deep dish): player car / showroom only */
+    private lateinit var wheelBatchTurbine: InstanceBatch
+    private lateinit var wheelBatchDish: InstanceBatch
+    /** aftermarket spoilers: ducktail, GT wing, carbon GT wing */
+    private lateinit var spoilerBatches: Array<InstanceBatch>
     private lateinit var coinBatch: InstanceBatch
     private lateinit var caliperBatch: InstanceBatch
     private var playerGlass: Array<InstanceBatch?> = arrayOfNulls(0)
@@ -193,6 +204,7 @@ class GameRenderer(
         val texScale = GLES30.glGetUniformLocation(p, "uTexScale")
         val blink = GLES30.glGetUniformLocation(p, "uBlink")
         val siren = GLES30.glGetUniformLocation(p, "uSiren")
+        val interior = GLES30.glGetUniformLocation(p, "uInterior")
         val tex = GLES30.glGetUniformLocation(p, "uTex")
         val shadowMap = GLES30.glGetUniformLocation(p, "uShadowMap")
         val shadowOn = GLES30.glGetUniformLocation(p, "uShadowOn")
@@ -322,6 +334,9 @@ class GameRenderer(
         }
         st.add {
             wheelBatch = InstanceBatch(Models.wheel(), (World.MAX_TRAFFIC + 40) * 6)
+            wheelBatchTurbine = InstanceBatch(Models.wheel(1), 8)
+            wheelBatchDish = InstanceBatch(Models.wheel(2), 8)
+            spoilerBatches = Array(3) { InstanceBatch(Models.spoiler(it + 1), 2) }
             caliperBatch = InstanceBatch(Models.caliper(), (World.MAX_TRAFFIC + 40) * 6)
         }
         st.add { pm[0] = Models.sports() }
@@ -385,7 +400,7 @@ class GameRenderer(
         // 6. batch lists, shadow map
         st.add {
             // every player model must be listed (cars 4-9 were missing: they were never cleared per frame)
-            casterBatches = arrayOf(*playerBatches,
+            casterBatches = arrayOf(*playerBatches, spoilerBatches[0], spoilerBatches[1], spoilerBatches[2],
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
                 buildingBatch, pineBatch, snowPineBatch, treeBatch, cactusBatch, lampBatch, sign1Batch, sign2Batch,
                 billboardBatch, checkpointBatch, railBatch, palmBatch, warehouseBatch, chimneyBatch, tankBatch,
@@ -393,7 +408,8 @@ class GameRenderer(
             )
             allSceneBatches = arrayOf(*playerBatches,
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
-                wheelBatch, caliperBatch, coinBatch, shadowBatch, skidBatch, railBatch, lampBatch, buildingBatch, pineBatch, snowPineBatch,
+                wheelBatch, wheelBatchTurbine, wheelBatchDish, spoilerBatches[0], spoilerBatches[1], spoilerBatches[2],
+                caliperBatch, coinBatch, shadowBatch, skidBatch, railBatch, lampBatch, buildingBatch, pineBatch, snowPineBatch,
                 treeBatch, bushBatch, cactusBatch, rockBatch, sign1Batch, sign2Batch, billboardBatch, checkpointBatch,
                 palmBatch, warehouseBatch, chimneyBatch, tankBatch, tunnelBatch, portalBatch, bridgeBatch, waterBatch,
                 gasBatch, parkingBatch, dealerBatch,
@@ -513,6 +529,7 @@ class GameRenderer(
         loadAnim += dt
         val t = loadAnim
         showroomBatch.clear(); shadowBatch.clear(); skidBatch.clear(); wheelBatch.clear(); caliperBatch.clear()
+        wheelBatchTurbine.clear(); wheelBatchDish.clear(); for (sb in spoilerBatches) sb.clear()
         for (b in playerBatches) b.clear()
         additive.clear(); alphaSprites.clear()
         buildShowroom()
@@ -666,11 +683,16 @@ class GameRenderer(
                 // Portrait: the garage panel covers the lower half, so aim below the car to place it
                 // in the upper part of the screen. Landscape: the panel is on the right, so aim to the
                 // right of the car to place it in the left half.
-                val dist = if (portrait) 13.5f else 8.4f
+                // pinch zoom and vertical drag (elevation) let the player inspect the car closely
+                val zoom = showroomZoom.coerceIn(0.42f, 1.45f)
+                val elev = showroomElev.coerceIn(0.02f, 1.15f)
+                val dist = (if (portrait) 13.5f else 8.4f) * zoom
                 val ang = 0.55f
-                tx = sin(ang) * dist; ty = if (portrait) 3.4f else 2.1f; tz = cos(ang) * dist
-                val shift = if (portrait) 0f else 2.3f
-                lx = cos(ang) * shift; ly = if (portrait) -2.3f else 0.6f; lz = -sin(ang) * shift
+                val hd = dist * cos(elev)
+                tx = sin(ang) * hd; tz = cos(ang) * hd
+                ty = 0.6f + dist * sin(elev) + (if (portrait) 0.39f * zoom else 0f)
+                val shift = (if (portrait) 0f else 2.3f) * (0.35f + 0.65f * zoom)
+                lx = cos(ang) * shift; ly = if (portrait) -2.3f * zoom + 0.6f * (1f - zoom) else 0.6f; lz = -sin(ang) * shift
                 tx += lx; tz += lz
                 targetFov = if (portrait) 58f else 40f
             }
@@ -847,9 +869,11 @@ class GameRenderer(
         val c = w.carColor
         val cr = ((c shr 16) and 0xFF) / 255f; val cg = ((c shr 8) and 0xFF) / 255f; val cb = (c and 0xFF) / 255f
         val brake = if (w.braking) 1f else 0f
-        playerBatches[spec].add(w.px, w.suspY, pz, w.yaw, w.pitch, w.roll, 1f, 1f, 1f, cr, cg, cb, 1f,
+        val cus = playerCustom
+        playerBatches[spec].add(w.px, w.suspY, pz, w.yaw, w.pitch, w.roll, 1f, 1f, 1f, cr, cg, cb, customAlpha(cus),
             brake, lightsOn, if (w.blinkLeft) 1f else 0f, if (w.blinkRight) 1f else 0f)
-        addWheels(pm, w.px, pz, w.yaw, w.steerAngle, w.wheelAngle, 1f)
+        addWheels(pm, w.px, pz, w.yaw, w.steerAngle, w.wheelAngle, 1f, cus, w.brakeHeat)
+        addCustomParts(spec, pm, w.px, w.suspY, pz, w.yaw, w.pitch, w.roll, cr, cg, cb, cus, brake)
         shadowBatch.add(w.px, 0f, pz, w.yaw, 0f, 0f, pm.width * 1.3f, 1f, pm.length * 1.15f, 1f, 1f, 1f, 0.6f, 0f, 0f, 0f, 0f)
         addVehicleGlows(pm, w.px, pz, w.yaw, brake, false)
 
@@ -1046,8 +1070,19 @@ class GameRenderer(
         return (h and 0xFFFF) / 65535f
     }
 
-    private fun addWheels(m: VehicleModel, x: Float, z: Float, yaw: Float, steer: Float, spin: Float, scale: Float) {
+    private fun addWheels(m: VehicleModel, x: Float, z: Float, yaw: Float, steer: Float, spin: Float, scale: Float, cus: IntArray? = null,
+                          heat: Float = 0f) {
         val ca = cos(yaw); val sa = sin(yaw)
+        var batch = wheelBatch
+        var rr = 1f; var rg = 1f; var rb = 1f
+        var calR = if (m.sporty) 0.85f else 0.42f; var calG = if (m.sporty) 0.08f else 0.43f; var calB = if (m.sporty) 0.1f else 0.46f
+        if (cus != null) {
+            batch = when (cus[GameData.CUS_RIM]) { 1 -> wheelBatchTurbine; 2 -> wheelBatchDish; else -> wheelBatch }
+            val rc = GameData.customOptions[GameData.CUS_RIM_COLOR].getOrNull(cus[GameData.CUS_RIM_COLOR])?.rgb ?: 0xFFFFFF
+            rr = ((rc shr 16) and 0xFF) / 255f; rg = ((rc shr 8) and 0xFF) / 255f; rb = (rc and 0xFF) / 255f
+            val cc = GameData.customOptions[GameData.CUS_CALIPER].getOrNull(cus[GameData.CUS_CALIPER])?.rgb ?: 0xD91420
+            calR = ((cc shr 16) and 0xFF) / 255f; calG = ((cc shr 8) and 0xFF) / 255f; calB = (cc and 0xFF) / 255f
+        }
         val r = m.wheelR * scale
         for (wi in m.wheelZ.indices) {
             val lz = m.wheelZ[wi]
@@ -1060,9 +1095,62 @@ class GameRenderer(
                 val wy = if (side < 0) yaw + Math.PI.toFloat() else yaw
                 val st = if (front) steer else 0f
                 val pitch = if (side < 0) -spin else spin
-                wheelBatch.add(wx, r, wz, wy + st, pitch, 0f, r, r, r, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
-                if (m.sporty) caliperBatch.add(wx, r, wz, wy + st, 0f, 0f, r, r, r, 0.85f, 0.08f, 0.1f, 1f, 0f, 0f, 0f, 0f)
-                else caliperBatch.add(wx, r, wz, wy + st, 0f, 0f, r, r, r, 0.42f, 0.43f, 0.46f, 1f, 0f, 0f, 0f, 0f)
+                batch.add(wx, r, wz, wy + st, pitch, 0f, r, r, r, rr, rg, rb, 1f, 0f, 0f, 0f, 0f)
+                caliperBatch.add(wx, r, wz, wy + st, 0f, 0f, r, r, r, calR, calG, calB, 1f, 0f, 0f, 0f, 0f)
+                // hot brake discs glow through the rim spokes (front axle carries most of the braking)
+                val h = heat * (if (front) 1f else 0.6f) - 0.25f
+                if (h > 0f) {
+                    val ox = side * (m.wheelX + 0.06f)
+                    val g = (h / 0.75f).coerceAtMost(1f)
+                    additive.add(x + ox * ca + lz * sa, r, z - ox * sa + lz * ca, r * (0.9f + 0.5f * g),
+                        1f, 0.28f + 0.3f * g, 0.05f + 0.1f * g, 0.65f * g)
+                }
+            }
+        }
+    }
+
+    /** Instance alpha of a customised car body: paint finish + window tint (decoded in MAIN_VS). */
+    private fun customAlpha(cus: IntArray): Float {
+        val fin = cus[GameData.CUS_FINISH].coerceIn(0, 3)
+        val tint = GameData.TINT_LEVELS[cus[GameData.CUS_TINT].coerceIn(0, GameData.TINT_LEVELS.size - 1)]
+        return 1f - (fin * 0.25f + tint)
+    }
+
+    /**
+     * Spoiler (follows the body's yaw / pitch / roll from the measured rear-deck mount) and
+     * underglow neon of the player's / showroom car.
+     */
+    private fun addCustomParts(car: Int, m: VehicleModel, x: Float, y: Float, z: Float, yaw: Float, pitch: Float, roll: Float,
+                               cr: Float, cg: Float, cb: Float, cus: IntArray, brake: Float) {
+        val sp = cus[GameData.CUS_SPOILER]
+        if (sp in 1..3 && !GameData.hasFactoryWing(car) && m.deckY > 0.2f) {
+            val ca = cos(yaw); val sa = sin(yaw)
+            val cbp = cos(pitch); val sbp = sin(pitch)
+            val cc = cos(roll); val sc = sin(roll)
+            // local mount (0, deckY, deckZ) through the same rotation as InstanceBatch.add (columns 1 and 2)
+            val ly = m.deckY; val lz = m.deckZ
+            val wx = x + (-ca * sc + sa * sbp * cc) * ly + (sa * cbp) * lz
+            val wy = y + (cbp * cc) * ly + (-sbp) * lz
+            val wz = z + (sa * sc + ca * sbp * cc) * ly + (ca * cbp) * lz
+            val width = m.width * (if (sp == 1) 0.92f else 0.86f)
+            val fin = cus[GameData.CUS_FINISH].coerceIn(0, 3)
+            spoilerBatches[sp - 1].add(wx, wy, wz, yaw, pitch, roll, width, 1f, 1f, cr, cg, cb, 1f - fin * 0.25f, brake, 0f, 0f, 0f)
+        }
+        val neon = cus[GameData.CUS_NEON]
+        if (neon > 0) {
+            val nc = GameData.customOptions[GameData.CUS_NEON].getOrNull(neon)?.rgb ?: return
+            val nr = ((nc shr 16) and 0xFF) / 255f; val ng = ((nc shr 8) and 0xFF) / 255f; val nb = (nc and 0xFF) / 255f
+            val ca = cos(yaw); val sa = sin(yaw)
+            val pulse = 0.82f + 0.18f * sin(animTime * 3.2f)
+            val hw = m.width * 0.5f
+            // a glowing pool on the ground plus a light strip along both sills
+            for (k in -2..2) {
+                val lz = k * m.length * 0.2f
+                for (side in -1..1 step 2) {
+                    val lx = side * (hw - 0.05f)
+                    additive.add(x + lx * ca + lz * sa, 0.12f, z - lx * sa + lz * ca, 1.25f, nr, ng, nb, 0.42f * pulse)
+                }
+                additive.add(x + lz * sa, 0.05f, z + lz * ca, 2.3f, nr, ng, nb, 0.3f * pulse)
             }
         }
     }
@@ -1108,8 +1196,10 @@ class GameRenderer(
         if (!showroomDragging) showroomYaw += 0.0045f
         val yaw = showroomYaw
         showroomBatch.add(0f, 0f, 0f, 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
-        playerBatches[id].add(0f, 0.01f, 0f, yaw, 0f, 0f, 1f, 1f, 1f, cr, cg, cb, 1f, 0f, 1f, 0f, 0f)
-        addWheels(m, 0f, 0f, yaw, 0.25f, 0f, 1f)
+        val cus = showroomCustom
+        playerBatches[id].add(0f, 0.01f, 0f, yaw, 0f, 0f, 1f, 1f, 1f, cr, cg, cb, customAlpha(cus), 0f, 1f, 0f, 0f)
+        addWheels(m, 0f, 0f, yaw, 0.25f, 0f, 1f, cus)
+        addCustomParts(id, m, 0f, 0.01f, 0f, yaw, 0f, 0f, cr, cg, cb, cus, 0f)
         shadowBatch.add(0f, 0f, 0f, yaw, 0f, 0f, m.width * 1.4f, 1f, m.length * 1.2f, 1f, 1f, 1f, 0.7f, 0f, 0f, 0f, 0f)
         lightsOn = 1f
         addVehicleGlows(m, 0f, 0f, yaw, 0f, true, 0.3f)
@@ -1215,8 +1305,15 @@ class GameRenderer(
 
         // untextured opaque geometry
         bindTex(texWhite, 0, 1f, 1f)
+        // seats of the player / showroom car use the chosen interior colour
+        val ic = GameData.customOptions[GameData.CUS_INTERIOR].getOrNull(
+            (if (showroom) showroomCustom else playerCustom)[GameData.CUS_INTERIOR])?.rgb ?: DEFAULT_SEAT
+        GLES30.glUniform3f(u.interior, ((ic shr 16) and 0xFF) / 255f, ((ic shr 8) and 0xFF) / 255f, (ic and 0xFF) / 255f)
         for (b in playerBatches) b.draw()
+        GLES30.glUniform3f(u.interior, ((DEFAULT_SEAT shr 16) and 0xFF) / 255f, ((DEFAULT_SEAT shr 8) and 0xFF) / 255f, (DEFAULT_SEAT and 0xFF) / 255f)
         wheelBatch.draw()
+        wheelBatchTurbine.draw(); wheelBatchDish.draw()
+        for (sb in spoilerBatches) sb.draw()
         caliperBatch.draw()
         showroomBatch.draw()
         if (ready) drawWorldOpaque(w)
@@ -1501,6 +1598,8 @@ class GameRenderer(
     }
 
     companion object {
+        /** factory seat colour (also used for traffic interiors) */
+        const val DEFAULT_SEAT = 0x23262D
         val DENSITY = floatArrayOf(0.45f, 0.75f, 1f, 1f)
         val PARTICLES = intArrayOf(240, 460, 700, 1000)
         val DRAW_DIST = floatArrayOf(270f, 370f, 480f, 560f)
