@@ -7,6 +7,9 @@ on:
     paths: ['amin-chess-ai/**']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -94,3 +97,38 @@ jobs:
           name: amin-chess-release-apk
           path: amin-chess-ai/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+
+      - name: ساخت GitHub Release و پیوست APKها
+        if: github.ref == 'refs/heads/Main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: AMIN CHESS AI v1.0.0 — امین چس
+          body: |
+            ## AMIN CHESS AI — امین چس ♟️
+            **«هوشمند بازی کن، حرفه‌ای شطرنج یاد بگیر.»**
+
+            اولین نسخه رسمی اپلیکیشن اندرویدی AMIN CHESS AI.
+
+            ### فایل‌ها
+            | فایل | توضیح |
+            |---|---|
+            | `app-debug.apk` | نسخه Debug — نصب مستقیم روی گوشی (پیشنهادی برای تست) |
+            | `app-release-unsigned.apk` | نسخه Release بدون امضا — برای نصب نیاز به امضای مجدد دارد |
+
+            ### نصب
+            1. فایل `app-debug.apk` را دانلود کن.
+            2. روی گوشی اندرویدی (نسخه ۶ به بالا) باز کن و اجازه نصب از منابع ناشناس را بده.
+            3. برنامه کاملاً آفلاین کار می‌کند؛ برای گفت‌وگوی آنلاین با «استاد شطرنج» API خودت را در بخش مدیریت API وارد کن.
+
+            ### امکانات
+            - بازی با Stockfish در ۶ سطح، دونفره، تمرین آخر بازی و گشایش
+            - تحلیل صفحه، بهترین حرکت، بررسی اشتباهات بازی
+            - استاد شطرنج فارسی، ۱۰ درس آموزشی، معماها
+            - سکه، فروشگاه، مأموریت‌ها، دستاوردها — همه آفلاین
+          files: |
+            amin-chess-ai/android/app/build/outputs/apk/debug/*.apk
+            amin-chess-ai/android/app/build/outputs/apk/release/*.apk
+          fail_on_unmatched_files: false
+          draft: false
+          prerelease: false
