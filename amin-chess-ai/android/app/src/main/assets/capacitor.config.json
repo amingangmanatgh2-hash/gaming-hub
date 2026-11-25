@@ -1,0 +1,12 @@
+{
+	"appId": "ir.amin.chessai",
+	"appName": "AMIN CHESS AI",
+	"webDir": "www",
+	"android": {
+		"allowMixedContent": false,
+		"backgroundColor": "#0b0614"
+	},
+	"server": {
+		"androidScheme": "https"
+	}
+}

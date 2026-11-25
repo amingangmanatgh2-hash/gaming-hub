@@ -1,0 +1,13 @@
+// AMIN CHESS AI — ماژول‌های پروژه اندروید
+apply from: "capacitor.settings.gradle"
+
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "AminChessAI"
+include ':app'

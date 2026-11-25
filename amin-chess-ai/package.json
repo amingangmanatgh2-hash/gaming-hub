@@ -1,0 +1,31 @@
+{
+  "name": "amin-chess-ai",
+  "version": "1.0.0",
+  "description": "AMIN CHESS AI - امین چس: اپلیکیشن حرفه‌ای شطرنج با هوش مصنوعی",
+  "main": "index.html",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node --test tests/puzzles.test.mjs tests/lessons.test.mjs tests/smoke.test.mjs",
+    "build": "node scripts/build-web.mjs",
+    "serve": "node scripts/serve.mjs",
+    "cap:sync": "npx cap sync android"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chess.js": "^0.10.3",
+    "stockfish": "^10.0.2",
+    "vazirmatn": "^33.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.3",
+    "@capacitor/cli": "^6.2.3",
+    "@capacitor/core": "^6.2.3",
+    "fake-indexeddb": "^6.2.8",
+    "jsdom": "^25.0.1"
+  }
+}
