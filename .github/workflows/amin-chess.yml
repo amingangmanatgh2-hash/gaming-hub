@@ -37,6 +37,10 @@ jobs:
       - name: همگام‌سازی Capacitor
         run: npx cap sync android
 
+      - name: نصب Gradle 8.5 (سازگار با AGP 8.2)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
       - name: نصب Java 17
         uses: actions/setup-java@v4
         with:
@@ -47,7 +51,17 @@ jobs:
       - name: ساخت Debug APK
         run: |
           cd android
-          gradle assembleDebug --no-daemon --stacktrace
+          gradle --version
+          set -o pipefail
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle-output.log || true
+          if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            echo "### خطای Gradle (۲۰۰ خط آخر)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -200 gradle-output.log >> $GITHUB_STEP_SUMMARY || true
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "APK ساخته نشد — جزئیات در Step Summary بالا" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
       - name: آماده‌سازی Keystore امضا (فقط از Secrets)
         if: env.KEYSTORE_BASE64 != ''
