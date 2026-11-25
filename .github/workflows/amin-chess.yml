@@ -3,7 +3,7 @@ name: ساخت APK شطرنج امین
 # اجرای خودکار: هر تغییر در پوشه amin-chess-ai یا اجرای دستی
 on:
   push:
-    branches: [main, master]
+    branches: [Main, main, master]
     paths: ['amin-chess-ai/**']
   workflow_dispatch:
 
