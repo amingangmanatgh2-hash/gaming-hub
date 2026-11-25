@@ -1,0 +1,2 @@
+f5c8c74a51b88fd9f1488545d69a5e67b4901c6dfc20c6465287a4a5cec81582  dist/AminRacing3D-1.0.0-debug.apk
+87c63f769127a3c7c73a23e7da8da74cf6ad7698d92520dc50a1e4670c8e7ee3  dist/AminRacing3D-1.0.0-release.apk
