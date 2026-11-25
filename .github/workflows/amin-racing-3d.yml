@@ -1,25 +1,43 @@
 name: AMIN RACING 3D (build + emulator check)
 
-# Builds the Android game in amin-racing-3d/ and runs it on an Android emulator to capture
-# real screenshots. Results (build log, screenshots, logcat) are committed back to the branch
-# under ci-output/amin-racing-3d/ so they can be reviewed without downloading artifacts.
+# Builds the Android game in amin-racing-3d/ (debug + release APKs).
+#  - push / pull request touching amin-racing-3d/**  -> build, upload artifact, emulator smoke test
+#  - GitHub Release published with a tag "amin-racing-v*" -> build and attach both APKs to that release
+#  - manual run with input release_tag                   -> build and attach both APKs to that (draft) release
+# Emulator results (screenshots, logcat) are committed back under ci-output/amin-racing-3d/.
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Attach the APKs to this release tag (e.g. amin-racing-v1.0.0). Leave empty for a normal build.'
+        required: false
+        default: ''
   push:
-    branches: ['arena/c01e8093-gaming-hub']
+    branches: ['Main', 'arena/c01e8093-gaming-hub']
     paths:
       - 'amin-racing-3d/**'
       - '.github/workflows/amin-racing-3d.yml'
+  pull_request:
+    paths:
+      - 'amin-racing-3d/**'
+      - '.github/workflows/amin-racing-3d.yml'
+  release:
+    types: [published]
 
 permissions:
   contents: write
 
 concurrency:
-  group: amin-racing-3d-${{ github.ref }}
-  cancel-in-progress: true
+  group: amin-racing-3d-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag || '' }}
 
 jobs:
   build:
+    # release events for other projects in this repository are ignored
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'amin-racing-v')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     defaults:
@@ -44,12 +62,17 @@ jobs:
           fi
 
       - name: Build debug + release APKs
+        env:
+          AMIN_KEYSTORE_BASE64: ${{ secrets.AMIN_KEYSTORE_BASE64 }}
+          AMIN_KEYSTORE_PASSWORD: ${{ secrets.AMIN_KEYSTORE_PASSWORD }}
+          AMIN_KEY_ALIAS: ${{ secrets.AMIN_KEY_ALIAS }}
+          AMIN_KEY_PASSWORD: ${{ secrets.AMIN_KEY_PASSWORD }}
         run: |
           set -o pipefail
           gradle :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
 
       - name: Report build errors
-        if: failure()
+        if: failure() && github.event_name == 'push'
         run: |
           grep -E '^e: |error:|ERROR:|What went wrong|FAILURE|Exception' -A3 build.log | head -150 > errors.txt || true
           head -n 20 errors.txt | while IFS= read -r l; do echo "::error::$l"; done
@@ -65,6 +88,8 @@ jobs:
 
       - name: Verify APKs
         run: |
+          VERSION=$(sed -n 's/.*versionName *= *"\(.*\)".*/\1/p' app/build.gradle.kts | head -1)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           for apk in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk; do
             ls -la "$apk"
@@ -72,9 +97,12 @@ jobs:
             "$BT/aapt" dump badging "$apk" | grep -E "package:|sdkVersion|targetSdkVersion|application-label|native-code|densities" || true
           done
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/AminRacing3D-1.0.0-debug.apk
-          cp app/build/outputs/apk/release/app-release.apk dist/AminRacing3D-1.0.0-release.apk
-          sha256sum dist/*.apk | tee dist/SHA256SUMS.txt
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/AminRacing3D-${VERSION}-debug.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/AminRacing3D-${VERSION}-release.apk"
+          (cd dist && sha256sum *.apk | tee SHA256SUMS.txt)
+          if [ -n "$RELEASE_TAG" ] && [ "${RELEASE_TAG#amin-racing-v}" != "$VERSION" ]; then
+            echo "::warning::Release tag $RELEASE_TAG does not match versionName $VERSION"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -82,8 +110,24 @@ jobs:
           path: amin-racing-3d/dist/
           retention-days: 30
 
+      - name: Attach APKs to GitHub Release
+        if: env.RELEASE_TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          have=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '[.assets[].name] | join(" ")')
+          echo "Existing assets: $have"
+          if [ "${{ github.event_name }}" = "release" ] && echo "$have" | grep -q "release.apk" && echo "$have" | grep -q "debug.apk"; then
+            echo "Release already has both APKs (attached before publishing) - keeping them."
+            exit 0
+          fi
+          gh release upload "$RELEASE_TAG" dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[] | "\(.name)  \(.size) bytes"'
+
   emulator:
     needs: build
+    # smoke test on pushes and plain manual runs (not for release uploads or PRs from forks)
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.release_tag == '')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -110,15 +154,22 @@ jobs:
           ram-size: 3072M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash amin-racing-3d/tools/emulator-screenshots.sh apks/AminRacing3D-1.0.0-debug.apk ci-output/amin-racing-3d/screens
+          script: bash amin-racing-3d/tools/emulator-screenshots.sh "$(ls apks/*-debug.apk | head -1)" ci-output/amin-racing-3d/screens
 
       - name: Commit report
         if: always()
         run: |
-          mkdir -p ci-output/amin-racing-3d
+          mkdir -p ci-output/amin-racing-3d amin-racing-3d/docs/screenshots
           cp apks/SHA256SUMS.txt ci-output/amin-racing-3d/ 2>/dev/null || true
+          # small JPEG copies for the project README
+          command -v convert >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick >/dev/null; } || true
+          for f in ci-output/amin-racing-3d/screens/*.png; do
+            [ -f "$f" ] || continue
+            n=$(basename "$f" .png)
+            convert "$f" -resize '540x540>' -strip -quality 82 "amin-racing-3d/docs/screenshots/$n.jpg" || true
+          done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci-output/amin-racing-3d
+          git add ci-output/amin-racing-3d amin-racing-3d/docs/screenshots
           git commit -m "ci(amin-racing-3d): emulator screenshots and logcat [skip ci]" || exit 0
           for i in 1 2 3; do git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && break; sleep 5; done

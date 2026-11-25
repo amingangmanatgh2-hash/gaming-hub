@@ -5,7 +5,8 @@
 **A Persian 3D endless highway racing game for Android**
 **بازی مسابقه‌ای سه‌بعدی بزرگراه بی‌پایان، به زبان فارسی**
 
-[![Android APK](https://github.com/amingangmanatgh2-hash/amin-racing-3d/actions/workflows/android.yml/badge.svg)](https://github.com/amingangmanatgh2-hash/amin-racing-3d/actions/workflows/android.yml)
+[![Build APK](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/amin-racing-3d.yml/badge.svg?branch=arena%2Fc01e8093-gaming-hub)](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/amin-racing-3d.yml)
+[![Release](https://img.shields.io/badge/release-amin--racing--v1.0.0-ff3fa4)](https://github.com/amingangmanatgh2-hash/gaming-hub/releases/tag/amin-racing-v1.0.0)
 ![minSdk 26](https://img.shields.io/badge/minSdk-26-3ddc84)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7f52ff)
 ![OpenGL ES 3.0](https://img.shields.io/badge/OpenGL_ES-3.0-5586a4)
@@ -28,13 +29,13 @@ uses software rendering (SwiftShader), so it runs much slower than a real phone.
 
 | Main menu | Garage | Two-way highway |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/01-main-menu-fa.png" width="240"> | <img src="docs/screenshots/02-garage-supercar.png" width="240"> | <img src="docs/screenshots/06-race-city-two-way.png" width="240"> |
+| <img src="docs/screenshots/01-main-menu-fa.jpg" width="240"> | <img src="docs/screenshots/02-garage-supercar.jpg" width="240"> | <img src="docs/screenshots/06-race-city-two-way.jpg" width="240"> |
 | **Desert – sunset** | **Snow – Time Attack** | **Forest – night** |
-| <img src="docs/screenshots/07-race-desert-sunset.png" width="240"> | <img src="docs/screenshots/08-race-snow-time-attack.png" width="240"> | <img src="docs/screenshots/09-race-forest-night.png" width="240"> |
+| <img src="docs/screenshots/07-race-desert-sunset.jpg" width="240"> | <img src="docs/screenshots/08-race-snow-time-attack.jpg" width="240"> | <img src="docs/screenshots/09-race-forest-night.jpg" width="240"> |
 | **Upgrade shop** | **Game over** | **Settings (English)** |
-| <img src="docs/screenshots/03-upgrade-shop.png" width="240"> | <img src="docs/screenshots/10-game-over.png" width="240"> | <img src="docs/screenshots/14-settings-english.png" width="240"> |
+| <img src="docs/screenshots/03-upgrade-shop.jpg" width="240"> | <img src="docs/screenshots/10-game-over.jpg" width="240"> | <img src="docs/screenshots/14-settings-english.jpg" width="240"> |
 
-<img src="docs/screenshots/12-landscape-city-night.png" width="738" alt="Landscape – city at night">
+<img src="docs/screenshots/12-landscape-city-night.jpg" width="740" alt="Landscape – city at night">
 
 ## Features
 
@@ -94,9 +95,14 @@ uses software rendering (SwiftShader), so it runs much slower than a real phone.
 
 ## Install
 
-1. Download `AminRacing3D-1.0.0.apk` from the [latest release](https://github.com/amingangmanatgh2-hash/amin-racing-3d/releases/latest).
+1. Download **`AminRacing3D-1.0.0-release.apk`** from the release
+   [amin-racing-v1.0.0](https://github.com/amingangmanatgh2-hash/gaming-hub/releases/tag/amin-racing-v1.0.0).
+   `SHA256SUMS.txt` in the same release lets you check the download.
 2. On your phone, allow installs from unknown sources for your browser or file manager.
 3. Open the APK and install it. You need Android 8.0 (API 26) or newer with OpenGL ES 3.0.
+
+The release also contains `AminRacing3D-1.0.0-debug.apk`. It is a debuggable build with the package
+name `com.amin.racing3d.debug`, so you can install it alongside the release build.
 
 ## Build from source
 
@@ -104,13 +110,13 @@ Requirements: JDK 17 and the Android SDK with Platform 35 and Build-Tools 35.0.0
 Ladybug or newer includes both.
 
 ```bash
-git clone https://github.com/amingangmanatgh2-hash/amin-racing-3d.git
-cd amin-racing-3d
+git clone https://github.com/amingangmanatgh2-hash/gaming-hub.git
+cd gaming-hub/amin-racing-3d
 ./gradlew assembleDebug      # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew assembleRelease    # app/build/outputs/apk/release/app-release.apk
 ```
 
-You can also open the folder in Android Studio and press **Run**.
+You can also open the `amin-racing-3d` folder (not the repository root) in Android Studio and press **Run**.
 
 ### Release signing
 
@@ -124,11 +130,24 @@ The release build looks for its signing key in these places, in order:
 3. If neither exists, the shared debug key in `signing/debug.keystore`. This key is not secret, so use
    your own key for public releases.
 
-### CI
+### CI (GitHub Actions)
 
-The workflow `.github/workflows/android.yml` builds the debug and release APKs on every push and pull
-request. When a GitHub Release is published, it also attaches the APKs and their SHA-256 checksums
-to that release.
+The game is built by `.github/workflows/amin-racing-3d.yml` at the root of this repository:
+
+- **Push or pull request** that changes `amin-racing-3d/**`: the workflow builds the debug and release
+  APKs, verifies their signatures with `apksigner`, and uploads them as the artifact
+  `amin-racing-3d-apks`. It then installs the debug APK on an Android emulator, drives it through the
+  menus and races, and commits the screenshots and logcat to `ci-output/amin-racing-3d/`.
+- **A published GitHub Release whose tag starts with `amin-racing-v`** (for example `amin-racing-v1.1.0`):
+  the workflow builds both APKs and attaches them to the release, together with `SHA256SUMS.txt`.
+  Release tags for other projects in this repository are ignored.
+- **Manual run** (*Actions → AMIN RACING 3D → Run workflow*): leave `release_tag` empty for a test build,
+  or enter a tag to attach the APKs to that release. This also works for draft releases.
+
+To publish a new version:
+
+1. Raise `versionCode` and `versionName` in `app/build.gradle.kts`.
+2. Publish a release tagged `amin-racing-v<versionName>`.
 
 ## Project structure
 

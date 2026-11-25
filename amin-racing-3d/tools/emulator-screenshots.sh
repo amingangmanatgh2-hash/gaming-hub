@@ -55,13 +55,13 @@ sleep 16
 shot 06-race-city-two-way
 alive race-city || exit 1
 
-demo 22 --es demo race --ei mode 0 --ei env 1 --ei tod 1 --ei car 1 --ei gfx 1 --ez autogas true --ei control 1 --ez fps false
+demo 34 --es demo race --ei mode 0 --ei env 1 --ei tod 1 --ei car 1 --ei gfx 1 --ez autogas true --ei control 1 --ez fps false
 shot 07-race-desert-sunset
 
-demo 22 --es demo race --ei mode 2 --ei env 2 --ei tod 0 --ei car 2 --ei gfx 1 --ez autogas true --ei control 1
+demo 34 --es demo race --ei mode 2 --ei env 2 --ei tod 0 --ei car 2 --ei gfx 1 --ez autogas true --ei control 1
 shot 08-race-snow-time-attack
 
-demo 22 --es demo race --ei mode 1 --ei env 3 --ei tod 2 --ei car 3 --ei gfx 1 --ez autogas true --ei control 1
+demo 34 --es demo race --ei mode 1 --ei env 3 --ei tod 2 --ei car 3 --ei gfx 1 --ez autogas true --ei control 1
 shot 09-race-forest-night
 # keep driving straight with auto-gas until a crash ends the run
 sleep 35
@@ -75,7 +75,7 @@ shot 11-pause
 # ---------------------------------------------------------------- landscape
 adb emu rotate >/dev/null 2>&1 || true
 sleep 4
-demo 22 --es demo race --ei mode 1 --ei env 0 --ei tod 2 --ei car 3 --ei gfx 1 --ez autogas true --ei control 1
+demo 34 --es demo race --ei mode 1 --ei env 0 --ei tod 2 --ei car 3 --ei gfx 1 --ez autogas true --ei control 1
 shot 12-landscape-city-night
 demo 7 --es demo garage --ei car 1
 shot 13-landscape-garage
