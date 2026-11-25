@@ -495,11 +495,19 @@ class HudView(context: Context, private val world: World, private val input: Inp
             }
             GameData.MODE_CHALLENGE -> {
                 drawTimeLeft(canvas, cx, top + 96f * d, now)
+                // count towards the next medal: bronze (passes) → silver → gold
+                val near = world.hudNear
+                val cfg = world.cfg
+                val target: Int
+                val tc: Int
+                if (cfg.bronze > 0f && near < cfg.bronze) { target = cfg.bronze.toInt(); tc = 0xFFD08A4E.toInt() }
+                else if (cfg.silver > 0f && near < cfg.silver) { target = cfg.silver.toInt(); tc = 0xFFD7DCE4.toInt() }
+                else { target = cfg.gold.toInt(); tc = 0xFFFFD34D.toInt() }
                 pText.textSize = 18f * d
-                pText.color = Ui.CYAN
-                var k = Lang.writeInt(world.hudNear, chars, 0, false)
+                pText.color = tc
+                var k = Lang.writeInt(near, chars, 0, false)
                 chars[k++] = ' '; chars[k++] = '/'; chars[k++] = ' '
-                k += Lang.writeInt(world.cfg.gold.toInt(), chars, k, false)
+                k += Lang.writeInt(target, chars, k, false)
                 canvas.drawText(chars, 0, k, cx, top + 130f * d, pText)
                 pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 11f * d; pSmall.color = Ui.DIM
                 canvas.drawText(sNearGoal, cx, top + 146f * d, pSmall)
