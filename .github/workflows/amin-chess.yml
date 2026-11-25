@@ -43,9 +43,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: راه‌اندازی Android SDK
-        uses: android-actions/setup-android@v3
-
+      # Android SDK روی رانر ubuntu-latest از پیش نصب است (ANDROID_HOME)
       - name: ساخت Debug APK
         run: |
           cd android
