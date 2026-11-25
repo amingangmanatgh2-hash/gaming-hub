@@ -1,0 +1,68 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Android SDK packages
+        run: |
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35' 'build-tools;35.0.0' > /dev/null
+          fi
+
+      - name: Build debug + release APKs
+        env:
+          # Optional: add these repository secrets to sign the release APK with your own key.
+          # Without them the release APK is signed with the project's shared debug key.
+          AMIN_KEYSTORE_BASE64: ${{ secrets.AMIN_KEYSTORE_BASE64 }}
+          AMIN_KEYSTORE_PASSWORD: ${{ secrets.AMIN_KEYSTORE_PASSWORD }}
+          AMIN_KEY_ALIAS: ${{ secrets.AMIN_KEY_ALIAS }}
+          AMIN_KEY_PASSWORD: ${{ secrets.AMIN_KEY_PASSWORD }}
+        run: gradle :app:assembleDebug :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify and collect APKs
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/AminRacing3D-${VERSION}-debug.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/AminRacing3D-${VERSION}.apk"
+          for apk in dist/*.apk; do
+            "$BT/apksigner" verify --verbose "$apk" | head -4
+            "$BT/aapt" dump badging "$apk" | grep -E "package:|sdkVersion|targetSdkVersion" || true
+          done
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AminRacing3D-apk
+          path: dist/
+
+      - name: Attach APKs to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.apk dist/SHA256SUMS.txt --clobber

@@ -1,4 +1,5 @@
 import java.util.Base64
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -8,7 +9,7 @@ plugins {
 // Release signing: provided through environment variables (CI secrets) or a
 // local keystore.properties file. When neither exists, the release build is
 // signed with the standard debug key so that it is still installable.
-val keystoreProps = java.util.Properties().apply {
+val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }

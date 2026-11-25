@@ -51,10 +51,11 @@ jobs:
       - name: Report build errors
         if: failure()
         run: |
-          grep -E '^e: |error:|What went wrong|FAILURE|Exception' -A2 build.log | head -60 > errors.txt || true
+          grep -E '^e: |error:|ERROR:|What went wrong|FAILURE|Exception' -A3 build.log | head -150 > errors.txt || true
           head -n 20 errors.txt | while IFS= read -r l; do echo "::error::$l"; done
           mkdir -p ../ci-output/amin-racing-3d
-          cp build.log errors.txt ../ci-output/amin-racing-3d/
+          cp errors.txt ../ci-output/amin-racing-3d/
+          tail -n 300 build.log > ../ci-output/amin-racing-3d/build-log-tail.txt
           cd ..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
