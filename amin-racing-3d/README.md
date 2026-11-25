@@ -31,7 +31,7 @@ The yellow digit in some race shots is the start countdown, which runs slowly at
 | Main menu | Garage | Two-way highway |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/01-main-menu-fa.jpg" width="240"> | <img src="docs/screenshots/02-garage-supercar.jpg" width="240"> | <img src="docs/screenshots/06-race-city-two-way.jpg" width="240"> |
-| **Desert – sunset** | **Snow – Time Attack** | **Forest – night** |
+| **Desert – sunset** | **Snow – Time Attack** | **Forest – night (crash)** |
 | <img src="docs/screenshots/07-race-desert-sunset.jpg" width="240"> | <img src="docs/screenshots/08-race-snow-time-attack.jpg" width="240"> | <img src="docs/screenshots/09-race-forest-night.jpg" width="240"> |
 | **Upgrade shop** | **Game over** | **Settings (English)** |
 | <img src="docs/screenshots/03-upgrade-shop.jpg" width="240"> | <img src="docs/screenshots/10-game-over.jpg" width="240"> | <img src="docs/screenshots/14-settings-english.jpg" width="240"> |
