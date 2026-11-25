@@ -1,0 +1,19 @@
+e: file:///home/runner/work/gaming-hub/gaming-hub/amin-racing-3d/app/build.gradle.kts:11:26: Unresolved reference: util
+e: file:///home/runner/work/gaming-hub/gaming-hub/amin-racing-3d/app/build.gradle.kts:13:43: Unresolved reference: load
+e: file:///home/runner/work/gaming-hub/gaming-hub/amin-racing-3d/app/build.gradle.kts:16:97: Unresolved reference: it
+e: file:///home/runner/work/gaming-hub/gaming-hub/amin-racing-3d/app/build.gradle.kts:26:72: Unresolved reference: it
+e: file:///home/runner/work/gaming-hub/gaming-hub/amin-racing-3d/app/build.gradle.kts:26:88: Unresolved reference: it
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1795595117334.json
+
+FAILURE: Build failed with an exception.
+
+* Where:
+--
+* What went wrong:
+Script compilation errors:
+
+--
+* Exception is:
+ScriptCompilationException(scriptCompilationErrors=[ScriptCompilationError(message=Unresolved reference: util, location=/home/runner/.gradle/.tmp/gradle-kotlin-dsl-5664721395143088013.tmp/build.gradle.kts (11:26)), ScriptCompilationError(message=Unresolved reference: load, location=/home/runner/.gradle/.tmp/gradle-kotlin-dsl-5664721395143088013.tmp/build.gradle.kts (13:43)), ScriptCompilationError(message=Unresolved reference: it, location=/home/runner/.gradle/.tmp/gradle-kotlin-dsl-5664721395143088013.tmp/build.gradle.kts (16:97)), ScriptCompilationError(message=Unresolved reference: it, location=/home/runner/.gradle/.tmp/gradle-kotlin-dsl-5664721395143088013.tmp/build.gradle.kts (26:72)), ScriptCompilationError(message=Unresolved reference: it, location=/home/runner/.gradle/.tmp/gradle-kotlin-dsl-5664721395143088013.tmp/build.gradle.kts (26:88))])
+	at org.gradle.kotlin.dsl.support.KotlinCompilerKt.compileKotlinScriptModuleTo(KotlinCompiler.kt:190)
+	at org.gradle.kotlin.dsl.support.KotlinCompilerKt.compileKotlinScriptToDirectory(KotlinCompiler.kt:148)
