@@ -199,7 +199,7 @@ jobs:
           for f in ci-output/amin-racing-3d/screens/*.png; do
             [ -f "$f" ] || continue
             n=$(basename "$f" .png)
-            convert "$f" -resize '540x540>' -strip -quality 82 "amin-racing-3d/docs/screenshots/$n.jpg" || true
+            convert "$f" -resize 50% -strip -quality 82 "amin-racing-3d/docs/screenshots/$n.jpg" || true
           done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

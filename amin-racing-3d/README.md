@@ -26,6 +26,7 @@ generated in code when the game starts, so the release APK is only about 330 KB.
 
 These screenshots were captured from the debug APK running on an Android emulator in CI. The emulator
 uses software rendering (SwiftShader), so it runs much slower than a real phone.
+The yellow digit in some race shots is the start countdown, which runs slowly at the emulator's low frame rate.
 
 | Main menu | Garage | Two-way highway |
 |:---:|:---:|:---:|
