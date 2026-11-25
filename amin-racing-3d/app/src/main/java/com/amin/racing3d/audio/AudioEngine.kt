@@ -30,10 +30,27 @@ class AudioEngine {
         const val SFX_CLICK = 6
         const val SFX_NITRO_START = 7
         const val SFX_BUY = 8
-        const val NUM_SFX = 9
+        const val SFX_ENGINE_START = 9
+        const val SFX_SHIFT = 10
+        const val SFX_BLOWOFF = 11
+        const val SFX_HIT = 12
+        const val NUM_SFX = 13
 
         private const val VOICES = 10
-        private val ENGINE_BASE = floatArrayOf(58f, 44f, 50f, 70f)
+        /**
+         * Engine profiles per player car: cylinders, idle rpm, redline rpm, combustion pulse
+         * sharpness, firing unevenness (V8 burble), exhaust resonance Hz, rasp, turbo, pops.
+         */
+        private class EngineProfile(
+            val cyl: Int, val idle: Float, val red: Float, val sharp: Float, val uneven: Float,
+            val res: Float, val rasp: Float, val turbo: Boolean, val pops: Float, val vol: Float
+        )
+        private val PROFILES = arrayOf(
+            EngineProfile(4, 900f, 7800f, 9f, 0.05f, 420f, 0.55f, true, 0.6f, 0.95f),    // sports: turbo inline-4
+            EngineProfile(8, 750f, 6500f, 6f, 0.38f, 230f, 0.35f, false, 1.0f, 1.1f),    // muscle: cross-plane V8
+            EngineProfile(6, 700f, 5400f, 5f, 0.12f, 260f, 0.25f, true, 0.25f, 1.0f),    // SUV: turbo V6
+            EngineProfile(12, 1000f, 9000f, 12f, 0.03f, 620f, 0.7f, false, 0.7f, 0.9f)   // supercar: V12
+        )
     }
 
     // ------------------------------------------------------------ parameters (game thread writes)
@@ -46,6 +63,8 @@ class AudioEngine {
     @Volatile var scrapeLevel = 0f
     @Volatile var carType = 0
     @Volatile var engineAudible = false
+    /** tyre slip (0..1): squeal */
+    @Volatile var skidLevel = 0f
 
     @Volatile var sfxEnabled = true
     @Volatile var musicEnabled = true
@@ -64,10 +83,27 @@ class AudioEngine {
     private val out = ShortArray(BLOCK)
 
     // synthesis state
-    private var ePhase = 0.0
-    private var ePhase2 = 0.0
+    private var crankPh = 0.0
+    private var firePh = 0.0
+    private var fireIdx = 0
+    private var svLow = 0f
+    private var svBand = 0f
     private var eLp = 0f
-    private var eLp2 = 0f
+    private var eDc = 0f
+    private var prevRpm = 0.2f
+    private var prevLoad = 0f
+    private var cutT = 0f
+    private var boost = 0f
+    private var whPh = 0.0
+    private var spoolLp = 0f
+    private var popT = 0f
+    private var popEnv = 0f
+    private var popLp = 0f
+    private var skidVol = 0f
+    private var skidLp = 0f
+    private var skidLp2 = 0f
+    private var skidPh = 0.0
+    private var shiftCheck = 0
     private var rpmS = 0.2f
     private var loadS = 0f
     private var engVol = 0f
@@ -172,6 +208,48 @@ class AudioEngine {
                 lp += (n - lp) * (0.05f + t * 0.5f)
                 lp * (t / 0.08f).coerceAtMost(1f) * exp(-t * 4f) * 1.6f
             }
+        }
+        samples[SFX_ENGINE_START] = run {
+            // starter motor whine -> ignition -> rev flare -> settle to idle
+            var ph = 0.0; var lp = 0f; var lp2 = 0f
+            synth(2.1f) { t, _ ->
+                var o = 0f
+                if (t < 0.62f) {
+                    val crank = 0.55f + 0.45f * sin(2 * PI * 11.0 * t).toFloat()
+                    o += (sin(2 * PI * 1450.0 * t) * 0.18 + sin(2 * PI * 725.0 * t) * 0.12).toFloat() * crank
+                    o += (if (sin(2 * PI * 11.0 * t) > 0.9) noise() * 0.35f else 0f)
+                }
+                if (t > 0.5f) {
+                    val k = t - 0.5f
+                    val rpm = 800f + 4200f * (k / 0.35f).coerceAtMost(1f) * exp(-(k - 0.35f).coerceAtLeast(0f) * 2.2f)
+                    val f = rpm / 60f * 2f
+                    ph += f / RATE; if (ph > 1.0) ph -= 1.0
+                    val pulse = exp(-ph.toFloat() * 7f) - 0.15f
+                    val raw = pulse + noise() * 0.12f
+                    lp += (raw - lp) * 0.22f
+                    lp2 += (lp - lp2) * 0.22f
+                    val env = (k / 0.05f).coerceAtMost(1f)
+                    o += lp2 * 1.4f * env
+                    if (k < 0.08f) o += sin(2 * PI * 60.0 * t).toFloat() * (1f - k / 0.08f) * 0.6f
+                }
+                o * 0.8f
+            }
+        }
+        samples[SFX_SHIFT] = synth(0.14f) { t, _ ->
+            (sin(2 * PI * 90.0 * t).toFloat() * exp(-t * 40f) * 0.6f + noise() * exp(-t * 90f) * 0.35f)
+        }
+        samples[SFX_BLOWOFF] = run {
+            var lp = 0f; var lp2 = 0f
+            synth(0.45f) { t, _ ->
+                val c = 0.5f * exp(-t * 4f) + 0.05f
+                val n = noise()
+                lp += (n - lp) * c; lp2 += (lp - lp2) * c
+                (lp - lp2) * 2.4f * (t / 0.02f).coerceAtMost(1f) * exp(-t * 6f)
+            }
+        }
+        samples[SFX_HIT] = synth(0.35f) { t, _ ->
+            val metal = (sin(2 * PI * 610.0 * t) * 0.4 + sin(2 * PI * 1370.0 * t) * 0.25).toFloat() * exp(-t * 14f)
+            metal + noise() * exp(-t * 30f) * 0.6f + sin(2 * PI * 80.0 * t).toFloat() * exp(-t * 18f) * 0.5f
         }
         samples[SFX_BUY] = synth(0.5f) { t, _ ->
             val f = if (t < 0.1f) 880f else if (t < 0.2f) 1108.7f else 1318.5f
@@ -296,31 +374,85 @@ class AudioEngine {
         val horn = hornOn && sfx
         val wind = if (engineAudible && sfx) windLevel else 0f
         val scrape = if (engineAudible && sfx) scrapeLevel else 0f
-        val base = ENGINE_BASE[carType.coerceIn(0, 3)]
+        val prof = PROFILES[carType.coerceIn(0, PROFILES.size - 1)]
+        val skid = if (engineAudible && sfx) skidLevel else 0f
+        // driving events per block (~11.6 ms): gear shifts, lift-off pops, blow-off valve
+        if (engOn) {
+            if (++shiftCheck >= 4) {
+                shiftCheck = 0
+                if (prevRpm - tRpm > 0.12f && tLoad > 0.5f) { trigger(SFX_SHIFT); cutT = 0.09f }
+                if (prevLoad > 0.6f && tLoad < 0.3f && tRpm > 0.5f) {
+                    popT = 0.5f + prof.pops * 0.5f
+                    if (prof.turbo && boost > 0.45f) trigger(SFX_BLOWOFF)
+                }
+                prevRpm = tRpm; prevLoad = tLoad
+            }
+            boost += ((if (prof.turbo) tLoad * tRpm else 0f) - boost) * 0.05f
+        } else boost *= 0.9f
+        val blockSec = BLOCK / RATE.toFloat()
+        if (cutT > 0f) cutT -= blockSec
+        if (popT > 0f) popT -= blockSec
         val musicTarget = if (music) (if (racing) 0.30f else 0.5f) else 0f
         if (nitro && !prevNitro) trigger(SFX_NITRO_START)
         prevNitro = nitro
 
         for (i in 0 until BLOCK) {
             var mix = 0f
-            // ---- engine
-            rpmS += (tRpm - rpmS) * 0.0009f
-            loadS += (tLoad - loadS) * 0.0015f
+            // ---- engine (per-car profile: firing pulses through an exhaust resonance)
+            rpmS += (tRpm - rpmS) * 0.0016f
+            loadS += (tLoad - loadS) * 0.002f
             engVol += ((if (engOn) 1f else 0f) - engVol) * 0.0008f
             if (engVol > 0.001f) {
-                val f = base * (0.55f + rpmS * 2.6f)
-                ePhase += f / RATE
-                if (ePhase > 1.0) ePhase -= 1.0
-                ePhase2 += f * 0.5 / RATE
-                if (ePhase2 > 1.0) ePhase2 -= 1.0
-                val saw = (ePhase * 2.0 - 1.0).toFloat()
-                val sub = if (ePhase2 < 0.5) 0.6f else -0.6f
-                val pulse = if (ePhase < 0.18) 1f else 0f
-                val raw = saw * 0.55f + sub * 0.5f + pulse * 0.45f + noise() * 0.08f * loadS
-                val cut = 0.05f + 0.1f * rpmS + 0.12f * loadS
-                eLp += (raw - eLp) * cut
-                eLp2 += (eLp - eLp2) * cut
-                mix += eLp2 * (0.32f + 0.18f * loadS) * engVol
+                val rpm = prof.idle + rpmS.coerceIn(0f, 1.05f) * (prof.red - prof.idle)
+                val crankHz = rpm / 60f
+                crankPh += crankHz / RATE
+                if (crankPh > 2.0) crankPh -= 2.0
+                val fire = crankHz * prof.cyl * 0.5f
+                firePh += fire / RATE
+                if (firePh >= 1.0) { firePh -= 1.0; fireIdx = (fireIdx + 1) % prof.cyl }
+                val fp = firePh.toFloat()
+                // uneven firing (cross-plane V8 burble): pulse strength varies per cylinder
+                val strength = 1f + prof.uneven * (if ((fireIdx * 5) % prof.cyl < prof.cyl / 2) 1f else -0.7f)
+                val pulse = exp(-fp * prof.sharp) * strength
+                val rasp = noise() * prof.rasp * (0.25f + 0.75f * loadS) * exp(-fp * 4f)
+                val raw = pulse + rasp + sin(2.0 * PI * firePh).toFloat() * 0.25f
+                // exhaust resonance (state-variable filter), opens up with rpm and load
+                val fc = (prof.res + rpm * 0.06f + loadS * 300f).coerceAtMost(3200f)
+                val fcoef = 2f * sin((PI * fc / RATE).toFloat())
+                svLow += fcoef * svBand
+                val high = raw - svLow - 0.55f * svBand
+                svBand += fcoef * high
+                eLp += (svLow - eLp) * 0.5f
+                eDc += (eLp - eDc) * 0.002f
+                val cut = if (cutT > 0f) 0.3f else 1f
+                mix += (eLp - eDc) * (0.22f + 0.16f * loadS) * engVol * prof.vol * cut
+                // turbo: spool whistle + intake rush rises with boost
+                if (prof.turbo && boost > 0.02f) {
+                    whPh += (2200.0 + 5200.0 * boost) / RATE
+                    if (whPh > 1.0) whPh -= 1.0
+                    spoolLp += (noise() - spoolLp) * 0.3f
+                    mix += (sin(2.0 * PI * whPh).toFloat() * 0.035f + spoolLp * 0.05f) * boost * boost * engVol
+                }
+                // exhaust pops / crackle on lift-off
+                if (popT > 0f) {
+                    if (popEnv < 0.02f && noise() > 0.9993f - prof.pops * 0.0012f) popEnv = 0.8f + noise() * 0.2f
+                    if (popEnv > 0.001f) {
+                        popLp += (noise() - popLp) * 0.45f
+                        mix += (popLp * 1.2f + sin(2.0 * PI * 70.0 * popEnv).toFloat() * 0.4f) * popEnv * engVol * 0.55f
+                        popEnv *= 0.9965f
+                    }
+                }
+            }
+            // ---- tyre squeal
+            skidVol += (skid - skidVol) * 0.003f
+            if (skidVol > 0.01f) {
+                skidPh += (980.0 + 140.0 * sin(2.0 * PI * skidPh * 0.004)) / RATE
+                if (skidPh > 1e6) skidPh = 0.0
+                val n = noise()
+                skidLp += (n - skidLp) * 0.35f
+                skidLp2 += (skidLp - skidLp2) * 0.08f
+                val tone = sin(2.0 * PI * skidPh).toFloat()
+                mix += ((skidLp - skidLp2) * 0.55f + tone * 0.12f) * skidVol * skidVol * 0.6f
             }
             // ---- wind
             if (wind > 0.01f) {

@@ -99,6 +99,7 @@ uniform float uLampSpacing;
 uniform float uLampPhase;
 uniform float uLampX;
 uniform float uGlass;
+uniform int uShadowSoft;
 out vec4 fragColor;
 
 float shadowFactor() {
@@ -108,6 +109,16 @@ float shadowFactor() {
     if (p.x <= 0.0 || p.x >= 1.0 || p.y <= 0.0 || p.y >= 1.0 || p.z >= 1.0) return 1.0;
     float z = p.z - 0.0018;
     float t = uShadowTexel;
+    if (uShadowSoft == 1) {
+        // Ultra: 3x3 PCF (softer, less aliased edges)
+        float s9 = 0.0;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                s9 += texture(uShadowMap, vec3(p.xy + vec2(float(i), float(j)) * t * 1.25, z));
+            }
+        }
+        return s9 / 9.0;
+    }
     float s = texture(uShadowMap, vec3(p.xy + vec2(-t, -t), z));
     s += texture(uShadowMap, vec3(p.xy + vec2(t, -t), z));
     s += texture(uShadowMap, vec3(p.xy + vec2(-t, t), z));
@@ -312,6 +323,57 @@ out vec4 fragColor;
 void main() {
     float a = texture(uTex, vUv).a * vColor.a;
     fragColor = vec4(vColor.rgb, a);
+}
+"""
+    /** Full-screen post-processing (High/Ultra): radial speed blur, nitro heat haze, grading, vignette. */
+    const val POST_VS = """#version 300 es
+layout(location = 0) in vec2 aPos;
+out vec2 vUv;
+void main() {
+    vUv = aPos * 0.5 + 0.5;
+    gl_Position = vec4(aPos, 0.0, 1.0);
+}
+"""
+
+    const val POST_FS = """#version 300 es
+precision mediump float;
+in vec2 vUv;
+uniform sampler2D uScene;
+uniform float uBlur;
+uniform vec2 uCenter;
+uniform float uHeat;
+uniform vec2 uHeatPos;
+uniform float uTime;
+uniform float uVignette;
+uniform float uGrade;
+uniform float uFlash;
+uniform float uAspect;
+out vec4 fragColor;
+void main() {
+    vec2 uv = vUv;
+    if (uHeat > 0.01) {
+        vec2 d = (uv - uHeatPos) * vec2(uAspect, 1.0);
+        float m = exp(-dot(d, d) * 38.0) * uHeat;
+        uv += vec2(sin(uv.y * 160.0 + uTime * 31.0), cos(uv.x * 120.0 + uTime * 27.0)) * 0.0045 * m;
+    }
+    vec3 c = texture(uScene, uv).rgb;
+    if (uBlur > 0.003) {
+        vec2 dir = uv - uCenter;
+        float edge = smoothstep(0.08, 0.55, length(dir * vec2(uAspect, 1.0)));
+        vec2 stepv = dir * uBlur * edge * 0.022;
+        vec3 acc = c;
+        for (int i = 1; i < 7; i++) acc += texture(uScene, uv - stepv * float(i)).rgb;
+        c = acc / 7.0;
+    }
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(vec3(l), c, 1.0 + 0.14 * uGrade);
+    c = (c - 0.5) * (1.0 + 0.07 * uGrade) + 0.5;
+    c += vec3(0.010, 0.0, 0.018) * uGrade;
+    vec2 q = (vUv - 0.5) * vec2(1.0, 0.85);
+    float v = 1.0 - smoothstep(0.35, 0.85, length(q) * 1.1);
+    c *= mix(1.0, 0.55 + 0.45 * v, uVignette);
+    c = mix(c, vec3(1.0), uFlash);
+    fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }
 """
 }

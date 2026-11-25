@@ -139,7 +139,55 @@ class SaveManager(context: Context) {
     /** 0 low, 1 medium, 2 high */
     var graphics: Int
         get() = prefs.getInt(K_GFX, 1)
-        set(v) = prefs.edit().putInt(K_GFX, v.coerceIn(0, 2)).apply()
+        set(v) = prefs.edit().putInt(K_GFX, v.coerceIn(0, 3)).apply()
+
+    // ---- profile & progression (v2; new keys only, existing v1 data is untouched)
+    var xp: Int
+        get() = prefs.getInt("xp", 0)
+        set(v) = prefs.edit().putInt("xp", v.coerceAtLeast(0)).apply()
+
+    /** Level n needs 50*n*(n+1) XP in total (100, 300, 600, ...). */
+    fun level(): Int {
+        val x = xp
+        var n = 0
+        while (50 * (n + 1) * (n + 2) <= x) n++
+        return n + 1
+    }
+
+    /** progress (0..1) from the current level to the next */
+    fun levelProgress(): Float {
+        val lv = level() - 1
+        val a = 50 * lv * (lv + 1)
+        val b = 50 * (lv + 1) * (lv + 2)
+        return ((xp - a).toFloat() / (b - a)).coerceIn(0f, 1f)
+    }
+
+    var totalRuns: Int
+        get() = prefs.getInt("stat_runs", 0)
+        set(v) = prefs.edit().putInt("stat_runs", v).apply()
+
+    var totalMeters: Long
+        get() = prefs.getLong("stat_meters", 0L)
+        set(v) = prefs.edit().putLong("stat_meters", v).apply()
+
+    var totalNearMisses: Int
+        get() = prefs.getInt("stat_near", 0)
+        set(v) = prefs.edit().putInt("stat_near", v).apply()
+
+    var bestTopSpeed: Int
+        get() = prefs.getInt("stat_top_speed", 0)
+        set(v) = prefs.edit().putInt("stat_top_speed", v).apply()
+
+    /** Records a finished run in the statistics and returns the XP earned. */
+    fun recordRun(score: Int, meters: Float, nearMisses: Int, topSpeed: Int): Int {
+        val gained = 5 + score / 25 + nearMisses * 2
+        xp += gained
+        totalRuns += 1
+        totalMeters += meters.toLong()
+        totalNearMisses += nearMisses
+        if (topSpeed > bestTopSpeed) bestTopSpeed = topSpeed
+        return gained
+    }
 
     var autoQuality: Boolean
         get() = prefs.getBoolean(K_AUTO_Q, true)

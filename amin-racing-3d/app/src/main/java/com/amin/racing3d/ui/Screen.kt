@@ -29,6 +29,7 @@ interface GameHost {
     val activity: Activity
     val save: SaveManager
     val tiltAvailable: Boolean
+    val ultraSupported: Boolean
     fun push(screen: Screen)
     fun replaceAll(screen: Screen)
     fun back()

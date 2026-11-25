@@ -27,88 +27,133 @@ internal fun staggerIn(group: LinearLayout, startDelay: Long = 60L, fromY: Float
 
 // =====================================================================================
 class MainMenuScreen(host: GameHost) : Screen(host) {
-    override val dim = 0.25f
+    override val dim = 0.0f
 
     override fun build(): View {
         val root = FrameLayout(ctx)
-        val landscape = !portrait
+        // soft gradients at the screen edges keep the menus readable over the live 3D scene
+        val shadeL = View(ctx)
+        shadeL.background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(0xCC050812.toInt(), 0x00050812))
+        root.addView(shadeL, FrameLayout.LayoutParams(Ui.dp(330f), Ui.MATCH, Gravity.START))
+        val shadeR = View(ctx)
+        shadeR.background = GradientDrawable(GradientDrawable.Orientation.RIGHT_LEFT, intArrayOf(0xCC050812.toInt(), 0x00050812))
+        root.addView(shadeR, FrameLayout.LayoutParams(Ui.dp(250f), Ui.MATCH, Gravity.END))
+        val shadeT = View(ctx)
+        shadeT.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xAA050812.toInt(), 0x00050812))
+        root.addView(shadeT, FrameLayout.LayoutParams(Ui.MATCH, Ui.dp(90f), Gravity.TOP))
 
-        val column = Ui.vbox(ctx, Gravity.CENTER)
-        column.setPadding(Ui.dp(20f), Ui.dp(16f), Ui.dp(20f), Ui.dp(16f))
-
-        val title = Ui.glowTitle(ctx, "AMIN RACING", if (landscape) 40f else 44f, Ui.CYAN)
-        title.letterSpacing = 0.06f
-        column.addView(title, Ui.lp(Ui.WRAP))
-        val title3d = Ui.glowTitle(ctx, "3D", if (landscape) 30f else 34f, Ui.PINK)
-        title3d.letterSpacing = 0.3f
-        column.addView(title3d, Ui.lp(Ui.WRAP, topDp = -10f))
-        val sub = Ui.text(ctx, str(R.string.title_sub), 15f, Ui.TEXT, Ui.bold)
-        sub.gravity = Gravity.CENTER
-        column.addView(sub, Ui.lp(Ui.WRAP, bottomDp = 18f))
-
-        // animated pulsing title glow
-        val pulse = ValueAnimator.ofFloat(6f, 18f)
-        pulse.duration = 1400
+        // ---- top bar: profile card · logo · coins
+        val top = Ui.hbox(ctx)
+        top.setPadding(Ui.dp(14f), Ui.dp(10f), Ui.dp(14f), 0)
+        top.addView(profileCard(), LinearLayout.LayoutParams(Ui.WRAP, Ui.WRAP))
+        val logo = Ui.vbox(ctx, Gravity.CENTER)
+        val title = Ui.glowTitle(ctx, "AMIN RACING", 24f, Ui.CYAN)
+        title.letterSpacing = 0.08f
+        logo.addView(title, Ui.lp(Ui.WRAP))
+        val t3 = Ui.glowTitle(ctx, "3D", 16f, Ui.PINK)
+        t3.letterSpacing = 0.4f
+        logo.addView(t3, Ui.lp(Ui.WRAP, topDp = -6f))
+        top.addView(logo, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        top.addView(Ui.coinPill(ctx, save.coins))
+        root.addView(top, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP, Gravity.TOP))
+        val pulse = ValueAnimator.ofFloat(4f, 14f)
+        pulse.duration = 1500
         pulse.repeatMode = ValueAnimator.REVERSE
         pulse.repeatCount = ValueAnimator.INFINITE
         pulse.addUpdateListener {
             val v = it.animatedValue as Float
             title.setShadowLayer(Ui.dp(v).toFloat(), 0f, 0f, Ui.CYAN)
-            title3d.setShadowLayer(Ui.dp(v).toFloat(), 0f, 0f, Ui.PINK)
+            t3.setShadowLayer(Ui.dp(v).toFloat(), 0f, 0f, Ui.PINK)
         }
         title.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) = pulse.start()
             override fun onViewDetachedFromWindow(v: View) = pulse.cancel()
         })
 
-        val btnW = Ui.dp(if (landscape) 280f else 300f)
-        val buttons = Ui.vbox(ctx)
-        buttons.addView(Ui.button(ctx, str(R.string.menu_play), Ui.CYAN, true, 20f) { host.push(ModeSelectScreen(host)) },
-            LinearLayout.LayoutParams(btnW, Ui.WRAP))
-        val grid = if (landscape) Ui.hbox(ctx) else Ui.vbox(ctx)
-        val items: List<Triple<Int, Int, () -> Unit>> = listOf(
-            Triple(R.string.menu_garage, Ui.PINK, { host.push(GarageScreen(host)) }),
-            Triple(R.string.menu_scores, Ui.YELLOW, { host.push(ScoresScreen(host)) }),
-            Triple(R.string.menu_settings, Ui.GREEN, { host.push(SettingsScreen(host)) })
-        )
-        for ((label, color, action) in items) {
-            val b = Ui.button(ctx, str(label), color, false, 16f, action)
-            if (landscape) {
-                val lp = LinearLayout.LayoutParams(0, Ui.WRAP, 1f)
-                lp.marginStart = Ui.dp(4f); lp.marginEnd = Ui.dp(4f)
-                grid.addView(b, lp)
-            } else {
-                grid.addView(b, LinearLayout.LayoutParams(btnW, Ui.WRAP).also { it.topMargin = Ui.dp(10f) })
-            }
-        }
-        buttons.addView(grid, LinearLayout.LayoutParams(if (landscape) Ui.dp(460f) else btnW, Ui.WRAP).also { it.topMargin = Ui.dp(10f) })
-        val exit = Ui.button(ctx, str(R.string.menu_exit), Ui.RED, false, 14f) {
+        // ---- start side: game modes (only modes that are implemented)
+        val modes = Ui.vbox(ctx, Gravity.START)
+        modes.addView(modeCard(R.string.menu_traffic, R.string.menu_traffic_sub, Ui.CYAN) {
+            if (save.selectedMode == GameData.MODE_TIME_ATTACK) save.selectedMode = GameData.MODE_ENDLESS
+            host.push(ModeSelectScreen(host))
+        }, Ui.lp(Ui.dp(270f)))
+        modes.addView(modeCard(R.string.menu_time_trial, R.string.menu_time_trial_sub, Ui.YELLOW) {
+            save.selectedMode = GameData.MODE_TIME_ATTACK
+            host.push(ModeSelectScreen(host))
+        }, Ui.lp(Ui.dp(270f), topDp = 10f))
+        val modesScroll = ScrollView(ctx)
+        modesScroll.isVerticalScrollBarEnabled = false
+        modesScroll.addView(modes, FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP))
+        val mlp = FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP, Gravity.START or Gravity.CENTER_VERTICAL)
+        mlp.marginStart = Ui.dp(16f); mlp.topMargin = Ui.dp(40f)
+        root.addView(modesScroll, mlp)
+
+        // ---- end side: garage / scores / settings / exit
+        val side = Ui.vbox(ctx, Gravity.END)
+        val bw = Ui.dp(190f)
+        side.addView(Ui.button(ctx, str(R.string.menu_garage), Ui.PINK, true, 17f) { host.push(GarageScreen(host)) }, LinearLayout.LayoutParams(bw, Ui.WRAP))
+        side.addView(Ui.button(ctx, str(R.string.menu_scores), Ui.YELLOW, false, 15f) { host.push(ScoresScreen(host)) }, LinearLayout.LayoutParams(bw, Ui.WRAP).also { it.topMargin = Ui.dp(10f) })
+        side.addView(Ui.button(ctx, str(R.string.menu_settings), Ui.GREEN, false, 15f) { host.push(SettingsScreen(host)) }, LinearLayout.LayoutParams(bw, Ui.WRAP).also { it.topMargin = Ui.dp(10f) })
+        side.addView(Ui.button(ctx, str(R.string.menu_exit), Ui.RED, false, 13f) {
             host.confirm(str(R.string.exit_confirm)) { host.exitGame() }
-        }
-        buttons.addView(exit, LinearLayout.LayoutParams(Ui.dp(160f), Ui.WRAP).also { it.topMargin = Ui.dp(14f) })
-        column.addView(buttons, Ui.lp(Ui.WRAP))
+        }, LinearLayout.LayoutParams(Ui.dp(130f), Ui.WRAP).also { it.topMargin = Ui.dp(16f) })
+        val slp = FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP, Gravity.END or Gravity.CENTER_VERTICAL)
+        slp.marginEnd = Ui.dp(16f); slp.topMargin = Ui.dp(40f)
+        root.addView(side, slp)
 
-        val scroll = ScrollView(ctx)
-        scroll.isFillViewport = true
-        scroll.isVerticalScrollBarEnabled = false
-        scroll.addView(column, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP))
-        root.addView(scroll, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+        // ---- bottom centre: selected car
+        val car = if (save.isCarOwned(save.selectedCar)) save.selectedCar else 0
+        val carBox = Ui.vbox(ctx, Gravity.CENTER)
+        carBox.setPadding(Ui.dp(18f), Ui.dp(6f), Ui.dp(18f), Ui.dp(6f))
+        carBox.background = Ui.bg(Ui.withAlpha(0xFF0D1424.toInt(), 0xB0), Ui.withAlpha(Ui.CYAN, 0x44), 12f, 1f)
+        carBox.addView(Ui.text(ctx, str(R.string.selected_car), 11f, Ui.DIM, Ui.bold))
+        carBox.addView(Ui.text(ctx, str(GameData.cars[car].nameRes), 18f, Ui.TEXT, Ui.bold))
+        val clp = FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+        clp.bottomMargin = Ui.dp(26f)
+        root.addView(carBox, clp)
 
-        // top bar: coins + best
-        val top = Ui.hbox(ctx)
-        top.setPadding(Ui.dp(14f), Ui.dp(12f), Ui.dp(14f), 0)
-        val best = Ui.text(ctx, str(R.string.best_score_short) + ": " + Lang.num(save.highScore(save.selectedMode)), 13f, Ui.DIM, Ui.bold)
-        top.addView(best, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
-        top.addView(Ui.coinPill(ctx, save.coins))
-        root.addView(top, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP, Gravity.TOP))
+        val ver = Ui.text(ctx, str(R.string.version), 10f, Ui.withAlpha(Ui.DIM, 0xAA))
+        ver.setPadding(Ui.dp(10f), 0, Ui.dp(10f), Ui.dp(6f))
+        root.addView(ver, FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
 
-        val ver = Ui.text(ctx, str(R.string.version) + "  •  " + str(R.string.credits), 10f, Ui.withAlpha(Ui.DIM, 0xAA))
-        ver.gravity = Gravity.CENTER
-        ver.setPadding(Ui.dp(8f), 0, Ui.dp(8f), Ui.dp(8f))
-        root.addView(ver, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP, Gravity.BOTTOM))
-
-        staggerIn(column)
+        // entrance animation: side columns slide in from their edges
+        val dir = if (Lang.isFa) -1f else 1f
+        modesScroll.translationX = -dir * Ui.dp(60f); modesScroll.alpha = 0f
+        modesScroll.animate().translationX(0f).alpha(1f).setDuration(420).setStartDelay(80).start()
+        side.translationX = dir * Ui.dp(60f); side.alpha = 0f
+        side.animate().translationX(0f).alpha(1f).setDuration(420).setStartDelay(160).start()
+        carBox.alpha = 0f; carBox.translationY = Ui.dp(20f).toFloat()
+        carBox.animate().alpha(1f).translationY(0f).setDuration(400).setStartDelay(260).start()
         return root
+    }
+
+    private fun profileCard(): View {
+        val card = Ui.hbox(ctx)
+        card.setPadding(Ui.dp(8f), Ui.dp(6f), Ui.dp(14f), Ui.dp(6f))
+        card.background = Ui.bg(Ui.withAlpha(0xFF0D1424.toInt(), 0xC8), Ui.withAlpha(Ui.CYAN, 0x55), 22f, 1f)
+        val badge = Ui.text(ctx, Lang.num(save.level()), 16f, Ui.BG, Ui.bold)
+        badge.gravity = Gravity.CENTER
+        badge.background = Ui.gradient(Ui.CYAN, Ui.PINK, 0, 20f)
+        card.addView(badge, LinearLayout.LayoutParams(Ui.dp(36f), Ui.dp(36f)))
+        val info = Ui.vbox(ctx, Gravity.START)
+        info.setPadding(Ui.dp(8f), 0, 0, 0)
+        info.addView(Ui.text(ctx, str(R.string.player_default) + "  •  " + str(R.string.level_short) + " " + Lang.num(save.level()), 12f, Ui.TEXT, Ui.bold))
+        info.addView(Ui.statBar(ctx, save.levelProgress(), Ui.CYAN), LinearLayout.LayoutParams(Ui.dp(120f), Ui.dp(6f)).also { it.topMargin = Ui.dp(4f) })
+        card.addView(info)
+        return card
+    }
+
+    private fun modeCard(title: Int, sub: Int, accent: Int, onClick: () -> Unit): View {
+        val card = Ui.vbox(ctx, Gravity.START)
+        card.setPadding(Ui.dp(16f), Ui.dp(10f), Ui.dp(16f), Ui.dp(10f))
+        card.background = Ui.gradient(Ui.withAlpha(accent, 0x38), Ui.withAlpha(0xFF0D1424.toInt(), 0xD8), Ui.withAlpha(accent, 0xAA), 14f,
+            GradientDrawable.Orientation.LEFT_RIGHT)
+        val t = Ui.text(ctx, str(title), 18f, accent, Ui.bold)
+        card.addView(t)
+        card.addView(Ui.text(ctx, str(sub), 11f, Ui.DIM))
+        card.isClickable = true
+        card.setOnClickListener { Ui.onClickSound?.invoke(); onClick() }
+        Ui.pressable(card)
+        return card
     }
 
     override fun onBack() {
@@ -116,7 +161,6 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
     }
 }
 
-// =====================================================================================
 class ModeSelectScreen(host: GameHost) : Screen(host) {
     private var mode = save.selectedMode
     private var env = save.selectedEnv.let { if (save.isEnvUnlocked(it)) it else 0 }

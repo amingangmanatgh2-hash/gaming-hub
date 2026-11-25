@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -40,6 +41,8 @@ import com.amin.racing3d.ui.HudView
 import com.amin.racing3d.ui.MainMenuScreen
 import com.amin.racing3d.ui.PauseScreen
 import com.amin.racing3d.ui.RunResult
+import kotlin.math.max
+import kotlin.math.min
 import com.amin.racing3d.ui.Screen
 import com.amin.racing3d.ui.SettingsScreen
 import com.amin.racing3d.ui.Ui
@@ -52,6 +55,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
     override lateinit var save: SaveManager
     override val activity: Activity get() = this
     override val tiltAvailable: Boolean get() = tilt.available
+    override val ultraSupported: Boolean get() = renderer.ultraSupported
 
     private val input = InputState()
     private lateinit var world: World
@@ -110,6 +114,10 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         world.audio = audio
         world.listener = this
         renderer = GameRenderer(this, world, this)
+        // the loading scene shows the player's own car in its paint
+        renderer.showroomCar = selectedOwnedCar()
+        renderer.showroomColor = save.paintColor(renderer.showroomCar)
+        renderer.qualityLevel = save.graphics
 
         Ui.onClickSound = { audio.trigger(AudioEngine.SFX_CLICK) }
         Ui.onHaptic = { v -> v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }
@@ -169,22 +177,108 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         setContentView(root)
     }
 
+    // ================================================================= loading screen
+    private var loadShown = 0f
+    private var loadTip = 0
+    private var loadTipTime = 0L
+    private val tipIds = intArrayOf(R.string.tip_1, R.string.tip_2, R.string.tip_3, R.string.tip_4,
+        R.string.tip_5, R.string.tip_6, R.string.tip_7, R.string.tip_8)
+
+    /**
+     * Loading overlay drawn over the live 3D loading scene (the renderer shows the selected car
+     * as soon as it is built). The bar follows [GameRenderer.loadProgress], the fraction of
+     * initialisation steps actually completed — it never runs ahead of the real progress.
+     */
     private fun buildLoading(): View {
         val f = FrameLayout(this)
-        f.setBackgroundColor(Ui.BG)
         f.isClickable = true
-        val col = Ui.vbox(this, Gravity.CENTER)
-        col.addView(Ui.glowTitle(this, "AMIN RACING", 38f, Ui.CYAN))
-        col.addView(Ui.glowTitle(this, "3D", 30f, Ui.PINK))
-        val t = Ui.text(this, getString(R.string.loading), 14f, Ui.DIM, Ui.bold)
-        t.gravity = Gravity.CENTER
-        t.tag = "msg"
-        col.addView(t, LinearLayout.LayoutParams(Ui.WRAP, Ui.WRAP).also { it.topMargin = Ui.dp(18f) })
-        t.animate().alpha(0.4f).setDuration(700).withEndAction {
-            t.animate().alpha(1f).setDuration(700).start()
-        }.start()
-        f.addView(col, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+        f.setBackgroundColor(0x00000000)
+        val shade = View(this)
+        shade.background = android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(0x99050812.toInt(), 0x00050812, 0x00050812, 0xDD050812.toInt()))
+        f.addView(shade, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
+
+        val logo = Ui.vbox(this, Gravity.CENTER)
+        val t1 = Ui.glowTitle(this, "AMIN RACING", 40f, Ui.CYAN)
+        t1.letterSpacing = 0.1f
+        logo.addView(t1, Ui.lp(Ui.WRAP))
+        val t2 = Ui.glowTitle(this, "3D", 28f, Ui.PINK)
+        t2.letterSpacing = 0.5f
+        logo.addView(t2, Ui.lp(Ui.WRAP, topDp = -8f))
+        val llp = FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+        llp.topMargin = Ui.dp(22f)
+        f.addView(logo, llp)
+        logo.alpha = 0f; logo.scaleX = 1.15f; logo.scaleY = 1.15f
+        logo.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(900).start()
+
+        val bottom = Ui.vbox(this, Gravity.CENTER)
+        bottom.setPadding(Ui.dp(40f), 0, Ui.dp(40f), Ui.dp(18f))
+        val tip = Ui.text(this, getString(tipIds[0]), 13f, Ui.TEXT)
+        tip.gravity = Gravity.CENTER
+        tip.tag = "tip"
+        bottom.addView(tip, Ui.lp(Ui.MATCH))
+        val row = Ui.hbox(this)
+        val label = Ui.text(this, getString(R.string.loading_title), 12f, Ui.DIM, Ui.bold)
+        label.tag = "msg"
+        row.addView(label, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
+        val pct = Ui.text(this, Lang.num(0) + "٪", 14f, Ui.CYAN, Ui.bold)
+        pct.tag = "pct"
+        row.addView(pct)
+        bottom.addView(row, Ui.lp(Ui.MATCH, topDp = 12f))
+        val bar = LoadingBar(this)
+        bar.tag = "bar"
+        bottom.addView(bar, LinearLayout.LayoutParams(Ui.MATCH, Ui.dp(8f)).also { it.topMargin = Ui.dp(6f) })
+        f.addView(bottom, FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP, Gravity.BOTTOM))
+        loadTipTime = SystemClock.uptimeMillis()
+        handler.post(loadTicker)
         return f
+    }
+
+    private val loadTicker = object : Runnable {
+        override fun run() {
+            val lv = loadingView ?: return
+            val target = if (glReady) 1f else renderer.loadProgress
+            // ease towards the real value, never past it
+            loadShown = min(target, loadShown + max(0.004f, (target - loadShown) * 0.22f))
+            lv.findViewWithTag<LoadingBar>("bar")?.setProgress(loadShown)
+            lv.findViewWithTag<TextView>("pct")?.text = Lang.num((loadShown * 100f).toInt()) + (if (Lang.isFa) "٪" else "%")
+            val now = SystemClock.uptimeMillis()
+            if (now - loadTipTime > 3200) {
+                loadTipTime = now
+                loadTip = (loadTip + 1) % tipIds.size
+                val tip = lv.findViewWithTag<TextView>("tip")
+                tip?.animate()?.alpha(0f)?.setDuration(220)?.withEndAction {
+                    tip.text = getString(tipIds[loadTip])
+                    tip.animate().alpha(1f).setDuration(260).start()
+                }?.start()
+            }
+            handler.postDelayed(this, 33)
+        }
+    }
+
+    /** Rounded neon progress bar with a moving highlight. */
+    private class LoadingBar(ctx: Context) : View(ctx) {
+        private var p = 0f
+        private val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0x33FFFFFF }
+        private val fg = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private val glow = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = 0x88FFFFFF.toInt() }
+        private val rect = android.graphics.RectF()
+        fun setProgress(v: Float) { p = v; invalidate() }
+        override fun onDraw(c: android.graphics.Canvas) {
+            val r = height / 2f
+            rect.set(0f, 0f, width.toFloat(), height.toFloat())
+            c.drawRoundRect(rect, r, r, bgPaint)
+            val w = width * p
+            if (w < 1f) return
+            val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
+            if (rtl) rect.set(width - w, 0f, width.toFloat(), height.toFloat()) else rect.set(0f, 0f, w, height.toFloat())
+            fg.shader = android.graphics.LinearGradient(rect.left, 0f, rect.right, 0f, Ui.CYAN, Ui.PINK, android.graphics.Shader.TileMode.CLAMP)
+            c.drawRoundRect(rect, r, r, fg)
+            val t = (SystemClock.uptimeMillis() % 1400L) / 1400f
+            val hx = rect.left + (rect.width()) * t
+            c.drawCircle(hx, height / 2f, r * 0.9f, glow)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -484,6 +578,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         hud.visibility = View.GONE
         updateTiltListening()
         save.addCoins(earned)
+        save.recordRun(score, distance, near, topSpeed)
         val record = save.submitScore(mode, ScoreEntry(score, car, env, distance.toInt(), System.currentTimeMillis()))
         val result = RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode))
         replaceAll(GameOverScreen(this, result))
@@ -667,18 +762,25 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
             glReady = true
             val lv = loadingView
             if (lv != null) {
-                lv.animate().alpha(0f).setDuration(450).withEndAction {
+                // 100 %: engine start-up, then a smooth cross-fade into the main menu
+                audio.trigger(AudioEngine.SFX_ENGINE_START)
+                lv.findViewWithTag<TextView>("msg")?.text = getString(R.string.load_done)
+                lv.animate().alpha(0f).setStartDelay(700).setDuration(600).withEndAction {
                     root.removeView(lv)
                 }.start()
                 loadingView = null
-            }
-            replaceAll(MainMenuScreen(this))
-            if (reopenSettings) {
-                reopenSettings = false
-                push(SettingsScreen(this))
-            }
-            handleDemoIntent(intent)
+                handler.postDelayed({ showMenuAfterLoad() }, 750)
+            } else showMenuAfterLoad()
         }
+    }
+
+    private fun showMenuAfterLoad() {
+        replaceAll(MainMenuScreen(this))
+        if (reopenSettings) {
+            reopenSettings = false
+            push(SettingsScreen(this))
+        }
+        handleDemoIntent(intent)
     }
 
     override fun onFps(fps: Int) {
@@ -695,6 +797,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
     override fun onGlError(message: String) {
         handler.post {
             val lv = loadingView ?: return@post
+            lv.findViewWithTag<View>("tip")?.visibility = View.GONE
             val msg = lv.findViewWithTag<TextView>("msg") ?: return@post
             msg.animate().cancel()
             msg.alpha = 1f

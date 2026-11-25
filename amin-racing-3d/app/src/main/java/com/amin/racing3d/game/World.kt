@@ -125,6 +125,21 @@ class World(private val input: InputState) {
     private var suspVel = 0f
     var wheelAngle = 0f; private set
     var steerAngle = 0f; private set
+    /** tyre slip 0..1 (squeal, smoke, skid marks) */
+    var skid = 0f; private set
+    /** brake disc temperature 0..1 (glow) */
+    var brakeHeat = 0f; private set
+    private var backfireT = 0f
+    private var prevThrottle = 0f
+    private var prevGear = 0
+    // skid marks: ring buffer of decal segments (x, s, yaw, birth time)
+    val skidX = FloatArray(MAX_SKID)
+    val skidS = FloatArray(MAX_SKID)
+    val skidYaw = FloatArray(MAX_SKID)
+    val skidT = FloatArray(MAX_SKID)
+    var skidHead = 0; private set
+    var skidUsed = 0; private set
+    private var skidLastS = 0f
     var nitro = 1f; private set
     var nitroActive = false; private set
     var braking = false; private set
@@ -241,6 +256,7 @@ class World(private val input: InputState) {
         px = GameData.LANE_X[2]; ps = 0f; vx = 0f; yaw = 0f; roll = 0f; rollVel = 0f
         pitch = 0f; pitchVel = 0f; suspY = 0f; suspVel = 0f; steerSmooth = 0f
         nitro = 1f; nitroActive = false; braking = false
+        skid = 0f; brakeHeat = 0f; backfireT = 0f; skidUsed = 0; skidHead = 0
         crashSpin = 0f; crashSpinVel = 0f; crashTimer = 0f; scraping = 0f
         score = 0.0; distance = 0f; topSpeedKmh = 0f; nearMisses = 0; combo = 0; comboTimer = 0f
         bestCombo = 0; coinsCollected = 0; x2Active = false; timeScale = 1f; shake = 0f
@@ -836,6 +852,29 @@ class World(private val input: InputState) {
         val latAcc = (vx - prevVx) / max(dt, 1e-4f)
         val lonAcc = (speed - prevSpeed) / max(dt, 1e-4f)
         prevVx = vx; prevSpeed = speed
+        var sk = 0f
+        if (braking && speed > 12f) sk = ((-lonAcc - 5f) / 9f).coerceIn(0f, 1f) * min(1f, speed / 30f)
+        sk = max(sk, ((abs(latAcc) - 8f) / 12f).coerceIn(0f, 1f) * min(1f, speed / 25f))
+        if (crashed && speed > 4f) sk = 0.9f
+        skid += (sk - skid) * min(1f, 10f * dt)
+        brakeHeat = (brakeHeat + (if (braking && speed > 15f) dt * speed / 90f else -dt * 0.18f)).coerceIn(0f, 1f)
+        if (backfireT > 0f) backfireT -= dt
+        if (skid > 0.28f && speed > 6f) {
+            if (ps - skidLastS > 0.55f) {
+                skidLastS = ps
+                val rear = carSpec.length * 0.31f
+                for (side in 0..1) {
+                    val lx = (side * 2 - 1) * (carSpec.width * 0.5f - 0.18f)
+                    val i = skidHead
+                    skidX[i] = px + lx * cos(yaw) + rear * sin(yaw)
+                    skidS[i] = ps - rear * cos(yaw) + lx * sin(yaw)
+                    skidYaw[i] = yaw
+                    skidT[i] = time + (1f - skid) * -6f
+                    skidHead = (skidHead + 1) % MAX_SKID
+                    if (skidUsed < MAX_SKID) skidUsed++
+                }
+            }
+        } else skidLastS = ps
         val rollTarget = (latAcc * 0.011f).coerceIn(-0.085f, 0.085f) + (vx * 0.004f)
         rollVel += ((rollTarget - roll) * 70f - rollVel * 9f) * dt
         roll += rollVel * dt
@@ -889,27 +928,47 @@ class World(private val input: InputState) {
         val spec = carSpec
         val ca = cos(yaw); val sa = sin(yaw)
         val baseZ = -ps
-        if (nitroActive) {
+        if (nitroActive || backfireT > 0f) {
             val ex = EXHAUST_LOCAL[carId]
+            val burst = !nitroActive && rand() < dt * 22f
             var i = 0
             while (i < ex.size) {
                 val lx = ex[i]; val ly = ex[i + 1]; val lz = ex[i + 2]
                 val wx = px + lx * ca + lz * sa
                 val wz = baseZ - lx * sa + lz * ca
-                for (k in 0 until 2) {
-                    particles.spawn(wx + rand(-0.04f, 0.04f), ly + suspY + rand(-0.03f, 0.03f), wz,
-                        rand(-0.4f, 0.4f), rand(-0.1f, 0.3f), -speed + rand(5f, 9f),
-                        rand(0.1f, 0.18f), 0.32f, 0.08f, 0.55f, 0.75f, 1f, 1f, true, 0f, 0f, 1f, 0.45f, 0.1f)
+                val wy = ly + suspY
+                if (nitroActive) {
+                    // layered nitro flame: white-hot core, blue cone, violet tail; longer with speed
+                    val len = 1f + min(1f, speed / 60f)
+                    particles.spawn(wx, wy, wz, rand(-0.15f, 0.15f), rand(-0.05f, 0.1f), -speed + rand(8f, 11f) * len,
+                        rand(0.05f, 0.08f), 0.2f, 0.06f, 1f, 1f, 1f, 1f, true, 0f, 0f, 0.6f, 0.8f, 1f)
+                    for (k in 0 until 2) {
+                        particles.spawn(wx + rand(-0.04f, 0.04f), wy + rand(-0.03f, 0.03f), wz,
+                            rand(-0.4f, 0.4f), rand(-0.1f, 0.3f), -speed + rand(5f, 9f) * len,
+                            rand(0.1f, 0.2f), 0.34f, 0.1f, 0.5f, 0.72f, 1f, 1f, true, 0f, 0f, 0.85f, 0.35f, 1f)
+                    }
+                    if (rand() < 0.5f) particles.spawn(wx, wy, wz, rand(-0.6f, 0.6f), rand(0f, 0.5f), -speed + rand(2f, 5f),
+                        rand(0.18f, 0.3f), 0.42f, 0.15f, 0.55f, 0.25f, 0.95f, 0.7f, true, 0f, 0.5f, 0.2f, 0.05f, 0.4f)
+                } else if (burst) {
+                    // exhaust backfire on lift-off / upshift: short orange fireball and a spark
+                    for (k in 0 until 3) {
+                        particles.spawn(wx, wy, wz, rand(-0.5f, 0.5f), rand(-0.1f, 0.4f), -speed + rand(3f, 6f),
+                            rand(0.07f, 0.13f), 0.3f, 0.12f, 1f, 0.85f, 0.4f, 1f, true, 0f, 0.3f, 1f, 0.3f, 0.05f)
+                    }
+                    particles.spawn(wx, wy, wz, rand(-2f, 2f), rand(0.5f, 2f), -speed + rand(1f, 4f),
+                        rand(0.2f, 0.35f), 0.05f, 0.02f, 1f, 0.9f, 0.5f, 1f, true, -9f, 0.2f, 1f, 0.4f, 0.1f)
                 }
                 i += 3
             }
         }
-        if (brake && speed > 22f && rand() < dt * 30f) {
+        // tyre smoke from the rear wheels while sliding / braking hard
+        if (skid > 0.25f && speed > 6f && rand() < dt * 45f * skid) {
+            val rear = spec.length * 0.31f
             for (k2 in 0..1) {
-                val side = k2 * 2 - 1
-                particles.spawn(px + side * spec.width * 0.42f, 0.15f, baseZ + spec.length * 0.32f,
-                    rand(-0.3f, 0.3f), rand(0.3f, 0.8f), -speed * 0.15f, rand(0.6f, 1.0f), 0.35f, 1.6f,
-                    0.75f, 0.75f, 0.78f, 0.35f, false, 0.2f, 0.8f)
+                val lx = (k2 * 2 - 1) * (spec.width * 0.5f - 0.18f)
+                particles.spawn(px + lx * ca + rear * sa, 0.2f, baseZ - lx * sa + rear * ca,
+                    rand(-0.4f, 0.4f), rand(0.4f, 1.1f), -speed * 0.25f + rand(-0.5f, 0.5f), rand(0.8f, 1.5f), 0.35f, 2.2f,
+                    0.8f, 0.8f, 0.82f, 0.28f + skid * 0.25f, false, 0.25f, 0.9f)
             }
         }
         if (speed > 18f && (env == GameData.ENV_SNOW || env == GameData.ENV_DESERT) && rand() < dt * 18f) {
@@ -1066,6 +1125,11 @@ class World(private val input: InputState) {
         var rpm = 0.18f + inGear * 0.72f + g * 0.02f
         if (state == STATE_COUNTDOWN) rpm = 0.25f + 0.25f * (0.5f + 0.5f * sin(time * 9f))
         if (state == STATE_SHOWROOM || state == STATE_OVER) rpm = 0.16f
+        if (state == STATE_RACING) {
+            if (g > prevGear && throttle > 0.5f) backfireT = max(backfireT, 0.14f)
+            if (prevThrottle > 0.6f && throttle < 0.3f && rpm > 0.5f) backfireT = 0.7f
+        }
+        prevGear = g; prevThrottle = throttle
         a.engineRpm = rpm.coerceIn(0.1f, 1.05f)
         a.engineLoad = throttle
         a.engineOn = state != STATE_OVER || speed > 1f
@@ -1074,6 +1138,7 @@ class World(private val input: InputState) {
         a.windLevel = (speed / 80f).coerceIn(0f, 1f)
         a.scrapeLevel = scraping
         a.carType = carId
+        a.skidLevel = skid
     }
 
     private fun publish() {
@@ -1098,6 +1163,7 @@ class World(private val input: InputState) {
         const val STATE_ATTRACT = 0
         const val STATE_SHOWROOM = 1
         const val STATE_COUNTDOWN = 2
+        const val MAX_SKID = 180
         const val STATE_RACING = 3
         const val STATE_CRASHED = 4
         const val STATE_OVER = 5

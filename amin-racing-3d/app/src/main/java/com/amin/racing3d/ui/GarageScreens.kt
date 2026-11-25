@@ -332,8 +332,12 @@ class SettingsScreen(host: GameHost) : Screen(host) {
 
         // ---- graphics
         col.addView(sectionTitle(str(R.string.set_graphics)), Ui.lp())
-        col.addView(Ui.segmented(ctx, listOf(str(R.string.gfx_low), str(R.string.gfx_med), str(R.string.gfx_high)), save.graphics, Ui.PINK) {
-            save.graphics = it
+        col.addView(Ui.segmented(ctx, listOf(str(R.string.gfx_low), str(R.string.gfx_med), str(R.string.gfx_high), str(R.string.gfx_ultra)), save.graphics, Ui.PINK) {
+            if (it == 3 && !host.ultraSupported) {
+                // never force Ultra on devices that cannot render it
+                save.graphics = 2
+                host.toast(str(R.string.gfx_ultra_unsupported), Ui.YELLOW)
+            } else save.graphics = it
             host.applySettings()
         }, Ui.lp())
         col.addView(toggleRow(R.string.set_auto_quality, save.autoQuality) { save.autoQuality = it }, Ui.lp(topDp = 6f))
