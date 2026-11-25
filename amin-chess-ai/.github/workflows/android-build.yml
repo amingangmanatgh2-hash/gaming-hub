@@ -49,8 +49,7 @@ jobs:
       - name: ساخت Debug APK
         run: |
           cd android
-          chmod +x gradlew || true
-          ./gradlew assembleDebug --no-daemon --stacktrace || gradle assembleDebug --no-daemon --stacktrace
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: آماده‌سازی Keystore امضا (فقط از Secrets)
         if: env.KEYSTORE_BASE64 != ''
@@ -64,19 +63,11 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
           echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
 
-      - name: ساخت Release APK (امضاشده)
-        if: env.KEYSTORE_FILE != ''
+      - name: ساخت Release APK (با Keystore امضا می‌شود؛ بدون آن unsigned)
         working-directory: amin-chess-ai
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon || gradle assembleRelease --no-daemon
-
-      - name: ساخت Release APK (بدون امضا — اگر Keystore تنظیم نشده)
-        if: env.KEYSTORE_FILE == ''
-        working-directory: amin-chess-ai
-        run: |
-          cd android
-          ./gradlew assembleRelease --no-daemon || gradle assembleRelease --no-daemon
+          gradle assembleRelease --no-daemon
 
       - name: ذخیره Debug APK به Artifact
         uses: actions/upload-artifact@v4

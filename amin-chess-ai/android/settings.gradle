@@ -1,13 +1,6 @@
 // AMIN CHESS AI — ماژول‌های پروژه اندروید
-apply from: "capacitor.settings.gradle"
-
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        google()
-        mavenCentral()
-    }
-}
+// capacitor.settings.gradle ماژول capacitor-android را include می‌کند
+apply from: 'capacitor.settings.gradle'
 
 rootProject.name = "AminChessAI"
 include ':app'
