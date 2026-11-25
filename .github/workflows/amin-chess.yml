@@ -1,0 +1,84 @@
+name: ساخت APK شطرنج امین
+
+# اجرای خودکار: هر تغییر در پوشه amin-chess-ai یا اجرای دستی
+on:
+  push:
+    branches: [Main, main, master]
+    paths: ['amin-chess-ai/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amin-chess-ai
+
+    steps:
+      - name: دریافت سورس پروژه
+        uses: actions/checkout@v4
+
+      - name: نصب Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: amin-chess-ai/package.json
+
+      - name: نصب وابستگی‌ها
+        run: npm install
+
+      - name: اجرای تست‌ها
+        run: npm test
+
+      - name: ساخت نسخه وب
+        run: node scripts/build-web.mjs
+
+      - name: همگام‌سازی Capacitor
+        run: npx cap sync android
+
+      - name: نصب Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: راه‌اندازی Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: ساخت Debug APK
+        run: |
+          cd android
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: آماده‌سازی Keystore امضا (فقط از Secrets)
+        if: env.KEYSTORE_BASE64 != ''
+        working-directory: amin-chess-ai
+        env:
+          KEYSTORE_BASE64: ${{ secrets.AMIN_CHESS_KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.AMIN_CHESS_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.AMIN_CHESS_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.AMIN_CHESS_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
+
+      - name: ساخت Release APK (با Keystore امضا می‌شود؛ بدون آن unsigned)
+        working-directory: amin-chess-ai
+        run: |
+          cd android
+          gradle assembleRelease --no-daemon
+
+      - name: ذخیره Debug APK به Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: amin-chess-debug-apk
+          path: amin-chess-ai/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: ذخیره Release APK به Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: amin-chess-release-apk
+          path: amin-chess-ai/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn

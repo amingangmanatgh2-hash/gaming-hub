@@ -1,0 +1,67 @@
+// ماژول اصلی اپلیکیشن AMIN CHESS AI
+apply plugin: 'com.android.application'
+
+android {
+    namespace "ir.amin.chessai"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "ir.amin.chessai"
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            // مقادیر از GitHub Secrets خوانده می‌شوند؛ اگر نبودند، unsigned می‌ماند
+            def ksPath = System.getenv("KEYSTORE_FILE")
+            def ksPass = System.getenv("KEYSTORE_PASSWORD")
+            def keyAlias = System.getenv("KEY_ALIAS")
+            def keyPass = System.getenv("KEY_PASSWORD")
+            if (ksPath && file(ksPath).exists() && ksPass && keyAlias) {
+                storeFile file(ksPath)
+                storePassword ksPass
+                keyAlias keyAlias
+                keyPassword keyPass ?: ksPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            def ksPath = System.getenv("KEYSTORE_FILE")
+            def signed = ksPath && file(ksPath).exists()
+            signingConfig signed ? signingConfigs.release : null
+        }
+        debug {
+            applicationIdSuffix ".debug"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/*']
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    flatDir { dirs '../capacitor-android' }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core-splashscreen:1.0.1'
+}

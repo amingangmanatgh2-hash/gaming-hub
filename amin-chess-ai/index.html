@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0614">
+  <title>AMIN CHESS AI — امین چس</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body data-theme="dark">
+  <div id="bg-layer" aria-hidden="true"></div>
+
+  <!-- پوسته اصلی اپ -->
+  <div id="app" class="app hidden">
+    <header id="app-header" class="app-header">
+      <button id="btn-back" class="icon-btn hidden" aria-label="بازگشت">‹</button>
+      <div class="header-title">
+        <span id="header-title">خانه</span>
+        <span class="header-brand">AMIN CHESS AI</span>
+      </div>
+      <button id="btn-coins" class="coins-chip" aria-label="سکه‌ها">
+        <span class="coin-ico">🪙</span><span id="coins-value">۰</span>
+      </button>
+    </header>
+
+    <main id="screen-root" class="screen-root"></main>
+
+    <nav id="bottom-nav" class="bottom-nav">
+      <button class="nav-btn" data-screen="home"><span class="nav-ico">🏠</span><span>خانه</span></button>
+      <button class="nav-btn" data-screen="play"><span class="nav-ico">♟️</span><span>بازی</span></button>
+      <button class="nav-btn" data-screen="master"><span class="nav-ico">🧠</span><span>استاد AI</span></button>
+      <button class="nav-btn" data-screen="shop"><span class="nav-ico">🛍️</span><span>فروشگاه</span></button>
+      <button class="nav-btn" data-screen="profile"><span class="nav-ico">👤</span><span>پروفایل</span></button>
+    </nav>
+  </div>
+
+  <!-- صفحه خوش‌آمدگویی (اولین اجرا) -->
+  <div id="onboarding" class="onboarding hidden"></div>
+
+  <div id="toast-host"></div>
+  <div id="modal-host"></div>
+  <div id="engine-banner" class="engine-banner hidden"></div>
+
+  <noscript>
+    <div style="color:#fff;padding:2rem;text-align:center">برای اجرای AMIN CHESS AI باید جاوااسکریپت فعال باشد.</div>
+  </noscript>
+
+  <script src="vendor/chessjs/chess.js"></script>
+  <script src="js/core/util.js"></script>
+  <script src="js/core/db.js"></script>
+  <script src="js/core/sound.js"></script>
+  <script src="js/core/engine.js"></script>
+  <script src="js/core/state.js"></script>
+  <script src="js/data/knowledge.js"></script>
+  <script src="js/data/puzzles.js"></script>
+  <script src="js/data/lessons.js"></script>
+  <script src="js/data/shop.js"></script>
+  <script src="js/ai/api.js"></script>
+  <script src="js/ai/analysis.js"></script>
+  <script src="js/ai/master.js"></script>
+  <script src="js/game/game.js"></script>
+  <script src="js/ui/board.js"></script>
+  <script src="js/ui/nav.js"></script>
+  <script src="js/ui/shop.js"></script>
+  <script src="js/ui/prompts.js"></script>
+  <script src="js/screens/onboarding.js"></script>
+  <script src="js/screens/home.js"></script>
+  <script src="js/screens/play.js"></script>
+  <script src="js/screens/master.js"></script>
+  <script src="js/screens/shop.js"></script>
+  <script src="js/screens/profile.js"></script>
+  <script src="js/screens/lessons.js"></script>
+  <script src="js/screens/puzzles.js"></script>
+  <script src="js/screens/settings.js"></script>
+  <script src="js/screens/api.js"></script>
+  <script src="js/screens/analysis.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -16,3 +16,11 @@ downloads/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# AMIN CHESS AI — خروجی‌های ساخت
+amin-chess-ai/www/
+amin-chess-ai/android/app/src/main/assets/public/
+amin-chess-ai/android/local.properties
+amin-chess-ai/android/.gradle/
+amin-chess-ai/release.keystore
+amin-chess-ai/*.keystore
