@@ -72,11 +72,12 @@ class Mesh(val vbo: Int, val ibo: Int, val indexCount: Int, val indexType: Int) 
  * a tint (4 floats) and an "extra" vector (4 floats: brake, lights, blink L, blink R).
  * All instances of a mesh are drawn with a single glDrawElementsInstanced call.
  */
-class InstanceBatch(val mesh: Mesh, val capacity: Int) {
-    val data = FloatArray(capacity * STRIDE_F)
-    var count = 0
-        private set
-    private val buffer = Gl.floatBuffer(capacity * STRIDE_F)
+class InstanceBatch(val mesh: Mesh, val capacity: Int, private val share: InstanceBatch? = null) {
+    val data: FloatArray = share?.data ?: FloatArray(capacity * STRIDE_F)
+    private var ownCount = 0
+    /** Instances; a batch created with [share] draws another mesh with the same instances. */
+    val count: Int get() = share?.count ?: ownCount
+    private val buffer: java.nio.FloatBuffer = if (share != null) share.buffer else Gl.floatBuffer(capacity * STRIDE_F)
     private val vao: Int
     private val instanceVbo: Int
     private var uploaded = false
@@ -85,8 +86,10 @@ class InstanceBatch(val mesh: Mesh, val capacity: Int) {
         val ids = IntArray(1)
         GLES30.glGenVertexArrays(1, ids, 0)
         vao = ids[0]
-        GLES30.glGenBuffers(1, ids, 0)
-        instanceVbo = ids[0]
+        if (share != null) instanceVbo = share.instanceVbo else {
+            GLES30.glGenBuffers(1, ids, 0)
+            instanceVbo = ids[0]
+        }
         GLES30.glBindVertexArray(vao)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, mesh.vbo)
         val s = Mesh.STRIDE
@@ -103,7 +106,7 @@ class InstanceBatch(val mesh: Mesh, val capacity: Int) {
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.ibo)
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, instanceVbo)
-        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, capacity * STRIDE_F * 4, null, GLES30.GL_STREAM_DRAW)
+        if (share == null) GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, capacity * STRIDE_F * 4, null, GLES30.GL_STREAM_DRAW)
         val istride = STRIDE_F * 4
         for (i in 0 until 4) {
             GLES30.glEnableVertexAttribArray(5 + i)
@@ -121,7 +124,7 @@ class InstanceBatch(val mesh: Mesh, val capacity: Int) {
     }
 
     fun clear() {
-        count = 0
+        ownCount = 0
         uploaded = false
     }
 
@@ -138,7 +141,8 @@ class InstanceBatch(val mesh: Mesh, val capacity: Int) {
         r: Float, g: Float, b: Float, a: Float,
         e0: Float, e1: Float, e2: Float, e3: Float
     ) {
-        if (count >= capacity) return
+        if (share != null || ownCount >= capacity) return
+        val count = ownCount
         val ca = Math.cos(yaw.toDouble()).toFloat()
         val sa = Math.sin(yaw.toDouble()).toFloat()
         val cb: Float
@@ -175,7 +179,7 @@ class InstanceBatch(val mesh: Mesh, val capacity: Int) {
         d[o + 15] = 1f
         d[o + 16] = r; d[o + 17] = g; d[o + 18] = b; d[o + 19] = a
         d[o + 20] = e0; d[o + 21] = e1; d[o + 22] = e2; d[o + 23] = e3
-        count++
+        ownCount++
     }
 
     /** Simple helper: yaw only, uniform scale, no extras. */
@@ -184,6 +188,7 @@ class InstanceBatch(val mesh: Mesh, val capacity: Int) {
     }
 
     fun upload() {
+        if (share != null) { share.upload(); return }
         if (uploaded || count == 0) return
         buffer.position(0)
         buffer.put(data, 0, count * STRIDE_F)

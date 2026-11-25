@@ -98,6 +98,7 @@ uniform float uLampOn;
 uniform float uLampSpacing;
 uniform float uLampPhase;
 uniform float uLampX;
+uniform float uGlass;
 out vec4 fragColor;
 
 float shadowFactor() {
@@ -175,7 +176,13 @@ void main() {
     float fd = dist * uFogDensity * uFogScale;
     float f = 1.0 - exp(-fd * fd);
     col = mix(col, uFogColor, clamp(f, 0.0, 1.0));
-    fragColor = vec4(col, 1.0);
+    float alpha = 1.0;
+    if (uGlass > 0.0) {
+        // glass: more opaque (mirror-like) at grazing angles, tinted otherwise
+        float fr = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+        alpha = clamp(uGlass + fr * 0.55, 0.0, 0.97);
+    }
+    fragColor = vec4(col, alpha);
 }
 """
 

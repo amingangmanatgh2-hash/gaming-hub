@@ -82,6 +82,11 @@ class GameRenderer(
     private lateinit var trafficBatches: Array<InstanceBatch>
     private lateinit var wheelBatch: InstanceBatch
     private lateinit var coinBatch: InstanceBatch
+    private lateinit var caliperBatch: InstanceBatch
+    private var playerGlass: Array<InstanceBatch?> = arrayOfNulls(0)
+    private var trafficGlass: Array<InstanceBatch?> = arrayOfNulls(0)
+    /** window tint: alpha of the glass pass (0.25 clear .. 0.9 limo) */
+    @Volatile var glassAlpha = 0.42f
     private lateinit var shadowBatch: InstanceBatch
     private lateinit var railBatch: InstanceBatch
     private lateinit var lampBatch: InstanceBatch
@@ -171,6 +176,7 @@ class GameRenderer(
         val lampSpacing = GLES30.glGetUniformLocation(p, "uLampSpacing")
         val lampPhase = GLES30.glGetUniformLocation(p, "uLampPhase")
         val lampX = GLES30.glGetUniformLocation(p, "uLampX")
+        val glass = GLES30.glGetUniformLocation(p, "uGlass")
     }
 
     // ================================================================== GL lifecycle
@@ -242,10 +248,14 @@ class GameRenderer(
 
         // models
         playerModels = arrayOf(Models.sports(), Models.muscle(), Models.suv(), Models.supercar())
+        for (m in playerModels) m.sporty = true
         trafficModels = arrayOf(Models.sedan(), Models.taxi(), Models.van(), Models.truck(), Models.bus())
         playerBatches = Array(4) { InstanceBatch(playerModels[it].mesh, 2) }
         trafficBatches = Array(5) { InstanceBatch(trafficModels[it].mesh, World.MAX_TRAFFIC) }
         wheelBatch = InstanceBatch(Models.wheel(), World.MAX_TRAFFIC * 6 + 8)
+        caliperBatch = InstanceBatch(Models.caliper(), World.MAX_TRAFFIC * 6 + 8)
+        playerGlass = Array(4) { i -> playerModels[i].glass?.let { InstanceBatch(it, 2, playerBatches[i]) } }
+        trafficGlass = Array(5) { i -> trafficModels[i].glass?.let { InstanceBatch(it, World.MAX_TRAFFIC, trafficBatches[i]) } }
         coinBatch = InstanceBatch(Models.coin(), World.MAX_COINS)
         shadowBatch = InstanceBatch(Models.shadowDecal(), World.MAX_TRAFFIC + 4)
         railBatch = InstanceBatch(Models.guardrail(), 70)
@@ -277,7 +287,7 @@ class GameRenderer(
         allSceneBatches = arrayOf(
             playerBatches[0], playerBatches[1], playerBatches[2], playerBatches[3],
             trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
-            wheelBatch, coinBatch, shadowBatch, railBatch, lampBatch, buildingBatch, pineBatch, snowPineBatch,
+            wheelBatch, caliperBatch, coinBatch, shadowBatch, railBatch, lampBatch, buildingBatch, pineBatch, snowPineBatch,
             treeBatch, bushBatch, cactusBatch, rockBatch, sign1Batch, sign2Batch, billboardBatch, checkpointBatch,
             mountainBatch, roadBatch, groundBatch, showroomBatch
         )
@@ -677,6 +687,8 @@ class GameRenderer(
                 val st = if (front) steer else 0f
                 val pitch = if (side < 0) -spin else spin
                 wheelBatch.add(wx, r, wz, wy + st, pitch, 0f, r, r, r, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f)
+                if (m.sporty) caliperBatch.add(wx, r, wz, wy + st, 0f, 0f, r, r, r, 0.85f, 0.08f, 0.1f, 1f, 0f, 0f, 0f, 0f)
+                else caliperBatch.add(wx, r, wz, wy + st, 0f, 0f, r, r, r, 0.42f, 0.43f, 0.46f, 1f, 0f, 0f, 0f, 0f)
             }
         }
     }
@@ -823,6 +835,7 @@ class GameRenderer(
         for (b in playerBatches) b.draw()
         for (b in trafficBatches) b.draw()
         wheelBatch.draw()
+        caliperBatch.draw()
         coinBatch.draw()
         showroomBatch.draw()
         railBatch.draw(); lampBatch.draw()
@@ -846,6 +859,16 @@ class GameRenderer(
         bindTex(texWhite, 0, 1f, 1f)
         mountainBatch.draw()
         GLES30.glUniform1f(u.fogScale, 1f)
+
+        // translucent window glass (interiors visible behind it)
+        GLES30.glEnable(GLES30.GL_BLEND)
+        GLES30.glBlendFunc(GLES30.GL_SRC_ALPHA, GLES30.GL_ONE_MINUS_SRC_ALPHA)
+        GLES30.glDepthMask(false)
+        GLES30.glUniform1f(u.glass, glassAlpha)
+        for (g in playerGlass) g?.draw()
+        for (g in trafficGlass) g?.draw()
+        GLES30.glUniform1f(u.glass, 0f)
+        GLES30.glDepthMask(true)
 
         // blob shadows
         GLES30.glEnable(GLES30.GL_BLEND)

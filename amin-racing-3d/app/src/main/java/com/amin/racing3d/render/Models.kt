@@ -17,7 +17,12 @@ class VehicleModel(
     val tailLights: FloatArray,
     /** local (x, y, z) of exhaust tips (nitro flames) */
     val exhausts: FloatArray
-)
+) {
+    /** Window glass (translucent pass), shares the vertex buffer of [mesh]. */
+    val glass: Mesh? = MeshBuilder.takeGlass()
+    /** player cars get painted performance brake calipers */
+    var sporty = false
+}
 
 /**
  * Builds every 3D model of the game procedurally: player cars, traffic, wheels and scenery.
@@ -58,6 +63,66 @@ object Models {
         b.box(hw - 0.07f, yR, zR, 0.1f, 0.06f, 0.04f)
     }
 
+    // --------------------------------------------------------------------------------------
+    // Cabin interior (seen through the translucent glass) and door handles
+    // --------------------------------------------------------------------------------------
+    /**
+     * Dashboard, instrument binnacle, steering wheel, seats with headrests (rear bench in long
+     * cabins) and door handles. Parameters come from the glasshouse: lower edge (z0..z1 at
+     * height ya) and roof edge (zt0..zt1 at height yb). Left-hand drive (driver on -X).
+     */
+    private fun interior(b: MeshBuilder, hwIn: Float, z0: Float, z1: Float, ya: Float, zt0: Float, zt1: Float, yb: Float, hwBody: Float) {
+        val hc = yb - ya
+        val iw = hwIn * 2f - 0.12f
+        // dashboard + binnacle + centre screen
+        b.color(0xFF17191E.toInt(), 0f, 0, 0.15f)
+        val zDash = z0 + (zt0 - z0) * 0.55f
+        b.box(0f, ya + hc * 0.06f, zDash, iw, hc * 0.2f, (zt0 - z0) * 0.7f)
+        b.box(-hwIn * 0.45f, ya + hc * 0.2f, zDash + 0.06f, 0.36f, hc * 0.12f, 0.16f)
+        b.color(0xFF0E3B4C.toInt(), 0f, 5, 0.6f)
+        b.box(-hwIn * 0.45f, ya + hc * 0.19f, zDash + 0.145f, 0.3f, hc * 0.08f, 0.01f)
+        b.box(0f, ya + hc * 0.16f, zDash + 0.12f, 0.22f, hc * 0.13f, 0.01f)
+        // steering wheel: rim of 12 segments facing the driver, hub and column
+        b.color(0xFF101114.toInt(), 0f, 0, 0.35f)
+        val swx = -hwIn * 0.45f; val swy = ya + hc * 0.2f; val swz = zDash + 0.32f; val swr = minOf(0.18f, hc * 0.42f)
+        for (k in 0 until 12) {
+            val a = k * (Math.PI.toFloat() / 6f)
+            b.box(swx + cos(a) * swr, swy + sin(a) * swr, swz, 0.075f, 0.075f, 0.035f)
+        }
+        b.box(swx, swy, swz + 0.01f, 0.1f, 0.1f, 0.04f)
+        b.box(swx, swy - swr * 0.5f, swz + 0.01f, 0.035f, swr, 0.03f)
+        b.box(swx, swy - 0.02f, swz - 0.14f, 0.05f, 0.05f, 0.28f)
+        // front seats: cushion, backrest (two-tone), headrest
+        val zSeat = (zt0 + zt1) * 0.5f + (zt1 - zt0) * 0.12f
+        for (side in 0..1) {
+            val sx = (side * 2 - 1) * hwIn * 0.45f
+            b.color(0xFF23262D.toInt(), 0f, 0, 0.2f)
+            b.box(sx, ya + hc * 0.32f, zSeat, 0.44f, hc * 0.64f, 0.13f)
+            b.color(0xFF8E1B2A.toInt(), 0f, 0, 0.25f)
+            b.box(sx, ya + hc * 0.32f, zSeat - 0.07f, 0.16f, hc * 0.56f, 0.012f)
+            b.color(0xFF23262D.toInt(), 0f, 0, 0.2f)
+            b.box(sx, ya + hc * 0.74f, zSeat + 0.01f, 0.24f, hc * 0.2f, 0.1f)
+            b.box(sx, ya + hc * 0.62f, zSeat + 0.01f, 0.04f, hc * 0.1f, 0.03f)
+        }
+        // rear bench when the cabin is long enough
+        if (zt1 - zt0 > 1.0f) {
+            val zr = zt1 - 0.12f
+            b.color(0xFF23262D.toInt(), 0f, 0, 0.2f)
+            b.box(0f, ya + hc * 0.28f, zr, iw - 0.1f, hc * 0.56f, 0.13f)
+            for (side in 0..1) b.box((side * 2 - 1) * hwIn * 0.45f, ya + hc * 0.66f, zr + 0.01f, 0.24f, hc * 0.18f, 0.1f)
+        }
+        // door handles (chrome), slightly below the glass line, on the front doors
+        b.color(CHROME, 0f, 0, 1f)
+        val zh = z0 + (z1 - z0) * 0.45f
+        b.box(-(hwBody + 0.012f), ya - 0.07f, zh, 0.025f, 0.035f, 0.17f)
+        b.box(hwBody + 0.012f, ya - 0.07f, zh, 0.025f, 0.035f, 0.17f)
+        if (zt1 - zt0 > 1.0f) {
+            val zh2 = zh + (z1 - z0) * 0.32f
+            b.box(-(hwBody + 0.012f), ya - 0.07f, zh2, 0.025f, 0.035f, 0.15f)
+            b.box(hwBody + 0.012f, ya - 0.07f, zh2, 0.025f, 0.035f, 0.15f)
+        }
+    }
+
     private fun mirrors(b: MeshBuilder, hw: Float, y: Float, z: Float) {
         paint(b)
         b.box(-(hw + 0.07f), y, z, 0.14f, 0.08f, 0.16f)
@@ -80,8 +145,9 @@ object Models {
         b.taper(-hw, hw, l * 0.24f, l / 2 - 0.05f, 0.61f, -hw + 0.08f, hw - 0.08f, l * 0.24f, l / 2 - 0.16f, 0.8f, bottom = false)
         b.box(0f, 0.68f, (-l * 0.14f + l * 0.24f) / 2, w, 0.15f, l * 0.38f)
         // cabin glass + roof
-        b.color(GLASS, 0f, 0, 0.95f)
+        b.glass()
         b.taper(-hw + 0.1f, hw - 0.1f, -l * 0.14f, l * 0.24f, 0.755f, -hw + 0.3f, hw - 0.3f, -l * 0.14f + 0.64f, l * 0.24f - 0.42f, 1.13f, bottom = false)
+        interior(b, hw - 0.1f, -l * 0.14f, l * 0.24f, 0.755f, -l * 0.14f + 0.64f, l * 0.24f - 0.42f, 1.13f, hw)
         paint(b)
         b.box(0f, 1.14f, (-l * 0.14f + 0.64f + l * 0.24f - 0.42f) / 2, w - 0.62f, 0.025f, l * 0.38f - 1.06f + 0.02f)
         // side sculpt line
@@ -132,8 +198,9 @@ object Models {
         b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.12f, 0.67f, -hw + 0.04f, hw - 0.04f, -l / 2 + 0.12f, -l * 0.12f, 0.79f, bottom = false)
         b.taper(-hw, hw, l * 0.22f, l / 2 - 0.05f, 0.67f, -hw + 0.04f, hw - 0.04f, l * 0.22f, l / 2 - 0.1f, 0.8f, bottom = false)
         b.box(0f, 0.735f, (-l * 0.12f + l * 0.22f) / 2, w, 0.13f, l * 0.34f)
-        b.color(GLASS, 0f, 0, 0.95f)
+        b.glass()
         b.taper(-hw + 0.1f, hw - 0.1f, -l * 0.12f, l * 0.22f, 0.8f, -hw + 0.24f, hw - 0.24f, -l * 0.12f + 0.52f, l * 0.22f - 0.5f, 1.22f, bottom = false)
+        interior(b, hw - 0.1f, -l * 0.12f, l * 0.22f, 0.8f, -l * 0.12f + 0.52f, l * 0.22f - 0.5f, 1.22f, hw)
         paint(b)
         val roofLen = l * 0.34f - 1.02f
         b.box(0f, 1.23f, (-l * 0.12f + 0.52f + l * 0.22f - 0.5f) / 2, w - 0.48f, 0.025f, roofLen + 0.02f)
@@ -178,8 +245,9 @@ object Models {
         paint(b, 0.6f)
         b.box(0f, 0.74f, 0f, w, 0.56f, l - 0.1f)
         b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.18f, 1.02f, -hw + 0.06f, hw - 0.06f, -l / 2 + 0.16f, -l * 0.18f, 1.1f, bottom = false)
-        b.color(GLASS, 0f, 0, 0.95f)
+        b.glass()
         b.taper(-hw + 0.08f, hw - 0.08f, -l * 0.18f, l / 2 - 0.12f, 1.02f, -hw + 0.18f, hw - 0.18f, -l * 0.18f + 0.5f, l / 2 - 0.22f, 1.74f, bottom = false)
+        interior(b, hw - 0.08f, -l * 0.18f, l / 2 - 0.12f, 1.02f, -l * 0.18f + 0.5f, l / 2 - 0.22f, 1.74f, hw)
         paint(b, 0.6f)
         b.box(0f, 1.755f, (-l * 0.18f + 0.5f + l / 2 - 0.22f) / 2, w - 0.34f, 0.04f, l * 0.68f - 0.6f)
         // pillars
@@ -228,8 +296,9 @@ object Models {
         b.box(0f, 0.38f, 0f, w, 0.26f, l - 0.1f)
         b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.08f, 0.51f, -hw + 0.16f, hw - 0.16f, -l / 2 + 0.5f, -l * 0.08f, 0.66f, bottom = false)
         b.taper(-hw, hw, -l * 0.08f, l / 2 - 0.05f, 0.51f, -hw + 0.06f, hw - 0.06f, -l * 0.0f, l / 2 - 0.22f, 0.76f, bottom = false)
-        b.color(GLASS, 0f, 0, 0.95f)
+        b.glass()
         b.taper(-hw + 0.24f, hw - 0.24f, -l * 0.17f, l * 0.18f, 0.7f, -hw + 0.42f, hw - 0.42f, -l * 0.17f + 0.62f, l * 0.18f - 0.12f, 1.07f, bottom = false)
+        interior(b, hw - 0.24f, -l * 0.17f, l * 0.18f, 0.7f, -l * 0.17f + 0.62f, l * 0.18f - 0.12f, 1.07f, hw)
         paint(b, 0.8f)
         b.box(0f, 1.08f, (-l * 0.17f + 0.62f + l * 0.18f - 0.12f) / 2, w - 0.86f, 0.02f, l * 0.35f - 0.74f + 0.02f)
         // side intakes
@@ -282,8 +351,9 @@ object Models {
         b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.2f, 0.7f, -hw + 0.06f, hw - 0.06f, -l / 2 + 0.2f, -l * 0.2f, 0.8f, bottom = false)
         b.taper(-hw, hw, l * 0.26f, l / 2 - 0.05f, 0.7f, -hw + 0.06f, hw - 0.06f, l * 0.26f, l / 2 - 0.14f, 0.82f, bottom = false)
         b.box(0f, 0.755f, (-l * 0.2f + l * 0.26f) / 2, w, 0.11f, l * 0.46f)
-        b.color(GLASS, 0f, 0, 0.9f)
+        b.glass()
         b.taper(-hw + 0.08f, hw - 0.08f, -l * 0.2f, l * 0.26f, 0.81f, -hw + 0.2f, hw - 0.2f, -l * 0.2f + 0.55f, l * 0.26f - 0.42f, 1.42f, bottom = false)
+        interior(b, hw - 0.08f, -l * 0.2f, l * 0.26f, 0.81f, -l * 0.2f + 0.55f, l * 0.26f - 0.42f, 1.42f, hw)
         paint(b, 0.55f)
         b.box(0f, 1.43f, (-l * 0.2f + 0.55f + l * 0.26f - 0.42f) / 2, w - 0.42f, 0.03f, l * 0.46f - 0.97f + 0.02f)
         b.box(0f, 1.1f, l * 0.03f, w - 0.14f, 0.6f, 0.08f)
@@ -340,8 +410,9 @@ object Models {
         b.box(0f, 0.62f, 0f, w, 0.6f, l - 0.06f)
         b.box(0f, 1.56f, (-l / 2 + 1.2f + l / 2 - 0.03f) / 2, w, 1.28f, l - 1.23f)
         b.taper(-hw, hw, -l / 2 + 0.03f, -l / 2 + 1.25f, 0.92f, -hw + 0.04f, hw - 0.04f, -l / 2 + 0.3f, -l / 2 + 1.25f, 1.06f, bottom = false)
-        b.color(GLASS, 0f, 0, 0.9f)
+        b.glass()
         b.taper(-hw + 0.06f, hw - 0.06f, -l / 2 + 0.3f, -l / 2 + 1.24f, 1.06f, -hw + 0.08f, hw - 0.08f, -l / 2 + 1.12f, -l / 2 + 1.24f, 2.12f, bottom = false)
+        interior(b, hw - 0.06f, -l / 2 + 0.3f, -l / 2 + 1.24f, 1.06f, -l / 2 + 1.12f, -l / 2 + 1.24f, 2.12f, hw)
         b.box(-(hw + 0.005f), 1.62f, -l / 2 + 1.75f, 0.01f, 0.56f, 0.95f)
         b.box(hw + 0.005f, 1.62f, -l / 2 + 1.75f, 0.01f, 0.56f, 0.95f)
         b.box(0f, 1.7f, l / 2 + 0.0f, w - 0.5f, 0.52f, 0.02f)
@@ -435,7 +506,7 @@ object Models {
         b.color(0xFF3A3424.toInt(), 0f, 1, 0.9f)
         b.box(-(hw + 0.006f), 2.3f, 0.7f, 0.012f, 0.95f, l - 2.8f)
         b.box(hw + 0.006f, 2.3f, 0.7f, 0.012f, 0.95f, l - 2.8f)
-        b.color(GLASS, 0f, 0, 0.95f)
+        b.color(GLASS, 0f, 0, 0.9f)
         b.box(0f, 2.15f, -l / 2 - 0.006f, w - 0.2f, 1.7f, 0.012f)
         b.box(0f, 2.3f, l / 2 + 0.006f, w - 0.5f, 0.8f, 0.012f)
         b.box(hw + 0.008f, 1.7f, -l / 2 + 1.2f, 0.012f, 2.2f, 1.1f)
@@ -464,23 +535,88 @@ object Models {
     fun wheel(): Mesh {
         val b = MeshBuilder()
         b.color(0xFF18181A.toInt(), 0f, 0, 0.05f)
-        b.cylinderX(0f, 0f, 0f, 1f, 0.7f, 22, capNeg = true, capPos = false)
+        b.cylinderX(0f, 0f, 0f, 0.96f, 0.7f, 26, capNeg = true, capPos = false)
+        // tread: two rows of staggered blocks with a centre groove, plus shoulder blocks
+        b.color(0xFF1C1C1F.toInt(), 0f, 0, 0.04f)
+        val blocks = 26
+        val step = (Math.PI * 2 / blocks).toFloat()
+        for (i in 0 until blocks) {
+            val a0 = i * step + step * 0.08f
+            val a1 = (i + 1) * step - step * 0.08f
+            val off = if (i % 2 == 0) 0f else step * 0.25f
+            treadBlock(b, a0 + off, a1 + off - step * 0.2f, -0.33f, -0.04f, 0.96f, 1.0f)
+            treadBlock(b, a0 - off + step * 0.2f, a1 - off, 0.04f, 0.33f, 0.96f, 1.0f)
+        }
+        // sidewall + rim lip
         b.color(0xFF232327.toInt(), 0f, 0, 0.08f)
-        b.ringX(0.35f, 0f, 0f, 0.7f, 1f, 22, true)
+        b.ringX(0.35f, 0f, 0f, 0.7f, 0.97f, 26, true)
+        b.color(0xFF34353A.toInt(), 0f, 0, 0.1f)
+        b.ringX(0.351f, 0f, 0f, 0.86f, 0.88f, 26, true)
         b.color(CHROME, 0f, 0, 1f)
-        b.ringX(0.352f, 0f, 0f, 0.62f, 0.7f, 22, true)
+        b.ringX(0.352f, 0f, 0f, 0.62f, 0.7f, 26, true)
+        // brake disc (ventilated look: dark hat + drilled ring) visible between the spokes
+        b.color(0xFF2A2C31.toInt(), 0f, 0, 0.2f)
+        b.diskX(0.12f, 0f, 0f, 0.62f, 22, true)
+        b.color(0xFF9A9EA6.toInt(), 0f, 0, 0.7f)
+        b.ringX(0.14f, 0f, 0f, 0.26f, 0.56f, 22, true)
+        b.color(0xFF3A3C42.toInt(), 0f, 0, 0.3f)
+        for (i in 0 until 10) {
+            val a = i * 0.6283f
+            b.box(0.142f, cos(a) * 0.42f, sin(a) * 0.42f, 0.004f, 0.04f, 0.04f)
+        }
+        b.color(0xFF5B5F68.toInt(), 0f, 0, 0.5f)
+        b.diskX(0.15f, 0f, 0f, 0.24f, 14, true)
+        // rim: barrel, ten-spoke face (5 split spokes), centre cap
         b.color(0xFF25282E.toInt(), 0f, 0, 0.3f)
-        b.diskX(0.29f, 0f, 0f, 0.63f, 22, true)
+        b.ringX(0.29f, 0f, 0f, 0.6f, 0.63f, 26, true)
         b.color(0xFF7E838C.toInt(), 0f, 0, 0.6f)
-        b.ringX(0.3f, 0f, 0f, 0.3f, 0.52f, 18, true)
+        b.ringX(0.3f, 0f, 0f, 0.18f, 0.3f, 18, true)
         b.color(0xFFD9DEE6.toInt(), 0f, 0, 1f)
         for (i in 0 until 5) {
             val a = (i * 72f) * (Math.PI / 180f).toFloat()
-            b.spokeX(0.34f, 0f, 0f, a, 0.1f, 0.63f, 0.11f, 0.06f)
+            b.spokeX(0.34f, 0f, 0f, a - 0.11f, 0.12f, 0.63f, 0.06f, 0.035f)
+            b.spokeX(0.34f, 0f, 0f, a + 0.11f, 0.12f, 0.63f, 0.06f, 0.035f)
         }
-        b.diskX(0.345f, 0f, 0f, 0.15f, 12, true)
+        b.color(0xFF9EA3AB.toInt(), 0f, 0, 0.9f)
+        for (i in 0 until 5) {
+            val a = (i * 72f + 36f) * (Math.PI / 180f).toFloat()
+            b.box(0.345f, cos(a) * 0.15f, sin(a) * 0.15f, 0.01f, 0.035f, 0.035f)
+        }
+        b.color(0xFFD9DEE6.toInt(), 0f, 0, 1f)
+        b.diskX(0.345f, 0f, 0f, 0.11f, 12, true)
         b.color(0xFFC81E28.toInt(), 0f, 0, 0.5f)
-        b.diskX(0.347f, 0f, 0f, 0.06f, 10, true)
+        b.diskX(0.347f, 0f, 0f, 0.05f, 10, true)
+        return b.build()
+    }
+
+    /** One tread block on the tyre surface between angles a0..a1, x0..x1, radius r0..r1. */
+    private fun treadBlock(b: MeshBuilder, a0: Float, a1: Float, x0: Float, x1: Float, r0: Float, r1: Float) {
+        val c0 = cos(a0); val s0 = sin(a0); val c1 = cos(a1); val s1 = sin(a1)
+        val cm = cos((a0 + a1) / 2); val sm = sin((a0 + a1) / 2)
+        // outer face
+        b.quad(x0, c0 * r1, s0 * r1, x1, c0 * r1, s0 * r1, x1, c1 * r1, s1 * r1, x0, c1 * r1, s1 * r1, 0f, cm, sm)
+        // leading / trailing faces
+        b.quad(x0, c0 * r0, s0 * r0, x1, c0 * r0, s0 * r0, x1, c0 * r1, s0 * r1, x0, c0 * r1, s0 * r1, 0f, s0, -c0)
+        b.quad(x0, c1 * r0, s1 * r0, x1, c1 * r0, s1 * r0, x1, c1 * r1, s1 * r1, x0, c1 * r1, s1 * r1, 0f, -s1, c1)
+        // side faces
+        b.quad(x0, c0 * r0, s0 * r0, x0, c1 * r0, s1 * r0, x0, c1 * r1, s1 * r1, x0, c0 * r1, s0 * r1, -1f, 0f, 0f)
+        b.quad(x1, c0 * r0, s0 * r0, x1, c1 * r0, s1 * r0, x1, c1 * r1, s1 * r1, x1, c0 * r1, s0 * r1, 1f, 0f, 0f)
+    }
+
+    /**
+     * Brake caliper in wheel space (radius 1 units), drawn with the wheel transform but without
+     * the wheel spin. Painted part follows the instance tint.
+     */
+    fun caliper(): Mesh {
+        val b = MeshBuilder()
+        b.color(WHITE, 1f, 0, 0.6f)
+        // sits over the top-rear of the disc
+        for (k in 0 until 4) {
+            val a = 0.95f + k * 0.17f
+            b.box(0.19f, sin(a) * 0.46f, cos(a) * 0.46f, 0.12f, 0.16f, 0.16f)
+        }
+        b.color(0xFFE8E8E8.toInt(), 0f, 0, 0.4f)
+        b.box(0.252f, sin(1.2f) * 0.46f, cos(1.2f) * 0.46f, 0.004f, 0.06f, 0.2f)
         return b.build()
     }
 

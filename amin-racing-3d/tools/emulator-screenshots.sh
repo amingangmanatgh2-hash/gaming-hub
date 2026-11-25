@@ -73,15 +73,11 @@ sleep 3
 shot 11-pause
 
 # ---------------------------------------------------------------- landscape
-adb emu rotate >/dev/null 2>&1 || true
 sleep 4
 demo 55 --es demo race --ei mode 1 --ei env 0 --ei tod 2 --ei car 3 --ei gfx 1 --ez autogas true --ei control 1
 shot 12-landscape-city-night
 demo 7 --es demo garage --ei car 1
 shot 13-landscape-garage
-adb emu rotate >/dev/null 2>&1 || true
-adb emu rotate >/dev/null 2>&1 || true
-adb emu rotate >/dev/null 2>&1 || true
 sleep 4
 
 # ---------------------------------------------------------------- English UI (fresh launch)

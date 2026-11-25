@@ -25,6 +25,10 @@ class MeshBuilder {
     private var emis = 0f
     private var spec = 0f
     private var fixedUv = false
+    // glass triangles go to a separate index list (drawn later, translucent)
+    private var glassMode = false
+    private var gIdx = IntArray(256)
+    private var gCount = 0
     private var fu = 0f
     private var fv = 0f
 
@@ -41,7 +45,15 @@ class MeshBuilder {
 
     val vertexCount: Int get() = vCount
 
+    /** Following geometry is window glass: rendered in the translucent glass pass. */
+    fun glass(): MeshBuilder {
+        color(0xFF0A121C.toInt(), 0f, 0, 0.95f)
+        glassMode = true
+        return this
+    }
+
     fun color(argb: Int, paintMask: Float = 0f, emissive: Int = 0, specular: Float = 0.1f): MeshBuilder {
+        glassMode = false
         cr = ((argb shr 16) and 0xFF) / 255f
         cg = ((argb shr 8) and 0xFF) / 255f
         cb = (argb and 0xFF) / 255f
@@ -52,6 +64,7 @@ class MeshBuilder {
     }
 
     fun colorF(r: Float, g: Float, b: Float, paintMask: Float = 0f, emissive: Int = 0, specular: Float = 0.1f): MeshBuilder {
+        glassMode = false
         cr = r; cg = g; cb = b
         paint = paintMask
         emis = emissive.toFloat()
@@ -82,6 +95,11 @@ class MeshBuilder {
     }
 
     fun tri(a: Int, b: Int, c: Int) {
+        if (glassMode) {
+            if (gCount + 3 > gIdx.size) gIdx = gIdx.copyOf(gIdx.size * 2)
+            gIdx[gCount++] = a; gIdx[gCount++] = b; gIdx[gCount++] = c
+            return
+        }
         ensure(0, 3)
         idx[iCount++] = a; idx[iCount++] = b; idx[iCount++] = c
     }
@@ -337,29 +355,43 @@ class MeshBuilder {
     }
 
     fun build(): Mesh {
-        val ids = IntArray(2)
-        GLES30.glGenBuffers(2, ids, 0)
+        val ids = IntArray(1)
+        GLES30.glGenBuffers(1, ids, 0)
         val vb = Gl.floatBuffer(vCount * Mesh.FLOATS_PER_VERTEX)
         vb.put(verts, 0, vCount * Mesh.FLOATS_PER_VERTEX).position(0)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, ids[0])
         GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, vCount * Mesh.STRIDE, vb, GLES30.GL_STATIC_DRAW)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+        val main = indexMesh(ids[0], idx, iCount)
+        lastGlass = if (gCount > 0) indexMesh(ids[0], gIdx, gCount) else null
+        return main
+    }
+
+    private fun indexMesh(vbo: Int, src: IntArray, n: Int): Mesh {
+        val ids = IntArray(1)
+        GLES30.glGenBuffers(1, ids, 0)
         val type: Int
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ids[0])
         if (vCount < 65535) {
-            val ib = Gl.shortBuffer(iCount)
-            for (i in 0 until iCount) ib.put(idx[i].toShort())
+            val ib = Gl.shortBuffer(n)
+            for (i in 0 until n) ib.put(src[i].toShort())
             ib.position(0)
-            GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ids[1])
-            GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, iCount * 2, ib, GLES30.GL_STATIC_DRAW)
+            GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, n * 2, ib, GLES30.GL_STATIC_DRAW)
             type = GLES30.GL_UNSIGNED_SHORT
         } else {
-            val ib = Gl.intBuffer(iCount)
-            ib.put(idx, 0, iCount).position(0)
-            GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ids[1])
-            GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, iCount * 4, ib, GLES30.GL_STATIC_DRAW)
+            val ib = Gl.intBuffer(n)
+            ib.put(src, 0, n).position(0)
+            GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, n * 4, ib, GLES30.GL_STATIC_DRAW)
             type = GLES30.GL_UNSIGNED_INT
         }
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
-        return Mesh(ids[0], ids[1], iCount, type)
+        return Mesh(vbo, ids[0], n, type)
+    }
+
+    companion object {
+        /** Glass part of the most recently built mesh (GL thread only). */
+        var lastGlass: Mesh? = null
+
+        fun takeGlass(): Mesh? { val g = lastGlass; lastGlass = null; return g }
     }
 }
