@@ -16,7 +16,7 @@
 
 A native Android racing game written in Kotlin with a custom OpenGL ES 3.0 renderer. It uses no game
 engine, no WebView and no third-party libraries. All 3D models, textures, music and sound effects are
-generated in code when the game starts, so the APK is only about 1 MB.
+generated in code when the game starts, so the release APK is only about 330 KB.
 
 > بازی کاملاً بومی اندروید با Kotlin و OpenGL ES 3.0. همهٔ مدل‌ها، بافت‌ها، صداها و موسیقی به‌صورت
 > رویه‌ای (procedural) ساخته می‌شوند. زبان پیش‌فرض فارسی (راست‌به‌چپ) است و از تنظیمات می‌توان آن را به

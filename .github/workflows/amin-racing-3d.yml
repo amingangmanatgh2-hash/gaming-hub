@@ -132,10 +132,30 @@ jobs:
           echo "Existing assets: $have"
           if [ "${{ github.event_name }}" = "release" ] && echo "$have" | grep -q "release.apk" && echo "$have" | grep -q "debug.apk"; then
             echo "Release already has both APKs (attached before publishing) - keeping them."
-            exit 0
+          else
+            gh release upload "$RELEASE_TAG" dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
           fi
-          gh release upload "$RELEASE_TAG" dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
           gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[] | "\(.name)  \(.size) bytes"'
+
+      - name: Verify release downloads
+        if: env.RELEASE_TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/rel && cd /tmp/rel
+          draft=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)
+          if [ "$draft" = "false" ]; then
+            # published: download anonymously through the public browser URLs, exactly like a user would
+            gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].url' | while read -r u; do
+              echo "GET $u"; curl -fsSL -o "$(basename "$u")" "$u"
+            done
+          else
+            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber
+          fi
+          ls -la
+          sha256sum -c SHA256SUMS.txt
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          for apk in *.apk; do "$BT/apksigner" verify "$apk" && echo "$apk: signature OK"; done
 
   emulator:
     needs: build
