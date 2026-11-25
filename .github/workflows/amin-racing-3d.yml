@@ -4,6 +4,7 @@ name: AMIN RACING 3D (build + emulator check)
 #  - push / pull request touching amin-racing-3d/**  -> build, upload artifact, emulator smoke test
 #  - GitHub Release published with a tag "amin-racing-v*" -> build and attach both APKs to that release
 #  - manual run with input release_tag                   -> build and attach both APKs to that (draft) release
+#  - push while a draft release "amin-racing-v<versionName>" exists -> APKs are attached to the draft
 # Emulator results (screenshots, logcat) are committed back under ci-output/amin-racing-3d/.
 on:
   workflow_dispatch:
@@ -87,9 +88,21 @@ jobs:
           for i in 1 2 3; do git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && break; sleep 5; done
 
       - name: Verify APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(sed -n 's/.*versionName *= *"\(.*\)".*/\1/p' app/build.gradle.kts | head -1)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          # A pushed build fills a *draft* release "amin-racing-v<version>" if one exists, so the
+          # release can be checked before it is published.
+          if [ "${{ github.event_name }}" = "push" ] && [ -z "$RELEASE_TAG" ]; then
+            draft=$(gh release view "amin-racing-v$VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null || true)
+            if [ "$draft" = "true" ]; then
+              RELEASE_TAG="amin-racing-v$VERSION"
+              echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+              echo "Draft release $RELEASE_TAG found - APKs will be attached to it."
+            fi
+          fi
           BT="$ANDROID_HOME/build-tools/35.0.0"
           for apk in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release.apk; do
             ls -la "$apk"
