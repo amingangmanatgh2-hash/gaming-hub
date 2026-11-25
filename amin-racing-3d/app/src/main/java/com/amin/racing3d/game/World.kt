@@ -1434,6 +1434,31 @@ class World(private val input: InputState) {
             particles.spawn(cx + rand(-1f, 1f), rand(0.4f, 1.2f), cz + rand(-1f, 1f), rand(-1f, 1f), rand(0.8f, 2f), rand(-1f, 1f),
                 rand(1.5f, 2.5f), 0.8f, 3.6f, 0.3f, 0.3f, 0.32f, 0.6f, false, 0.2f, 0.5f)
         }
+        explode(r.x, -r.s, r.speed)
+    }
+
+    /**
+     * Wreck explosion (police takedowns): white-hot flash, rolling fireball that cools from yellow
+     * to deep red, burning debris arcs and a dark smoke column left behind on the road.
+     */
+    private fun explode(ex: Float, ez: Float, carSpeed: Float) {
+        val drift = -min(carSpeed, speed) * 0.25f
+        particles.spawn(ex, 1.2f, ez, 0f, 0.5f, drift, 0.16f, 5.5f, 8f, 1f, 0.95f, 0.8f, 0.9f, true)
+        for (k in 0 until 16) {
+            val a = rand(0f, 6.283f); val v = rand(1.5f, 4.5f)
+            particles.spawn(ex + rand(-0.6f, 0.6f), rand(0.5f, 1.3f), ez + rand(-0.8f, 0.8f),
+                cos(a) * v, rand(2f, 5.5f), sin(a) * v + drift,
+                rand(0.55f, 0.95f), rand(0.7f, 1.1f), rand(2.2f, 3.2f), 1f, 0.82f, 0.35f, 0.95f, true, 1.5f, 1.4f, 0.85f, 0.12f, 0.02f)
+        }
+        for (k in 0 until 12) {
+            particles.spawn(ex, rand(0.6f, 1.2f), ez, rand(-6f, 6f), rand(5f, 10f), rand(-6f, 6f) + drift,
+                rand(0.9f, 1.5f), 0.18f, 0.06f, 1f, 0.6f, 0.15f, 1f, true, -14f, 0.25f, 0.9f, 0.2f, 0.02f)
+        }
+        for (k in 0 until 12) {
+            particles.spawn(ex + rand(-0.8f, 0.8f), rand(1f, 2f), ez + rand(-0.8f, 0.8f), rand(-0.8f, 0.8f), rand(1.6f, 3f), rand(-0.8f, 0.8f) + drift * 0.5f,
+                rand(2.4f, 3.6f), 1.2f, 5.5f, 0.09f, 0.08f, 0.08f, 0.75f, false, 0.35f, 0.6f)
+        }
+        shake = max(shake, 0.6f)
     }
 
     // ======================================================================== mode objectives

@@ -376,15 +376,29 @@ class MeshBuilder {
         val f = Mesh.FLOATS_PER_VERTEX
         var maxZ = -1e9f
         for (i in 0 until vCount) { val o = i * f; if (verts[o + 9] > 0.75f && verts[o + 2] > maxZ) maxZ = verts[o + 2] }
+        // cast a vertical ray down the centre line just in front of the tail and keep the highest
+        // painted triangle it hits (box / taper tops only have vertices at their corners)
         var deckY = 0f
-        for (i in 0 until vCount) {
-            val o = i * f
-            if (verts[o + 9] < 0.75f) continue
-            val x = verts[o]; val y = verts[o + 1]; val z = verts[o + 2]
-            if (kotlin.math.abs(x) < 0.4f && z > maxZ - 0.75f && z < maxZ - 0.12f && y > deckY) deckY = y
+        val zs = maxZ - 0.42f
+        var t = 0
+        while (t + 2 < iCount) {
+            val o0 = idx[t] * f; val o1 = idx[t + 1] * f; val o2 = idx[t + 2] * f
+            t += 3
+            if (verts[o0 + 9] < 0.75f || verts[o1 + 9] < 0.75f || verts[o2 + 9] < 0.75f) continue
+            val x0 = verts[o0]; val z0 = verts[o0 + 2]
+            val x1 = verts[o1]; val z1 = verts[o1 + 2]
+            val x2 = verts[o2]; val z2 = verts[o2 + 2]
+            val det = (z1 - z2) * (x0 - x2) + (x2 - x1) * (z0 - z2)
+            if (kotlin.math.abs(det) < 1e-6f) continue
+            val l0 = ((z1 - z2) * (0f - x2) + (x2 - x1) * (zs - z2)) / det
+            val l1 = ((z2 - z0) * (0f - x2) + (x0 - x2) * (zs - z2)) / det
+            val l2 = 1f - l0 - l1
+            if (l0 < -1e-4f || l1 < -1e-4f || l2 < -1e-4f) continue
+            val y = l0 * verts[o0 + 1] + l1 * verts[o1 + 1] + l2 * verts[o2 + 1]
+            if (y > deckY) deckY = y
         }
         lastDeckY = deckY
-        lastDeckZ = maxZ - 0.38f
+        lastDeckZ = zs
     }
 
     fun build(): Mesh {

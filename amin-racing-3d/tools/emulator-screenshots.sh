@@ -135,7 +135,7 @@ demo 8 --es demo customize --ei car 1 --ei gfx 2 --es custom "2,2,1,1,2,1,3,2,2"
 shot 28-garage-customize-wing
 # customised car in a night race (neon, wing, hot brakes)
 demo 6 --es demo race --ei mode 0 --ei env 0 --ei tod 2 --ei weather 0 --ei car 1 --ei gfx 2 --ez autogas true --ei control 1
-sleep 26
+sleep 38
 shot 29-custom-car-night-race
 alive garage2 || exit 1
 
