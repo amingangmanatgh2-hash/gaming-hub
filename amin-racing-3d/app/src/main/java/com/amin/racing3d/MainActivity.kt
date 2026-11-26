@@ -374,27 +374,26 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
             "taxi" -> {
                 val stage = i.getIntExtra("stage", 1)
                 startRace()
-                handler.postDelayed({ glView.queueEvent { world.debugTaxi(stage) } }, i.getIntExtra("after", 8000).toLong())
+                whenRacing(i.getIntExtra("after", 1000).toLong()) { glView.queueEvent { world.debugTaxi(stage) } }
             }
             "onfoot" -> {
                 startRace()
-                handler.postDelayed({ glView.queueEvent { world.debugExitCar() } }, i.getIntExtra("after", 8000).toLong())
+                whenRacing(i.getIntExtra("after", 1000).toLong()) { glView.queueEvent { world.debugExitCar() } }
             }
             "phone" -> {
                 val app = i.getIntExtra("app", 0)
                 val stage = i.getIntExtra("stage", 0)
                 startRace()
-                if (stage > 0) handler.postDelayed({ glView.queueEvent { world.debugTaxi(stage) } }, 6000)
-                handler.postDelayed({ openPhone(app) }, i.getIntExtra("after", 9000).toLong())
+                if (stage > 0) whenRacing(800) { glView.queueEvent { world.debugTaxi(stage) } }
+                whenRacing(i.getIntExtra("after", 3500).toLong()) { openPhone(app) }
             }
             "photo" -> {
                 startRace()
-                val after = i.getIntExtra("after", 8000).toLong()
-                handler.postDelayed({ glView.queueEvent { world.debugExitCar() } }, after)
-                handler.postDelayed({
+                whenRacing(i.getIntExtra("after", 800).toLong()) { glView.queueEvent { world.debugExitCar() } }
+                whenRacing(i.getIntExtra("after", 800) + 2500L) {
                     openPhone(com.amin.racing3d.ui.PhoneScreen.APP_CAMERA)
                     replaceTop(com.amin.racing3d.ui.PhotoModeScreen(this, 2.55f, 0.18f, 6.5f))
-                }, after + 2500)
+                }
             }
             else -> replaceAll(MainMenuScreen(this))
         }
@@ -560,6 +559,19 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         glView.queueEvent { world.paused = true }
         updateTiltListening()
         push(com.amin.racing3d.ui.PhoneScreen(this, app))
+    }
+
+    /** debug demos: runs [action] [delayMs] after the race has left loading/countdown */
+    private fun whenRacing(delayMs: Long, action: () -> Unit) {
+        val start = SystemClock.uptimeMillis()
+        val poll = object : Runnable {
+            override fun run() {
+                if (!inRace) return
+                if (world.hudState == World.STATE_RACING) handler.postDelayed({ if (inRace) action() }, delayMs)
+                else if (SystemClock.uptimeMillis() - start < 90_000) handler.postDelayed(this, 250)
+            }
+        }
+        handler.postDelayed(poll, 400)
     }
 
     override fun setTaxiShift(on: Boolean) {

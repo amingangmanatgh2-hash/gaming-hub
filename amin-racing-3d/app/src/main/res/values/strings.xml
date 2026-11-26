@@ -125,7 +125,7 @@
     <string name="billboard_sub">سرعت را حس کن</string>
     <string name="exit_confirm">از بازی خارج می‌شوی؟</string>
     <string name="credits">ساخته‌شده با Kotlin و OpenGL ES 3.0 — کاملاً آفلاین</string>
-    <string name="version">نسخهٔ ۲٫۰٫۰-پیش‌نمایش</string>
+    <string name="version">نسخهٔ ۲٫۰٫۰</string>
     <string name="total_coins">موجودی</string>
     <string name="best_score_short">رکورد</string>
     <string name="checkpoint_sign">ایست بازرسی</string>
@@ -135,7 +135,7 @@
     <string name="gfx_ultra">اولترا</string>
     <string name="gfx_ultra_unsupported">این دستگاه از گرافیک اولترا پشتیبانی نمی‌کند؛ «بالا» انتخاب شد.</string>
     <string name="menu_traffic">مسابقه ترافیک</string>
-    <string name="menu_traffic_sub">بی‌پایان و دوطرفه — لایی، نزدیک‌گذر و کمبو</string>
+    <string name="menu_traffic_sub">لایی و کمبو — حالا با مسافرکشی تاکسی</string>
     <string name="menu_time_trial">تایم تریل</string>
     <string name="menu_time_trial_sub">قبل از تمام شدن وقت به ایست بازرسی برس</string>
     <string name="level_short">سطح</string>
@@ -198,7 +198,7 @@
     <string name="menu_street_sub">سه رقیب، یک خط پایان</string>
     <string name="menu_drift_sub">زنجیرهٔ دریفت و ضریب امتیاز</string>
     <string name="menu_police_sub">فرار کن، گیر نیفت</string>
-    <string name="menu_free_sub">سفر آزاد بین منطقه‌ها، هوای پویا</string>
+    <string name="menu_free_sub">پیاده شو، قدم بزن و منطقه‌ها را بگرد</string>
     <string name="hud_pos">رتبه</string>
     <string name="hud_to_go">تا پایان</string>
     <string name="hud_drift">دریفت</string>
@@ -353,4 +353,8 @@
     <string name="dest_9">سینما</string>
     <string name="dest_10">پارک ملت</string>
     <string name="dest_11">برج میلاد</string>
+    <string name="menu_modes">حالت‌های بازی</string>
+    <string name="menu_quick_play">مسابقهٔ سریع</string>
+    <string name="menu_progress_short">چالش‌ها</string>
+    <string name="badge_new">جدید</string>
 </resources>

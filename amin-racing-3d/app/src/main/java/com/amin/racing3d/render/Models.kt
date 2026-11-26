@@ -653,6 +653,11 @@ object Models {
     // v2 additions: rally hatchback, electric GT, taxi, drift coupe
     // --------------------------------------------------------------------------------------
     /** Rally hot hatch: short nose, tall glasshouse with a steep hatch, roof scoop, spot-light pod, mud flaps. */
+    /** slanted window pillar from (xb, zb) at the belt line y0 up to (xt, zt) at the roof y1 */
+    private fun pillar(b: MeshBuilder, xb: Float, zb: Float, xt: Float, zt: Float, y0: Float, y1: Float, tx: Float = 0.05f, tz: Float = 0.09f) {
+        b.taper(xb - tx / 2, xb + tx / 2, zb - tz / 2, zb + tz / 2, y0, xt - tx / 2, xt + tx / 2, zt - tz / 2, zt + tz / 2, y1, bottom = false)
+    }
+
     fun hotHatch(): VehicleModel {
         val b = MeshBuilder()
         val l = 4.1f; val w = 1.84f; val hw = w / 2; val r = 0.34f
@@ -668,6 +673,14 @@ object Models {
         interior(b, hw - 0.08f, zb0, zb1 - 0.04f, 0.82f, zt0, zt1, 1.42f, hw)
         paint(b, 0.75f)
         b.box(0f, 1.435f, (zt0 + zt1) / 2, w - 0.42f, 0.03f, zt1 - zt0 + 0.02f)
+        // A, B and the wide hatchback C pillars (body colour) so the roof sits on a real cabin
+        for (sd in floatArrayOf(-1f, 1f)) {
+            val xb = sd * (hw - 0.07f); val xt = sd * (hw - 0.19f)
+            pillar(b, xb, zb0 + 0.05f, xt, zt0 + 0.03f, 0.82f, 1.42f)
+            val zm = zt0 + (zt1 - zt0) * 0.48f
+            pillar(b, xb, zm, xt, zm, 0.82f, 1.42f, tz = 0.1f)
+            pillar(b, xb, zb1 - 0.3f, xt, zt1 - 0.22f, 0.82f, 1.42f, tz = 0.44f)
+        }
         // rally kit: roof scoop, roof spoiler, hood vents, mud flaps, side livery
         b.color(0xFF15171B.toInt(), 0f, 0, 0.45f)
         b.box(0f, 1.49f, zt0 + 0.25f, 0.36f, 0.09f, 0.42f)
@@ -721,10 +734,16 @@ object Models {
         b.glass()
         b.taper(-hw + 0.09f, hw - 0.09f, zb0, zb1, 0.76f, -hw + 0.3f, hw - 0.3f, zt0, zt1, 1.3f, bottom = false)
         interior(b, hw - 0.09f, zb0, zb1, 0.76f, zt0, zt1, 1.3f, hw)
-        b.color(0xFF0E1014.toInt(), 0f, 0, 0.5f)
-        b.box(-(hw - 0.31f), 1.305f, (zt0 + zt1) / 2, 0.035f, 0.02f, zt1 - zt0)
-        b.box(hw - 0.31f, 1.305f, (zt0 + zt1) / 2, 0.035f, 0.02f, zt1 - zt0)
-        b.box(0f, 1.305f, zt0 + 0.02f, w - 0.6f, 0.02f, 0.04f)
+        // tinted panoramic roof: gloss black so it reads as glass from outside, framed by body-colour pillars
+        b.color(0xFF0B0F16.toInt(), 0f, 0, 0.95f)
+        b.box(0f, 1.305f, (zt0 + zt1) / 2, w - 0.58f, 0.022f, zt1 - zt0 + 0.02f)
+        paint(b, 0.85f)
+        for (sd in floatArrayOf(-1f, 1f)) {
+            val xb = sd * (hw - 0.08f); val xt = sd * (hw - 0.29f)
+            pillar(b, xb, zb0 + 0.06f, xt, zt0 + 0.03f, 0.76f, 1.3f)
+            pillar(b, xb, zb1 - 0.32f, xt, zt1 - 0.18f, 0.76f, 1.3f, tz = 0.36f)
+            b.box(xt, 1.31f, (zt0 + zt1) / 2, 0.06f, 0.025f, zt1 - zt0)
+        }
         // closed nose with a lower intake, light bar across the front, full-width tail bar
         b.color(0xFF0B0C0E.toInt(), 0f, 0, 0.4f)
         b.box(0f, 0.38f, -l / 2 + 0.01f, w * 0.55f, 0.1f, 0.06f)

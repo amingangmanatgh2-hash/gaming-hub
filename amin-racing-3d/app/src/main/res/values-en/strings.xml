@@ -122,7 +122,7 @@
     <string name="billboard_sub">FEEL THE SPEED</string>
     <string name="exit_confirm">Quit the game?</string>
     <string name="credits">Built with Kotlin &amp; OpenGL ES 3.0 — fully offline</string>
-    <string name="version">Version 2.0.0-preview</string>
+    <string name="version">Version 2.0.0</string>
     <string name="total_coins">Balance</string>
     <string name="best_score_short">Best</string>
     <string name="checkpoint_sign">CHECKPOINT</string>
@@ -132,7 +132,7 @@
     <string name="gfx_ultra">Ultra</string>
     <string name="gfx_ultra_unsupported">This device does not support Ultra graphics; High was selected.</string>
     <string name="menu_traffic">Traffic Racing</string>
-    <string name="menu_traffic_sub">Endless and two-way — weave, near-miss, combo</string>
+    <string name="menu_traffic_sub">Weave and combo — now with taxi fares</string>
     <string name="menu_time_trial">Time Trial</string>
     <string name="menu_time_trial_sub">Reach each checkpoint before time runs out</string>
     <string name="level_short">LV</string>
@@ -195,7 +195,7 @@
     <string name="menu_street_sub">Three rivals, one finish line</string>
     <string name="menu_drift_sub">Drift chains and multipliers</string>
     <string name="menu_police_sub">Run, and don\'t get caught</string>
-    <string name="menu_free_sub">Roam between regions, dynamic weather</string>
+    <string name="menu_free_sub">Step out, walk around, explore every region</string>
     <string name="hud_pos">POSITION</string>
     <string name="hud_to_go">To go</string>
     <string name="hud_drift">DRIFT</string>
@@ -350,4 +350,8 @@
     <string name="dest_9">Cinema</string>
     <string name="dest_10">Mellat Park</string>
     <string name="dest_11">Milad Tower</string>
+    <string name="menu_modes">GAME MODES</string>
+    <string name="menu_quick_play">QUICK RACE</string>
+    <string name="menu_progress_short">Challenges</string>
+    <string name="badge_new">NEW</string>
 </resources>

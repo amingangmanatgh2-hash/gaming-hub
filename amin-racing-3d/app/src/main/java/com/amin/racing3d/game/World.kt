@@ -2472,7 +2472,7 @@ class World(private val input: InputState) {
 
         const val REGION_LENGTH = 2100f
         val RIVAL_CARS = intArrayOf(GameData.CAR_SPORTS, GameData.CAR_MUSCLE, GameData.CAR_SUPER, GameData.CAR_SEDAN,
-            GameData.CAR_CLASSIC, GameData.CAR_RACE)
+            GameData.CAR_CLASSIC, GameData.CAR_RACE, GameData.CAR_HATCH, GameData.CAR_EV, GameData.CAR_DRIFT)
         const val MAX_RACERS = 4
         const val MAX_ZONES = 6
         const val ZONE_TUNNEL = 1

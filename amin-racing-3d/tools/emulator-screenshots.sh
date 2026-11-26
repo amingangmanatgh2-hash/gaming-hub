@@ -150,25 +150,25 @@ demo 8 --es demo garage --ei car 13 --ei gfx 2
 shot 33-car-drift-coupe
 alive newcars || exit 1
 
-demo 14 --es demo taxi --ei stage 1 --ei mode 0 --ei env 0 --ei tod 0 --ei weather 0 --ei car 12 --ei gfx 2 --ez autogas false --ei control 1 --ei after 9000
+demo 30 --es demo taxi --ei stage 1 --ei mode 0 --ei env 0 --ei tod 0 --ei weather 0 --ei car 12 --ei gfx 2 --ez autogas false --ei control 1 --ei after 1500
 shot 34-taxi-passenger-waiting
-demo 14 --es demo taxi --ei stage 2 --ei mode 0 --ei env 0 --ei tod 1 --ei weather 0 --ei car 12 --ei gfx 2 --ez autogas true --ei control 1 --ei after 8000
+demo 32 --es demo taxi --ei stage 2 --ei mode 0 --ei env 0 --ei tod 1 --ei weather 0 --ei car 12 --ei gfx 2 --ez autogas true --ei control 1 --ei after 800
 shot 35-taxi-ride-hud
 alive taxi || exit 1
 
-demo 15 --es demo onfoot --ei mode 8 --ei env 6 --ei tod 0 --ei weather 0 --ei car 11 --ei gfx 2 --ez autogas true --ei control 1 --ei after 8000
+demo 30 --es demo onfoot --ei mode 8 --ei env 0 --ei tod 0 --ei weather 0 --ei car 11 --ei gfx 2 --ez autogas false --ei control 1 --ei after 1000
 shot 36-free-roam-on-foot
 alive onfoot || exit 1
 
-demo 13 --es demo phone --ei app 0 --ei stage 1 --ei mode 0 --ei env 0 --ei tod 2 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1
+demo 30 --es demo phone --ei app 0 --ei stage 1 --ei mode 0 --ei env 0 --ei tod 2 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1
 shot 37-phone-home
-demo 13 --es demo phone --ei app 1 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1
+demo 30 --es demo phone --ei app 1 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1
 shot 38-phone-map
-demo 13 --es demo phone --ei app 2 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 12 --ei gfx 2 --ez autogas true --ei control 1
+demo 30 --es demo phone --ei app 2 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 12 --ei gfx 2 --ez autogas true --ei control 1
 shot 39-phone-taxi
-demo 13 --es demo phone --ei app 6 --ei mode 8 --ei env 1 --ei tod 1 --ei car 10 --ei gfx 2 --ez autogas true --ei control 1
+demo 30 --es demo phone --ei app 6 --ei mode 8 --ei env 1 --ei tod 1 --ei car 10 --ei gfx 2 --ez autogas true --ei control 1
 shot 40-phone-radio
-demo 16 --es demo photo --ei mode 8 --ei env 6 --ei tod 1 --ei weather 0 --ei car 11 --ei gfx 2 --ez autogas false --ei control 1 --ei after 8000
+demo 34 --es demo photo --ei mode 8 --ei env 0 --ei tod 1 --ei weather 0 --ei car 11 --ei gfx 2 --ez autogas false --ei control 1 --ei after 800
 shot 41-photo-mode
 alive phone || exit 1
 
