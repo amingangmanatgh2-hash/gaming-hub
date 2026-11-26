@@ -1,2 +1,2 @@
-acce7f380470dc2d3fe030f2f607dc5f48e1ad4c4302a73dbead4c3038d7f73e  AminRacing3D-1.0.0-debug.apk
-0749834951a56142096293ce2509433d56eaacacc8ad65def6d2cb6485b7fd76  AminRacing3D-1.0.0-release.apk
+ac5ba91da1ba93a43ae1acd5e52ccdfd884b56c358662374f4b0ff5f70c16727  AminRacing3D-1.0.0-debug.apk
+e77c87b08392e72fb41f459eccfe50a22e59e634d766bef56d544aae23fb0254  AminRacing3D-1.0.0-release.apk
