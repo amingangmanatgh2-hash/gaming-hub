@@ -160,7 +160,7 @@ demo 30 --es demo onfoot --ei mode 8 --ei env 0 --ei tod 0 --ei weather 0 --ei c
 shot 36-free-roam-on-foot
 alive onfoot || exit 1
 
-demo 38 --es demo phone --ei app 0 --ei stage 1 --ei mode 0 --ei env 0 --ei tod 2 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1 --ei after 1800
+demo 46 --es demo phone --ei app 0 --ei stage 1 --ei mode 0 --ei env 0 --ei tod 2 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1 --ei after 1800
 shot 37-phone-home
 demo 38 --es demo phone --ei app 1 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1 --ei after 1800
 shot 38-phone-map
