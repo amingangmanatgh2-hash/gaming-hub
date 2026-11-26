@@ -66,7 +66,7 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         top.addView(logo, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
         if (portrait) logo.visibility = View.INVISIBLE
         top.addView(Ui.coinPill(ctx, save.coins))
-        val exit = Ui.text(ctx, "⏻", 17f, Ui.RED, Ui.bold)
+        val exit = Ui.text(ctx, "✕", 16f, Ui.RED, Ui.black)
         exit.gravity = Gravity.CENTER
         exit.background = Ui.bg(Ui.withAlpha(0xFF000000.toInt(), 0x88), Ui.withAlpha(Ui.RED, 0x88), 20f, 1.2f)
         exit.isClickable = true
@@ -191,7 +191,7 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         val spec = GameData.cars[car]
         val paint = save.paintColor(car)
         val card = Ui.vbox(ctx, Gravity.START)
-        card.setPadding(Ui.dp(14f), Ui.dp(10f), Ui.dp(14f), Ui.dp(12f))
+        card.setPadding(Ui.dp(14f), Ui.dp(8f), Ui.dp(14f), Ui.dp(9f))
         card.background = Ui.gradient(Ui.withAlpha(paint, 0x40), Ui.withAlpha(panelBg, 0xDC), Ui.withAlpha(paint, 0x99), 18f,
             GradientDrawable.Orientation.TL_BR)
         val row = Ui.hbox(ctx)
@@ -207,7 +207,7 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         val dot = View(ctx)
         dot.background = Ui.bg(paint, Ui.withAlpha(0xFFFFFFFF.toInt(), 0xCC), 8f, 1.5f)
         nameRow.addView(dot, LinearLayout.LayoutParams(Ui.dp(14f), Ui.dp(14f)))
-        val name = Ui.text(ctx, str(spec.nameRes), 20f, Ui.TEXT, Ui.black)
+        val name = Ui.text(ctx, str(spec.nameRes), 18f, Ui.TEXT, Ui.black)
         name.setShadowLayer(Ui.dp(8f).toFloat(), 0f, 0f, Ui.withAlpha(paint, 0xAA))
         name.isSingleLine = true
         name.ellipsize = TextUtils.TruncateAt.END
@@ -221,14 +221,14 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
             r.addView(Ui.text(ctx, str(statNames[i]), 10.5f, Ui.withAlpha(Ui.TEXT, 0xCC), Ui.bold), LinearLayout.LayoutParams(Ui.dp(74f), Ui.WRAP))
             val lvl = if (statUpg[i] >= 0) save.upgradeLevel(car, statUpg[i]) else 0
             r.addView(Ui.statBar(ctx, GameData.statBar(spec, i, lvl), statColors[i]), LinearLayout.LayoutParams(0, Ui.dp(6f), 1f))
-            card.addView(r, Ui.lp(topDp = if (i == 0) 8f else 4f))
+            card.addView(r, Ui.lp(topDp = if (i == 0) 5f else 3f))
         }
         val bottom = Ui.hbox(ctx)
         val kmh = Ui.text(ctx, Lang.num(GameData.topSpeedKmh(spec, save.upgradeLevel(car, GameData.UPG_SPEED)).toInt()) + " " + str(R.string.kmh), 12f, Ui.CYAN, Ui.black)
         bottom.addView(kmh, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
         val owned = GameData.cars.indices.count { save.isCarOwned(it) }
         bottom.addView(Ui.text(ctx, "🏎 " + Lang.num(owned) + "/" + Lang.num(GameData.cars.size) + "   ›", 11.5f, Ui.withAlpha(Ui.TEXT, 0xCC), Ui.bold))
-        card.addView(bottom, Ui.lp(topDp = 8f))
+        card.addView(bottom, Ui.lp(topDp = 5f))
         card.isClickable = true
         card.setOnClickListener { Ui.onClickSound?.invoke(); host.push(GarageScreen(host)) }
         Ui.pressable(card)
@@ -312,24 +312,24 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
     private fun modeTile(icon: String, title: String, sub: String, accent: Int, badge: String?, progress: Float = -1f, onClick: () -> Unit): View {
         val f = FrameLayout(ctx)
         val card = Ui.vbox(ctx, Gravity.START)
-        card.setPadding(Ui.dp(12f), Ui.dp(10f), Ui.dp(12f), Ui.dp(10f))
+        card.setPadding(Ui.dp(12f), Ui.dp(9f), Ui.dp(12f), Ui.dp(8f))
         card.background = Ui.gradient(Ui.withAlpha(accent, 0x4A), Ui.withAlpha(panelBg, 0xE4), Ui.withAlpha(accent, 0xAA), 18f,
             GradientDrawable.Orientation.TL_BR)
         val ic = Ui.text(ctx, icon, 19f, accent, Ui.bold)
         ic.gravity = Gravity.CENTER
         ic.background = Ui.bg(Ui.withAlpha(accent, 0x30), Ui.withAlpha(accent, 0x77), 19f, 1f)
-        card.addView(ic, LinearLayout.LayoutParams(Ui.dp(38f), Ui.dp(38f)))
+        card.addView(ic, LinearLayout.LayoutParams(Ui.dp(34f), Ui.dp(34f)))
         val t = Ui.text(ctx, title, 14.5f, accent, Ui.black)
         t.isSingleLine = true
         t.ellipsize = TextUtils.TruncateAt.END
-        card.addView(t, Ui.lp(topDp = 6f))
+        card.addView(t, Ui.lp(topDp = 4f))
         val s = Ui.text(ctx, sub, 10f, Ui.withAlpha(Ui.TEXT, 0xB8))
         s.maxLines = 2
         s.ellipsize = TextUtils.TruncateAt.END
         s.setLineSpacing(0f, 0.95f)
         card.addView(s, Ui.lp(topDp = 1f))
         if (progress >= 0f) card.addView(Ui.statBar(ctx, progress.coerceIn(0.02f, 1f), accent), LinearLayout.LayoutParams(Ui.MATCH, Ui.dp(4f)).also { it.topMargin = Ui.dp(5f) })
-        f.addView(card, FrameLayout.LayoutParams(Ui.dp(150f), Ui.dp(132f)))
+        f.addView(card, FrameLayout.LayoutParams(Ui.dp(150f), Ui.dp(if (portrait) 132f else 118f)))
         if (badge != null) {
             val isNew = badge == str(R.string.badge_new)
             val b = Ui.text(ctx, badge, if (isNew) 9.5f else 15f, if (isNew) Ui.BG else Ui.TEXT, Ui.black)
@@ -343,7 +343,7 @@ class MainMenuScreen(host: GameHost) : Screen(host) {
         f.isClickable = true
         f.setOnClickListener { Ui.onClickSound?.invoke(); onClick() }
         Ui.pressable(f)
-        val lp = LinearLayout.LayoutParams(Ui.dp(150f), Ui.dp(132f))
+        val lp = LinearLayout.LayoutParams(Ui.dp(150f), Ui.dp(if (portrait) 132f else 118f))
         lp.marginStart = Ui.dp(5f); lp.marginEnd = Ui.dp(5f)
         f.layoutParams = lp
         return f

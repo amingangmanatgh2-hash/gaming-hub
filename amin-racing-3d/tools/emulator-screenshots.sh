@@ -160,13 +160,13 @@ demo 30 --es demo onfoot --ei mode 8 --ei env 0 --ei tod 0 --ei weather 0 --ei c
 shot 36-free-roam-on-foot
 alive onfoot || exit 1
 
-demo 30 --es demo phone --ei app 0 --ei stage 1 --ei mode 0 --ei env 0 --ei tod 2 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1
+demo 38 --es demo phone --ei app 0 --ei stage 1 --ei mode 0 --ei env 0 --ei tod 2 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1 --ei after 1800
 shot 37-phone-home
-demo 30 --es demo phone --ei app 1 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1
+demo 38 --es demo phone --ei app 1 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 13 --ei gfx 2 --ez autogas true --ei control 1 --ei after 1800
 shot 38-phone-map
-demo 30 --es demo phone --ei app 2 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 12 --ei gfx 2 --ez autogas true --ei control 1
+demo 38 --es demo phone --ei app 2 --ei stage 2 --ei mode 0 --ei env 0 --ei tod 0 --ei car 12 --ei gfx 2 --ez autogas true --ei control 1 --ei after 1800
 shot 39-phone-taxi
-demo 30 --es demo phone --ei app 6 --ei mode 8 --ei env 1 --ei tod 1 --ei car 10 --ei gfx 2 --ez autogas true --ei control 1
+demo 38 --es demo phone --ei app 6 --ei mode 8 --ei env 1 --ei tod 1 --ei car 10 --ei gfx 2 --ez autogas true --ei control 1 --ei after 1800
 shot 40-phone-radio
 demo 34 --es demo photo --ei mode 8 --ei env 0 --ei tod 1 --ei weather 0 --ei car 11 --ei gfx 2 --ez autogas false --ei control 1 --ei after 800
 shot 41-photo-mode

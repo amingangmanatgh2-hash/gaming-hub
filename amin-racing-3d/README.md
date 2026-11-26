@@ -6,7 +6,7 @@
 **بازی مسابقه‌ای سه‌بعدی بزرگراه بی‌پایان، به زبان فارسی**
 
 [![Build APK](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/amin-racing-3d.yml/badge.svg?branch=arena%2Fc01e8093-gaming-hub)](https://github.com/amingangmanatgh2-hash/gaming-hub/actions/workflows/amin-racing-3d.yml)
-[![Release](https://img.shields.io/badge/release-amin--racing--v1.0.0-ff3fa4)](https://github.com/amingangmanatgh2-hash/gaming-hub/releases/tag/amin-racing-v1.0.0)
+[![Release](https://img.shields.io/badge/release-amin--racing--v2.0.0-ff3fa4)](https://github.com/amingangmanatgh2-hash/gaming-hub/releases/tag/amin-racing-v2.0.0)
 ![minSdk 26](https://img.shields.io/badge/minSdk-26-3ddc84)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7f52ff)
 ![OpenGL ES 3.0](https://img.shields.io/badge/OpenGL_ES-3.0-5586a4)
@@ -37,6 +37,35 @@ The yellow digit in some race shots is the start countdown, which runs slowly at
 | <img src="docs/screenshots/03-upgrade-shop.jpg" width="240"> | <img src="docs/screenshots/10-game-over.jpg" width="240"> | <img src="docs/screenshots/14-settings-english.jpg" width="240"> |
 
 <img src="docs/screenshots/12-landscape-city-night.jpg" width="740" alt="Landscape – city at night">
+
+## What's new in 2.0
+
+| Redesigned main menu | Taxi job: passenger waiting | Taxi ride in progress |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/42-main-menu-v2.jpg" width="240"> | <img src="docs/screenshots/34-taxi-passenger-waiting.jpg" width="240"> | <img src="docs/screenshots/35-taxi-ride-hud.jpg" width="240"> |
+| **On foot in Free Roam** | **In-game phone** | **Phone: live map** |
+| <img src="docs/screenshots/36-free-roam-on-foot.jpg" width="240"> | <img src="docs/screenshots/37-phone-home.jpg" width="240"> | <img src="docs/screenshots/38-phone-map.jpg" width="240"> |
+| **Phone: radio** | **Photo mode** | **New car: Electric GT** |
+| <img src="docs/screenshots/40-phone-radio.jpg" width="240"> | <img src="docs/screenshots/41-photo-mode.jpg" width="240"> | <img src="docs/screenshots/31-car-electric-gt.jpg" width="240"> |
+
+- **Four new cars** (14 in total): Rally Hatch (4×4 with roof scoop and light pod), Electric GT (silent
+  electric motor sound, panoramic roof, light bars), Taxi (pays 1.5× on taxi fares) and Drift Coupe.
+  The new cars also show up as rivals in street races.
+- **Taxi jobs in Endless mode.** Stop next to the waiting passenger (yellow marker), drive them to their
+  destination (green marker) before the timer runs out, and stop at the kerb. You get a fare plus a tip
+  that depends on your star rating, and scrapes or crashes cost stars. Turn the taxi shift on or off
+  from the phone.
+- **Walking in Free Roam.** Stop the car and press the door button to step out. You can walk or run
+  around, look at the scenery, and get back into the car.
+- **In-game phone** (phone button in Endless and Free Roam, which pauses the game). Apps: live map with
+  tunnels, bridges, landmarks and taxi pins; taxi shift and stats; quick car swap; messages with
+  passenger reviews; camera; radio with three generated stations (Neon FM, Lo-fi, Turbo); run stats;
+  and quick settings.
+- **Photo mode:** orbit, zoom and take a photo. Photos are kept in the in-phone gallery and, on Android
+  10 and newer, also saved to `Pictures/Amin Racing`.
+- **New main menu:** a car showcase card with stats, a large Quick Race button, icon tiles for Garage,
+  Challenges and Settings, and a scrolling strip of game-mode tiles with medals and "NEW" badges.
+- New achievements: First Fare and City Cabbie.
 
 ## Features
 
@@ -96,13 +125,13 @@ The yellow digit in some race shots is the start countdown, which runs slowly at
 
 ## Install
 
-1. Download **`AminRacing3D-1.0.0-release.apk`** from the release
-   [amin-racing-v1.0.0](https://github.com/amingangmanatgh2-hash/gaming-hub/releases/tag/amin-racing-v1.0.0).
+1. Download **`AminRacing3D-2.0.0-release.apk`** from the release
+   [amin-racing-v2.0.0](https://github.com/amingangmanatgh2-hash/gaming-hub/releases/tag/amin-racing-v2.0.0).
    `SHA256SUMS.txt` in the same release lets you check the download.
 2. On your phone, allow installs from unknown sources for your browser or file manager.
 3. Open the APK and install it. You need Android 8.0 (API 26) or newer with OpenGL ES 3.0.
 
-The release also contains `AminRacing3D-1.0.0-debug.apk`. It is a debuggable build with the package
+The release also contains `AminRacing3D-2.0.0-debug.apk`. It is a debuggable build with the package
 name `com.amin.racing3d.debug`, so you can install it alongside the release build.
 
 ## Build from source
