@@ -79,6 +79,20 @@ interface GameHost {
     fun changeLanguage(lang: String)
     fun calibrateTilt()
     fun exitGame()
+
+    // ---- v2.0 phone
+    val gameWorld: com.amin.racing3d.game.World
+    val messages: com.amin.racing3d.core.Messages
+    /** replaces the top screen without resuming the race (phone ↔ photo mode) */
+    fun replaceTop(screen: Screen)
+    fun setTaxiShift(on: Boolean)
+    fun setRadio(station: Int)
+    fun photoMode(on: Boolean)
+    fun photoOrbit(yaw: Float, pitch: Float, dist: Float)
+    /** captures the game view; [done] gets the saved file (null on failure) on the UI thread */
+    fun takePhoto(done: (java.io.File?) -> Unit)
+    /** photos taken in photo mode, newest first */
+    fun photos(): List<java.io.File>
 }
 
 /** A full-screen UI page built from views. */

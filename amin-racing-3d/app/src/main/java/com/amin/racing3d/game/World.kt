@@ -109,6 +109,8 @@ interface GameListener {
     fun onGameOver()
     /** brake pedal pressed at speed; [strength] 0..1 (for a short haptic pulse) */
     fun onHardBrake(strength: Float) {}
+    /** a taxi passenger paid [coins] with a [stars] rating */
+    fun onTaxiFare(coins: Int, stars: Int) {}
 }
 
 /**
@@ -322,6 +324,7 @@ class World(private val input: InputState) {
         mode = GameData.MODE_ENDLESS
         env = GameData.ENV_CITY
         todSetting = GameData.TOD_SUNSET
+        taxiOn = false
         resetRun()
         state = STATE_ATTRACT
         speed = 34f
@@ -340,6 +343,8 @@ class World(private val input: InputState) {
         mode = c.mode
         env = c.env
         todSetting = c.tod
+        // Endless offers passenger jobs (unless switched off on the phone); free roam starts them from the phone
+        taxiOn = mode == GameData.MODE_ENDLESS && c.missionId < 0 && taxiInEndless
         resetRun()
         state = STATE_COUNTDOWN
         countdown = 2.999f
@@ -380,6 +385,8 @@ class World(private val input: InputState) {
         driftAngle = 0f; drifting = false; driftChain = 0f; driftMult = 1; driftChainTime = 0f; driftEndTimer = 0f
         bust = 0f; escape = 0f; heat = 1; escapes = 0; takedowns = 0; copWaveTimer = 3.5f; sirenLevel = 0f
         tunnelK = 0f
+        onFoot = false; footDown = 0f; footFallK = 0f; footSpeed = 0f; sceneryBack = 30f
+        resetTaxi()
         for (r in rivals) r.active = false
         for (z in zones) z.active = false
         nextZoneS = if (mode == GameData.MODE_FREE) 500f else 900f
@@ -422,7 +429,7 @@ class World(private val input: InputState) {
             for (i in 0 until n) {
                 val it = SceneryItem()
                 it.category = category; it.side = side; it.span = total
-                it.s = ps - 30f + offset + i * spacing
+                it.s = ps - sceneryBack + offset + i * spacing
                 it.seed = seed++
                 generate(it)
                 scenery.add(it)
@@ -630,7 +637,7 @@ class World(private val input: InputState) {
     }
 
     private fun updateScenery() {
-        val behind = ps - 35f
+        val behind = ps - sceneryBack - 5f
         for (it in scenery) {
             if (it.s < behind) {
                 it.s += it.span
@@ -764,6 +771,10 @@ class World(private val input: InputState) {
             if (state != STATE_SHOWROOM && abs(px - t.x) < (pw + t.width) * 0.5f + 0.6f) {
                 val d = (ps - t.s) * t.dir - (pl + t.length) * 0.5f
                 if (d > -1f && d < gap) { gap = d; leaderSpeed = if (t.dir > 0) speed else 0f }
+            }
+            if (onFoot && abs(footX - t.x) < t.width * 0.5f + 1.1f) {
+                val d = (footS - t.s) * t.dir - t.length * 0.5f - 0.6f
+                if (d > -1f && d < gap) { gap = d; leaderSpeed = 0f }
             }
             val safe = 7f + t.speed * 1.05f
             var desired = t.cruise
@@ -980,10 +991,15 @@ class World(private val input: InputState) {
             wantNitro = input.nitro
             horn = input.horn
         }
+        if (input.doorRequest) { input.doorRequest = false; if (state == STATE_RACING) toggleDoor() }
+        if (onFoot) {
+            if (state == STATE_RACING) updateOnFoot(dt, steerIn, gas, brake, wantNitro)
+            steerIn = 0f; gas = false; brake = false; wantNitro = false
+        }
         if (crashed) { steerIn = 0f; gas = false; brake = true; wantNitro = false }
-        val hornPressed = horn && !hornPrev
+        val hornPressed = horn && !hornPrev && !onFoot
         hornPrev = horn
-        hornOn = horn && !crashed
+        hornOn = horn && !crashed && !onFoot
 
         // ---------------- longitudinal physics
         val spec = carSpec
@@ -996,7 +1012,9 @@ class World(private val input: InputState) {
             nitro = min(1f, nitro + 0.012f * dt)
         }
         val maxV = baseMax * (if (nitroActive) GameData.nitroPower(spec, lvlNitro) else 1f)
-        if (crashed) {
+        if (onFoot) {
+            speed = 0f
+        } else if (crashed) {
             speed = max(0f, speed - 16f * dt)
         } else if (handbrakeTurn(brake, gas, steerIn)) {
             // handbrake turn: rear wheels lock, the car slides and bleeds speed slowly (gas holds it)
@@ -1048,6 +1066,7 @@ class World(private val input: InputState) {
                 val impact = abs(vx)
                 vx = -vx * 0.25f
                 if (speed > 5f && !crashed) {
+                    if (scraping < 0.5f) taxiBump()
                     scraping = 1f
                     speed *= 1f - min(0.5f, 0.45f * dt + impact * 0.01f)
                     shake = max(shake, 0.25f + impact * 0.03f)
@@ -1129,9 +1148,11 @@ class World(private val input: InputState) {
         if (state == STATE_RACING) {
             raceTime += dt
             checkCollisions()
+            if (state == STATE_RACING && onFoot) pedestrianHits()
             if (state == STATE_RACING) scoring(dt, step)
             if (state == STATE_RACING) modeLogic(dt)
         }
+        if (state == STATE_RACING || state == STATE_CRASHED) taxiLogic(dt)
         if (state == STATE_ATTRACT) {
             // the demo car never ends: if anything goes wrong, just clear the area
             checkCollisions()
@@ -1663,6 +1684,359 @@ class World(private val input: InputState) {
         }
     }
 
+
+    // ======================================================================== v2.0: on foot (free roam)
+    /** free roam: the driver has stepped out; the car stays parked at (px, ps) */
+    var onFoot = false; private set
+    var footX = 0f; private set
+    var footS = 0f; private set
+    /** heading, same convention as the car yaw (0 = along the road) */
+    var footYaw = 0f; private set
+    var footSpeed = 0f; private set
+    /** walk cycle phase (radians) */
+    var footPhase = 0f; private set
+    /** 0..1 knocked-over pose after being hit by traffic */
+    var footFallK = 0f; private set
+    private var footDown = 0f
+    private var footStepAcc = 0f
+    /** how far behind the focus point scenery is kept (more on foot, the camera can look back) */
+    var sceneryBack = 30f; private set
+
+    fun canExitCar() = mode == GameData.MODE_FREE && state == STATE_RACING && !onFoot && speed < 1.5f && taxiState != TAXI_BOARDING
+    fun nearCar(): Boolean {
+        if (!onFoot) return false
+        val dx = footX - px; val ds = footS - ps
+        return dx * dx + ds * ds < 3.9f * 3.9f
+    }
+
+    private fun toggleDoor() {
+        if (!onFoot) {
+            if (!canExitCar()) return
+            onFoot = true
+            speed = 0f; vx = 0f; nitroActive = false; drifting = false; driftAngle = 0f
+            val d = carSpec.width * 0.5f + 0.55f
+            val ca = cos(yaw); val sa = sin(yaw)
+            // driver door is on the left side of the car
+            footX = (px - ca * d).coerceIn(-FOOT_MAX_X, FOOT_MAX_X)
+            footS = ps - sa * d + 0.2f
+            footYaw = yaw; footSpeed = 0f; footPhase = 0f; footDown = 0f; footFallK = 0f
+            // keep more scenery behind: the walker can turn around
+            sceneryBack = 120f
+            for (it in scenery) {
+                if (it.s - it.span >= ps - sceneryBack) {
+                    it.s -= it.span
+                    if (it.category != CAT_LAMP && it.category != CAT_RAIL) generate(it)
+                    it.visible = it.category <= CAT_LAMP || hash01(it.seed + (it.s * 0.1f).toInt()) < sceneryDensity
+                }
+            }
+            audio?.trigger(AudioEngine.SFX_DOOR)
+            hudEvent = EV_EXIT; hudEventSeq++
+        } else if (nearCar() && footDown <= 0f) {
+            onFoot = false
+            sceneryBack = 30f
+            footSpeed = 0f
+            audio?.trigger(AudioEngine.SFX_DOOR)
+            hudEvent = EV_ENTER; hudEventSeq++
+        }
+    }
+
+    private fun updateOnFoot(dt: Float, steer: Float, fwd: Boolean, back: Boolean, sprint: Boolean) {
+        if (footDown > 0f) {
+            footDown -= dt
+            footFallK = min(1f, footFallK + dt * 6f)
+            footSpeed = 0f
+            return
+        }
+        footFallK = max(0f, footFallK - dt * 2.5f)
+        if (footFallK > 0.05f) return
+        // turn rate eases off while sprinting for finer control
+        footYaw -= steer * (if (sprint && fwd) 2.0f else 2.7f) * dt
+        val target = when {
+            fwd -> if (sprint) FOOT_RUN else FOOT_WALK
+            back -> -1.6f
+            else -> 0f
+        }
+        footSpeed += (target - footSpeed) * min(1f, dt * 7f)
+        var nx = footX - sin(footYaw) * footSpeed * dt
+        var ns = footS + cos(footYaw) * footSpeed * dt
+        nx = nx.coerceIn(-FOOT_MAX_X, FOOT_MAX_X)
+        ns = ns.coerceIn(ps - FOOT_MAX_BACK, ps + FOOT_MAX_AHEAD)
+        // solid parked car (oriented box push-out)
+        val ca = cos(yaw); val sa = sin(yaw)
+        val dx = nx - px; val ds = ns - ps
+        var lx = dx * ca + ds * sa
+        var lz = dx * sa - ds * ca
+        val hw = carSpec.width * 0.5f + 0.3f
+        val hl = carSpec.length * 0.5f + 0.3f
+        if (abs(lx) < hw && abs(lz) < hl) {
+            if (hw - abs(lx) < hl - abs(lz)) lx = if (lx < 0f) -hw else hw else lz = if (lz < 0f) -hl else hl
+            nx = px + lx * ca + lz * sa
+            ns = ps + lx * sa - lz * ca
+        }
+        footX = nx; footS = ns
+        val sp = abs(footSpeed)
+        footPhase += sp * dt * (if (sp > 4f) 2.6f else 3.4f)
+        footStepAcc += sp * dt
+        if (footStepAcc > (if (sp > 4f) 1.15f else 0.75f)) { footStepAcc = 0f; audio?.trigger(AudioEngine.SFX_STEP) }
+    }
+
+    /** Traffic vs. the pedestrian: cars brake for them (see updateTraffic); a fast hit knocks them over. */
+    private fun pedestrianHits() {
+        for (t in traffic) {
+            if (!t.active) continue
+            val ox = (t.width * 0.5f + 0.32f) - abs(t.x - footX)
+            val os = (t.length * 0.5f + 0.32f) - abs(t.s - footS)
+            if (ox <= 0f || os <= 0f) continue
+            val side = if (footX >= t.x) 1f else -1f
+            if (t.speed > 3f && footDown <= 0f) {
+                footDown = 2.4f
+                footX = (footX + side * (ox + 0.9f)).coerceIn(-FOOT_MAX_X, FOOT_MAX_X)
+                shake = max(shake, 0.5f)
+                audio?.trigger(AudioEngine.SFX_HIT)
+                t.speed *= 0.5f
+                hudEvent = EV_OUCH; hudEventSeq++
+            } else {
+                footX = (footX + side * ox).coerceIn(-FOOT_MAX_X, FOOT_MAX_X)
+            }
+        }
+    }
+
+    // ======================================================================== v2.0: taxi jobs
+    /** passenger jobs are offered (Endless: on by default; free roam: started from the phone) */
+    @Volatile var taxiOn = false
+    /** player preference (phone taxi app): offer jobs in Endless */
+    @Volatile var taxiInEndless = true
+    var taxiState = TAXI_OFF; private set
+    var taxiPickS = 0f; private set
+    var taxiPickSide = 1; private set
+    var taxiDropS = 0f; private set
+    var taxiDropSide = 1; private set
+    var taxiTimer = 0f; private set
+    var taxiLimit = 0f; private set
+    var taxiFare = 0; private set
+    var taxiDest = 0; private set
+    var taxiRides = 0; private set
+    var taxiCoins = 0; private set
+    var taxiStars = 0; private set
+    var taxiLastPay = 0; private set
+    var taxiLastTip = 0; private set
+    private var taxiNextS = 0f
+    private var taxiBumps = 0
+    private var taxiStateT = 0f
+    private var taxiRideDist = 0f
+    // the passenger (rendered as a pedestrian)
+    var paxX = 0f; private set
+    var paxS = 0f; private set
+    var paxYaw = 0f; private set
+    var paxPhase = 0f; private set
+    var paxWalk = 0f; private set
+    var paxWave = 0f; private set
+    var paxShirt = 0xFFE04848.toInt(); private set
+    var paxPants = 0xFF2B3A5C.toInt(); private set
+    var paxVisible = false; private set
+
+    @Volatile var hudTaxiState = TAXI_OFF
+    @Volatile var hudTaxiDist = 0f
+    @Volatile var hudTaxiTime = 0f
+    @Volatile var hudTaxiFare = 0
+    @Volatile var hudTaxiDest = 0
+    @Volatile var hudTaxiSeq = 0
+    @Volatile var hudTaxiEvent = 0
+    @Volatile var hudDoor = DOOR_NONE
+
+    /** Free roam: start/stop the taxi shift from the phone. */
+    fun setTaxiShift(on: Boolean) {
+        taxiOn = on
+        if (!on) {
+            if (taxiState == TAXI_RIDING || taxiState == TAXI_BOARDING) {
+                // passenger leaves without paying
+                taxiEvent(TAXI_EV_CANCEL)
+            }
+            taxiState = TAXI_OFF; paxVisible = false
+        } else if (taxiState == TAXI_OFF) {
+            taxiState = TAXI_IDLE
+            taxiNextS = ps + 60f
+        }
+    }
+
+    private fun resetTaxi() {
+        taxiState = if (taxiOn) TAXI_IDLE else TAXI_OFF
+        taxiNextS = 220f
+        taxiRides = 0; taxiCoins = 0; taxiStars = 0; taxiBumps = 0
+        paxVisible = false
+    }
+
+    private fun taxiEvent(ev: Int) {
+        hudTaxiEvent = ev; hudTaxiSeq++
+    }
+
+    private fun walkPax(tx: Float, ts: Float, speedMs: Float, dt: Float): Boolean {
+        val dx = tx - paxX; val ds = ts - paxS
+        val d = sqrt(dx * dx + ds * ds)
+        if (d < 0.12f) { paxWalk = max(0f, paxWalk - dt * 5f); return true }
+        val step = min(d, speedMs * dt)
+        paxX += dx / d * step; paxS += ds / d * step
+        paxYaw = atan2(-dx, ds)
+        paxWalk = min(1f, paxWalk + dt * 5f)
+        paxPhase += speedMs * dt * 3.4f
+        return false
+    }
+
+    /** Is the player's car stopped next to the kerb at [s] on [side]? */
+    private fun stoppedAt(s: Float, side: Int): Boolean =
+        abs(ps - s) < 9f && px * side > 3.3f && speed < 4.2f
+
+    private fun taxiLogic(dt: Float) {
+        if (taxiState == TAXI_OFF) return
+        if (!taxiOn) { taxiState = TAXI_OFF; paxVisible = false; return }
+        taxiStateT += dt
+        val crashed = state == STATE_CRASHED
+        when (taxiState) {
+            TAXI_IDLE -> {
+                if (ps > taxiNextS && !crashed) {
+                    taxiPickSide = if (rand() < 0.62f) 1 else -1
+                    taxiPickS = ps + rand(240f, 330f)
+                    paxX = taxiPickSide * (GameData.ROAD_HALF + GameData.SHOULDER + 0.7f)
+                    paxS = taxiPickS
+                    paxYaw = if (taxiPickSide > 0) HALF_PI else -HALF_PI
+                    paxWalk = 0f; paxWave = 0f; paxVisible = true
+                    paxShirt = PAX_SHIRTS[(rand() * PAX_SHIRTS.size).toInt().coerceIn(0, PAX_SHIRTS.size - 1)]
+                    paxPants = PAX_PANTS[(rand() * PAX_PANTS.size).toInt().coerceIn(0, PAX_PANTS.size - 1)]
+                    taxiState = TAXI_WAITING; taxiStateT = 0f
+                    taxiEvent(TAXI_EV_NEW)
+                    audio?.trigger(AudioEngine.SFX_PHONE)
+                }
+            }
+            TAXI_WAITING -> {
+                // walk back to the kerb spot if they had started towards the car
+                val kx = taxiPickSide * (GameData.ROAD_HALF + GameData.SHOULDER + 0.7f)
+                if (walkPax(kx, taxiPickS, 2.2f, dt)) paxYaw = if (taxiPickSide > 0) HALF_PI else -HALF_PI
+                // hail the taxi as it approaches
+                val rel = taxiPickS - ps
+                paxWave += ((if (rel in 0f..110f) 1f else 0f) - paxWave) * min(1f, dt * 4f)
+                if (rel < -28f) {
+                    taxiState = TAXI_IDLE; paxVisible = false
+                    taxiNextS = ps + rand(250f, 480f)
+                    taxiEvent(TAXI_EV_MISSED)
+                } else if (!crashed && stoppedAt(taxiPickS, taxiPickSide)) {
+                    taxiState = TAXI_BOARDING; taxiStateT = 0f
+                }
+            }
+            TAXI_BOARDING -> {
+                paxWave = max(0f, paxWave - dt * 4f)
+                if (speed > 4.5f || crashed) { taxiState = TAXI_WAITING; return }
+                // walk to the passenger door on the kerb side
+                val ca = cos(yaw); val sa = sin(yaw)
+                val d = carSpec.width * 0.5f + 0.35f
+                val tx = px + ca * d * taxiPickSide
+                val ts = ps + sa * d * taxiPickSide
+                if (walkPax(tx, ts, 2.6f, dt) || taxiStateT > 6f) {
+                    paxVisible = false
+                    taxiState = TAXI_RIDING; taxiStateT = 0f
+                    taxiRideDist = rand(900f, 2100f)
+                    taxiDropS = ps + taxiRideDist
+                    taxiDropSide = if (rand() < 0.6f) 1 else -1
+                    taxiLimit = taxiRideDist / 24f + 18f
+                    taxiTimer = 0f; taxiBumps = 0
+                    taxiDest = (rand() * NUM_DESTS).toInt().coerceIn(0, NUM_DESTS - 1)
+                    taxiFare = 45 + (taxiRideDist * 0.085f).toInt()
+                    audio?.trigger(AudioEngine.SFX_DOOR)
+                    taxiEvent(TAXI_EV_ABOARD)
+                }
+            }
+            TAXI_RIDING -> {
+                if (!onFoot) taxiTimer += dt
+                if (taxiDropS < ps - 30f) {
+                    // missed the stop: a new drop-off further on, and a less happy passenger
+                    taxiDropS = ps + rand(320f, 480f)
+                    taxiBumps++
+                    taxiLimit += 14f
+                    taxiEvent(TAXI_EV_REROUTE)
+                } else if (!crashed && stoppedAt(taxiDropS, taxiDropSide)) {
+                    payFare()
+                }
+            }
+            TAXI_ALIGHT -> {
+                val kx = taxiDropSide * (GameData.ROAD_HALF + GameData.SHOULDER + 2.6f)
+                if (taxiStateT < 1.4f) walkPax(kx, paxS, 2.4f, dt)
+                else walkPax(kx, paxS + 30f, 1.9f, dt)
+                if (taxiStateT > 7f || paxS < ps - 60f) {
+                    paxVisible = false
+                    taxiState = TAXI_IDLE
+                    taxiNextS = ps + rand(150f, 380f)
+                }
+            }
+        }
+    }
+
+    private fun payFare() {
+        val frac = (taxiLimit - taxiTimer) / taxiLimit
+        var stars = when { frac > 0.42f -> 5; frac > 0.28f -> 4; frac > 0.14f -> 3; frac > 0f -> 2; else -> 1 }
+        stars = (stars - taxiBumps).coerceIn(1, 5)
+        val base = if (frac > 0f) taxiFare else (taxiFare * 0.7f).toInt()
+        val tip = (base * (stars - 1) * 0.12f).toInt()
+        val mul = if (carId == GameData.CAR_TAXI) 1.5f else 1f
+        val total = ((base + tip) * mul).toInt()
+        taxiStars = stars; taxiLastPay = total; taxiLastTip = (tip * mul).toInt()
+        taxiCoins += total
+        taxiRides++
+        score += total * 8.0
+        // passenger steps out on the kerb side
+        val ca = cos(yaw); val sa = sin(yaw)
+        val d = carSpec.width * 0.5f + 0.35f
+        paxX = px + ca * d * taxiDropSide; paxS = ps + sa * d * taxiDropSide
+        paxVisible = true; paxWave = 0f; paxWalk = 0f
+        taxiState = TAXI_ALIGHT; taxiStateT = 0f
+        audio?.trigger(AudioEngine.SFX_FARE)
+        taxiEvent(TAXI_EV_PAID)
+        listener?.onTaxiFare(total, stars)
+    }
+
+    /** debug/demo builds: step out of the car right away (free roam) */
+    fun debugExitCar() {
+        if (mode != GameData.MODE_FREE || state != STATE_RACING || onFoot) return
+        speed = 0f; vx = 0f
+        toggleDoor()
+    }
+
+    /** debug/demo builds: 1 = a passenger waiting just ahead, 2 = a ride in progress */
+    fun debugTaxi(stage: Int) {
+        if (state != STATE_RACING) return
+        taxiOn = true
+        if (stage <= 1) {
+            taxiState = TAXI_IDLE; taxiNextS = ps - 1f
+            taxiLogic(0f)
+            taxiPickS = ps + 42f; paxS = taxiPickS
+        } else {
+            taxiState = TAXI_RIDING; taxiStateT = 0f; paxVisible = false
+            taxiDropS = ps + 430f; taxiDropSide = 1
+            taxiLimit = 60f; taxiTimer = 12f; taxiFare = 168; taxiDest = 6; taxiBumps = 0
+            taxiEvent(TAXI_EV_ABOARD)
+        }
+    }
+
+    /** a scrape or crash during a ride costs a star */
+    private fun taxiBump() {
+        if (taxiState == TAXI_RIDING) taxiBumps++
+    }
+
+    private fun publishCity() {
+        hudTaxiState = taxiState
+        hudTaxiDist = when (taxiState) {
+            TAXI_WAITING, TAXI_BOARDING -> taxiPickS - ps
+            TAXI_RIDING -> taxiDropS - ps
+            else -> 0f
+        }
+        hudTaxiTime = taxiLimit - taxiTimer
+        hudTaxiFare = taxiFare
+        hudTaxiDest = taxiDest
+        hudDoor = when {
+            canExitCar() -> DOOR_EXIT
+            nearCar() -> DOOR_ENTER
+            else -> DOOR_NONE
+        }
+    }
+
     // ======================================================================== landmarks / regions
     private fun pickZoneType(): Int {
         val p = rand()
@@ -1860,6 +2234,8 @@ class World(private val input: InputState) {
     }
 
     private fun checkCollisions() {
+        // parked car while walking: traffic treats it as an obstacle and goes around it
+        if (onFoot) return
         val spec = carSpec
         for (t in traffic) {
             if (!t.active) continue
@@ -1877,6 +2253,7 @@ class World(private val input: InputState) {
     }
 
     private fun crash(t: TrafficCar) {
+        taxiBump()
         state = STATE_CRASHED
         crashTimer = 0f
         crashedReason = REASON_CRASH
@@ -1989,6 +2366,8 @@ class World(private val input: InputState) {
         for (t in traffic) if (t.active) t.s -= step
         for (c in coins) if (c.active) c.s -= step
         for (it in scenery) it.s -= step
+        footS -= step; paxS -= step
+        taxiPickS -= step; taxiDropS -= step; taxiNextS -= step
         particles.rebase(step)
     }
 
@@ -2004,14 +2383,18 @@ class World(private val input: InputState) {
         var rpm = 0.18f + inGear * 0.72f + g * 0.02f
         if (state == STATE_COUNTDOWN) rpm = 0.25f + 0.25f * (0.5f + 0.5f * sin(time * 9f))
         if (state == STATE_SHOWROOM || state == STATE_OVER) rpm = 0.16f
-        if (state == STATE_RACING) {
+        if (GameData.isElectric(carId)) {
+            // single-speed motor: pitch follows road speed, no gear steps, no backfire
+            rpm = 0.12f + ratio * 0.9f
+            if (state == STATE_COUNTDOWN) rpm = 0.12f + (if (input.gas) 0.1f else 0f)
+        } else if (state == STATE_RACING) {
             if (g > prevGear && throttle > 0.5f) backfireT = max(backfireT, 0.14f)
             if (prevThrottle > 0.6f && throttle < 0.3f && rpm > 0.5f) backfireT = 0.7f
         }
         prevGear = g; prevThrottle = throttle
         a.engineRpm = rpm.coerceIn(0.1f, 1.05f)
         a.engineLoad = throttle
-        a.engineOn = state != STATE_OVER || speed > 1f
+        a.engineOn = (state != STATE_OVER || speed > 1f) && !onFoot
         a.nitroOn = nitroActive
         a.hornOn = hornOn
         a.windLevel = (speed / 80f).coerceIn(0f, 1f)
@@ -2048,11 +2431,12 @@ class World(private val input: InputState) {
         hudNear = nearMisses
         hudEnv = env
         hudWeather = weather
+        publishCity()
     }
 
     /** Coins awarded for the finished run. */
     fun coinsEarned(): Int {
-        val base = coinsCollected * COIN_VALUE
+        val base = coinsCollected * COIN_VALUE + taxiCoins
         return when (mode) {
             GameData.MODE_STREET -> base + (if (success) intArrayOf(0, 1500, 800, 400, 150)[position.coerceIn(1, 4)] else 0) + (distance / 20f).toInt()
             GameData.MODE_DRIFT -> base + (score / 22.0).toInt() + medal * 300
@@ -2102,6 +2486,36 @@ class World(private val input: InputState) {
         const val EV_WAVE = 3
         const val EV_REGION = 4
         const val EV_GOAL = 5
+        const val EV_EXIT = 6
+        const val EV_ENTER = 7
+        const val EV_OUCH = 8
+
+        const val DOOR_NONE = 0
+        const val DOOR_EXIT = 1
+        const val DOOR_ENTER = 2
+        const val FOOT_WALK = 2.5f
+        const val FOOT_RUN = 6.4f
+        const val FOOT_MAX_X = 26f
+        const val FOOT_MAX_BACK = 85f
+        const val FOOT_MAX_AHEAD = 160f
+
+        const val TAXI_OFF = 0
+        const val TAXI_IDLE = 1
+        const val TAXI_WAITING = 2
+        const val TAXI_BOARDING = 3
+        const val TAXI_RIDING = 4
+        const val TAXI_ALIGHT = 5
+        const val TAXI_EV_NEW = 1
+        const val TAXI_EV_ABOARD = 2
+        const val TAXI_EV_PAID = 3
+        const val TAXI_EV_MISSED = 4
+        const val TAXI_EV_REROUTE = 5
+        const val TAXI_EV_CANCEL = 6
+        const val NUM_DESTS = 12
+        private const val HALF_PI = 1.5707964f
+        val PAX_SHIRTS = intArrayOf(0xFFE04848.toInt(), 0xFF3F7FE0.toInt(), 0xFF2FB36B.toInt(), 0xFFF2C14E.toInt(), 0xFF9B59D0.toInt(),
+            0xFFF07F2E.toInt(), 0xFFECECEC.toInt(), 0xFF22252B.toInt(), 0xFF1BB5C9.toInt(), 0xFFE86AA6.toInt())
+        val PAX_PANTS = intArrayOf(0xFF2B3A5C.toInt(), 0xFF1E1F24.toInt(), 0xFF5A4A3A.toInt(), 0xFF39506E.toInt(), 0xFF6B6F78.toInt())
 
         /** free-roam region sequence (one continuous journey) */
         val REGION_ORDER = intArrayOf(GameData.ENV_CITY, GameData.ENV_FOREST, GameData.ENV_MOUNTAIN, GameData.ENV_SNOW,
@@ -2170,7 +2584,12 @@ class World(private val input: InputState) {
             floatArrayOf(0.62f, 0.5f, 2.81f),
             floatArrayOf(-0.62f, 0.56f, 2.17f),
             floatArrayOf(-0.5f, 0.3f, 2.55f, 0.5f, 0.3f, 2.55f),
-            floatArrayOf(-0.15f, 0.34f, 2.45f, 0.15f, 0.34f, 2.45f)
+            floatArrayOf(-0.15f, 0.34f, 2.45f, 0.15f, 0.34f, 2.45f),
+            floatArrayOf(-0.5f, 0.3f, 2.15f),
+            // electric GT has no exhaust: the boost trail leaves the rear diffuser
+            floatArrayOf(0f, 0.3f, 2.47f),
+            floatArrayOf(0.5f, 0.3f, 2.45f),
+            floatArrayOf(0.42f, 0.3f, 2.35f)
         )
     }
 }

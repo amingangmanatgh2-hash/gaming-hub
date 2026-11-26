@@ -12,6 +12,8 @@ class InputState {
     @Volatile var tilt = 0f
     @Volatile var useTilt = false
     @Volatile var autoGas = false
+    /** one-shot: exit / enter the car (consumed by the game thread) */
+    @Volatile var doorRequest = false
 
     fun steer(): Float {
         if (useTilt) return tilt

@@ -81,6 +81,10 @@ object GameData {
     const val CAR_OFFROAD = 7
     const val CAR_POLICE = 8
     const val CAR_RACE = 9
+    const val CAR_HATCH = 10
+    const val CAR_EV = 11
+    const val CAR_TAXI = 12
+    const val CAR_DRIFT = 13
 
     const val TR_SEDAN = 0
     const val TR_TAXI = 1
@@ -162,7 +166,19 @@ object GameData {
         CarSpec(CAR_POLICE, R.string.car_police, 30000, 262f, 9.4f, 8.8f, 15f, 1.32f, 4.9f, 1.92f, 0.36f, 1.9f, PAINT_PALETTE,
             R.string.cat_police, 1800, 1.02f, 1.0f),
         CarSpec(CAR_RACE, R.string.car_race, 60000, 305f, 11.0f, 11.0f, 18f, 1.38f, 4.7f, 2.08f, 0.37f, 2.5f, PAINT_PALETTE,
-            R.string.cat_race, 1250, 1.16f, 0.85f)
+            R.string.cat_race, 1250, 1.16f, 0.85f),
+        // rally hot hatch: light, tight, gravel-capable grip, playful rear
+        CarSpec(CAR_HATCH, R.string.car_hatch, 11000, 222f, 8.4f, 9.0f, 13.5f, 1.27f, 4.1f, 1.84f, 0.34f, 1.25f, PAINT_PALETTE,
+            R.string.cat_rally, 1180, 1.04f, 1.15f, true),
+        // electric GT: instant torque (highest launch accel), heavy battery, planted
+        CarSpec(CAR_EV, R.string.car_ev, 42000, 268f, 10.9f, 9.4f, 15.5f, 1.30f, 4.85f, 1.98f, 0.37f, 2.0f, PAINT_PALETTE,
+            R.string.cat_electric, 2080, 1.05f, 0.75f),
+        // taxi: cheap, soft and steady; earns more on taxi fares
+        CarSpec(CAR_TAXI, R.string.car_taxi, 5000, 200f, 6.9f, 7.4f, 12.5f, 1.22f, 4.7f, 1.86f, 0.33f, 1.1f, PAINT_PALETTE,
+            R.string.cat_taxi, 1500, 0.95f, 0.9f),
+        // drift coupe: high-revving rotary, light rear, the loosest tail in the garage
+        CarSpec(CAR_DRIFT, R.string.car_drift, 24000, 252f, 9.0f, 9.6f, 14f, 1.32f, 4.45f, 1.94f, 0.34f, 1.7f, PAINT_PALETTE,
+            R.string.cat_jdm, 1290, 0.97f, 1.75f)
     )
 
     val traffic = arrayOf(
@@ -239,7 +255,9 @@ object GameData {
     )
 
     /** cars with a factory rear wing: aftermarket spoilers would clash with it */
-    fun hasFactoryWing(car: Int) = car == CAR_SPORTS || car == CAR_SUPER || car == CAR_RACE
+    fun hasFactoryWing(car: Int) = car == CAR_SPORTS || car == CAR_SUPER || car == CAR_RACE || car == CAR_HATCH || car == CAR_DRIFT
+    /** electric drivetrain: motor whine instead of combustion, no backfire */
+    fun isElectric(car: Int) = car == CAR_EV
 
     /** window tint level packed into the instance alpha (0..0.2) */
     val TINT_LEVELS = floatArrayOf(0f, 0.07f, 0.13f, 0.2f)

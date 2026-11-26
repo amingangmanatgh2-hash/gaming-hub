@@ -148,7 +148,9 @@ class Progression(private val save: SaveManager) {
         Achievement("upgrade_max", "تمام‌قد", "Fully Tuned", "یک ارتقا را به حداکثر برسان", "Max out an upgrade", 1000, "🔧"),
         Achievement("level_10", "حرفه‌ای", "Pro Driver", "به سطح ۱۰ برس", "Reach level 10", 2500, "⭐"),
         Achievement("daily_7", "هر روز رانندگی", "Daily Driver", "۷ چالش روزانه را انجام بده", "Complete 7 daily challenges", 2000, "📅"),
-        Achievement("free_20", "کاشف", "Explorer", "در گشت آزاد مجموعاً ۲۰ کیلومتر برو", "Drive 20 km in free roam", 1500, "🧭")
+        Achievement("free_20", "کاشف", "Explorer", "در گشت آزاد مجموعاً ۲۰ کیلومتر برو", "Drive 20 km in free roam", 1500, "🧭"),
+        Achievement("taxi_1", "اولین کرایه", "First Fare", "یک مسافر را به مقصد برسان", "Deliver your first taxi passenger", 400, "🚕"),
+        Achievement("taxi_25", "رانندهٔ شهر", "City Cabbie", "۲۵ مسافر را جابه‌جا کن", "Deliver 25 taxi passengers", 2500, "🗺")
     )
 
     fun isUnlocked(id: String) = save.prefInt("ach_$id") == 1
@@ -182,6 +184,8 @@ class Progression(private val save: SaveManager) {
         "level_10" -> save.level().toLong() to 10L
         "daily_7" -> dailiesDone.toLong() to 7L
         "free_20" -> freeRoamMeters / 1000 to 20L
+        "taxi_1" -> save.prefInt("stat_taxi_rides").toLong() to 1L
+        "taxi_25" -> save.prefInt("stat_taxi_rides").toLong() to 25L
         else -> 0L to 1L
     }
 

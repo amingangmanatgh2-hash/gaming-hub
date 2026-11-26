@@ -35,7 +35,14 @@ class AudioEngine {
         const val SFX_BLOWOFF = 11
         const val SFX_HIT = 12
         const val SFX_THUNDER = 13
-        const val NUM_SFX = 14
+        const val SFX_DOOR = 14
+        const val SFX_FARE = 15
+        const val SFX_PHONE = 16
+        const val SFX_SHUTTER = 17
+        const val SFX_STEP = 18
+        const val NUM_SFX = 19
+        /** radio stations of the in-game phone */
+        const val NUM_STATIONS = 3
 
         private const val VOICES = 10
         /**
@@ -44,7 +51,8 @@ class AudioEngine {
          */
         private class EngineProfile(
             val cyl: Int, val idle: Float, val red: Float, val sharp: Float, val uneven: Float,
-            val res: Float, val rasp: Float, val turbo: Boolean, val pops: Float, val vol: Float
+            val res: Float, val rasp: Float, val turbo: Boolean, val pops: Float, val vol: Float,
+            val electric: Boolean = false
         )
         private val PROFILES = arrayOf(
             EngineProfile(4, 900f, 7800f, 9f, 0.05f, 420f, 0.55f, true, 0.6f, 0.95f),    // sports: turbo inline-4
@@ -56,11 +64,19 @@ class AudioEngine {
             EngineProfile(8, 650f, 5600f, 5f, 0.3f, 190f, 0.3f, false, 0.6f, 1.15f),      // pickup: big-block V8
             EngineProfile(6, 600f, 4600f, 3.5f, 0.15f, 170f, 0.2f, true, 0.1f, 1.05f),    // off-roader: turbo-diesel 6
             EngineProfile(8, 750f, 6800f, 7f, 0.25f, 260f, 0.4f, false, 0.5f, 1.05f),     // police: V8 interceptor
-            EngineProfile(8, 1200f, 9500f, 13f, 0.1f, 520f, 0.9f, false, 1.0f, 1.0f)      // GT race: flat-plane V8
+            EngineProfile(8, 1200f, 9500f, 13f, 0.1f, 520f, 0.9f, false, 1.0f, 1.0f),     // GT race: flat-plane V8
+            EngineProfile(4, 950f, 7600f, 10f, 0.08f, 460f, 0.75f, true, 1.0f, 1.0f),     // rally hatch: turbo 4 with anti-lag
+            EngineProfile(4, 0f, 15000f, 1f, 0f, 900f, 0f, false, 0f, 0.9f, true),        // electric GT: twin motors
+            EngineProfile(4, 750f, 6200f, 6f, 0.05f, 300f, 0.3f, false, 0.1f, 0.9f),      // taxi: economy 4-cylinder
+            EngineProfile(4, 1000f, 9200f, 14f, 0.02f, 540f, 0.85f, true, 1.0f, 1.0f)     // drift coupe: twin-rotor rotary
         )
     }
 
     // ------------------------------------------------------------ parameters (game thread writes)
+    private var evPh1 = 0.0
+    private var evPh2 = 0.0
+    private var evPh3 = 0.0
+    private var evNoise = 0f
     @Volatile var engineRpm = 0.2f
     @Volatile var engineLoad = 0f
     @Volatile var engineOn = false
@@ -146,8 +162,16 @@ class AudioEngine {
     private var prevNitro = false
 
     // music sequencer
-    private val bpm = 112f
-    private val samplesPerStep = (RATE * 60f / bpm / 4f).toInt()
+    /** radio station (phone music app): 0 Neon FM, 1 Lo-fi Nights, 2 Turbo FM */
+    @Volatile var station = 0
+    private var curStation = -1
+    private var bpm = 112f
+    private var samplesPerStep = (RATE * 60f / bpm / 4f).toInt()
+    private var arpTri = false
+    private var kickMask = 0x1111
+    private var snareMask = 0x1010
+    private var hatLevel = 1f
+    private var arpLevel = 1f
     private var stepCounter = 0
     private var stepSample = 0
     private var bassPhase = 0.0
@@ -167,8 +191,34 @@ class AudioEngine {
     private var hatPrev = 0f
     private var musicLp = 0f
 
-    private val chordRoots = intArrayOf(45, 41, 48, 43)
-    private val chordTones = arrayOf(intArrayOf(57, 60, 64), intArrayOf(53, 57, 60), intArrayOf(60, 64, 67), intArrayOf(55, 59, 62))
+    private var chordRoots = intArrayOf(45, 41, 48, 43)
+    private var chordTones = arrayOf(intArrayOf(57, 60, 64), intArrayOf(53, 57, 60), intArrayOf(60, 64, 67), intArrayOf(55, 59, 62))
+
+    private fun applyStation(st: Int) {
+        curStation = st
+        when (st) {
+            1 -> { // lo-fi: slow, jazzy 7th chords, soft triangle keys, lazy drums
+                bpm = 84f; arpTri = true; arpLevel = 0.8f; hatLevel = 0.55f
+                kickMask = (1 shl 0) or (1 shl 7) or (1 shl 10); snareMask = (1 shl 4) or (1 shl 12)
+                chordRoots = intArrayOf(50, 43, 48, 45)
+                chordTones = arrayOf(intArrayOf(62, 65, 69), intArrayOf(55, 58, 62), intArrayOf(59, 64, 67), intArrayOf(57, 60, 64))
+            }
+            2 -> { // turbo: fast four-on-the-floor, bright major chords
+                bpm = 128f; arpTri = false; arpLevel = 1.1f; hatLevel = 1.3f
+                kickMask = 0x1111; snareMask = (1 shl 4) or (1 shl 12)
+                chordRoots = intArrayOf(40, 36, 43, 38)
+                chordTones = arrayOf(intArrayOf(64, 67, 71), intArrayOf(60, 64, 67), intArrayOf(67, 71, 74), intArrayOf(62, 66, 69))
+            }
+            else -> { // neon synthwave (original soundtrack)
+                bpm = 112f; arpTri = false; arpLevel = 1f; hatLevel = 1f
+                kickMask = 0x1111; snareMask = (1 shl 4) or (1 shl 12)
+                chordRoots = intArrayOf(45, 41, 48, 43)
+                chordTones = arrayOf(intArrayOf(57, 60, 64), intArrayOf(53, 57, 60), intArrayOf(60, 64, 67), intArrayOf(55, 59, 62))
+            }
+        }
+        samplesPerStep = (RATE * 60f / bpm / 4f).toInt()
+        stepSample = 0
+    }
     private val arpOrder = intArrayOf(0, 1, 2, 1, 0, 2, 1, 2)
     private val bassPattern = intArrayOf(1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0)
 
@@ -285,6 +335,47 @@ class AudioEngine {
                 val crack = if (t < 0.25f) lp3 * exp(-t * 14f) * 0.9f else 0f
                 val swell = 0.6f + 0.4f * sin(t * 5.3f) * sin(t * 2.1f + 1f)
                 crack + lp2 * 5.5f * swell * (t / 0.15f).coerceAtMost(1f) * exp(-t * 0.9f)
+            }
+        }
+        samples[SFX_DOOR] = run {
+            // latch click + body thunk
+            var lp = 0f
+            synth(0.32f) { t, _ ->
+                val n = noise()
+                lp += (n - lp) * 0.12f
+                val click = if (t < 0.012f) n * 0.7f else 0f
+                val thunk = sin(2 * PI * (95.0 - t * 120.0) * t).toFloat() * exp(-t * 22f) * 0.9f
+                click + thunk + lp * exp(-t * 30f) * 0.8f
+            }
+        }
+        samples[SFX_FARE] = synth(0.75f) { t, _ ->
+            // cash register: two bell strikes + drawer rattle
+            val b1 = (sin(2 * PI * 2093.0 * t) + 0.5 * sin(2 * PI * 3136.0 * t)).toFloat() * exp(-t * 7f)
+            val t2 = (t - 0.12f).coerceAtLeast(0f)
+            val b2 = if (t > 0.12f) (sin(2 * PI * 2637.0 * t2) + 0.4 * sin(2 * PI * 3951.0 * t2)).toFloat() * exp(-t2 * 5f) else 0f
+            val rattle = if (t > 0.3f && t < 0.5f) noise() * 0.25f * exp(-(t - 0.3f) * 12f) else 0f
+            (b1 + b2) * 0.32f + rattle
+        }
+        samples[SFX_PHONE] = synth(0.42f) { t, _ ->
+            val f = if (t < 0.13f) 1567.98f else 2093f
+            val lt = if (t < 0.13f) t else t - 0.13f
+            (sin(2 * PI * f * t) + 0.25 * sin(2 * PI * f * 2 * t)).toFloat() * exp(-lt * 11f) * 0.42f
+        }
+        samples[SFX_SHUTTER] = run {
+            var lp = 0f
+            synth(0.22f) { t, _ ->
+                val n = noise()
+                lp += (n - lp) * 0.4f
+                val a = if (t < 0.03f) 1f else if (t > 0.09f && t < 0.12f) 0.8f else 0f
+                lp * a * 0.9f + sin(2 * PI * 300.0 * t).toFloat() * exp(-t * 60f) * 0.3f
+            }
+        }
+        samples[SFX_STEP] = run {
+            var lp = 0f
+            synth(0.09f) { t, _ ->
+                val n = noise()
+                lp += (n - lp) * 0.25f
+                lp * exp(-t * 50f) * 0.55f + sin(2 * PI * 120.0 * t).toFloat() * exp(-t * 70f) * 0.25f
             }
         }
         samples[SFX_BUY] = synth(0.5f) { t, _ ->
@@ -417,7 +508,7 @@ class AudioEngine {
         val tunT = if (engineAudible && sfx) tunnelLevel else 0f
         // driving events per block (~11.6 ms): gear shifts, lift-off pops, blow-off valve
         if (engOn) {
-            if (++shiftCheck >= 4) {
+            if (!prof.electric && ++shiftCheck >= 4) {
                 shiftCheck = 0
                 if (prevRpm - tRpm > 0.12f && tLoad > 0.5f) { trigger(SFX_SHIFT); cutT = 0.09f }
                 if (prevLoad > 0.6f && tLoad < 0.3f && tRpm > 0.5f) {
@@ -441,7 +532,18 @@ class AudioEngine {
             rpmS += (tRpm - rpmS) * 0.0016f
             loadS += (tLoad - loadS) * 0.002f
             engVol += ((if (engOn) 1f else 0f) - engVol) * 0.0008f
-            if (engVol > 0.001f) {
+            if (engVol > 0.001f && prof.electric) {
+                // electric drive: motor tone + inverter whine (higher harmonic, louder under load) + gear hum
+                val f = 90.0 + rpmS.coerceIn(0f, 1.05f) * 1450.0
+                evPh1 += f / RATE; if (evPh1 > 1.0) evPh1 -= 1.0
+                evPh2 += f * 2.97 / RATE; if (evPh2 > 1.0) evPh2 -= 1.0
+                evPh3 += (f * 0.5) / RATE; if (evPh3 > 1.0) evPh3 -= 1.0
+                val tone = sin(2.0 * PI * evPh1).toFloat()
+                val whine = sin(2.0 * PI * evPh2).toFloat() * (0.25f + 0.6f * loadS)
+                val hum = sin(2.0 * PI * evPh3).toFloat() * 0.5f
+                evNoise += (noise() - evNoise) * 0.08f
+                mix += (tone * 0.09f + whine * 0.05f + hum * 0.05f + evNoise * 0.04f * loadS) * engVol * prof.vol * (0.5f + 0.5f * loadS + 0.3f * rpmS)
+            } else if (engVol > 0.001f) {
                 val rpm = prof.idle + rpmS.coerceIn(0f, 1.05f) * (prof.red - prof.idle)
                 val crankHz = rpm / 60f
                 crankPh += crankHz / RATE
@@ -575,6 +677,8 @@ class AudioEngine {
     }
 
     private fun renderMusicSample(): Float {
+        val st = station
+        if (st != curStation) applyStation(st)
         if (stepSample == 0) onStep(stepCounter)
         stepSample++
         if (stepSample >= samplesPerStep) {
@@ -592,8 +696,8 @@ class AudioEngine {
         // arpeggio (square-ish)
         arpPhase += arpFreq / RATE
         if (arpPhase > 1.0) arpPhase -= 1.0
-        val sq = if (arpPhase < 0.3) 1f else -1f
-        s += sq * arpEnv * 0.09f
+        val sq = if (arpTri) (4f * abs(arpPhase.toFloat() - 0.5f) - 1f) * 1.4f else if (arpPhase < 0.3) 1f else -1f
+        s += sq * arpEnv * 0.09f * arpLevel
         arpEnv *= 0.99962f
         // pad (triangles)
         for (k in 0 until 3) {
@@ -643,9 +747,10 @@ class AudioEngine {
         val idx = arpOrder[inBar % 8]
         arpFreq = midi(tones[idx] + (if (inBar >= 8) 12 else 0))
         arpEnv = 1f
-        if (inBar % 4 == 0) { kickEnv = 1f; kickPhase = 0.0 }
-        if (inBar == 4 || inBar == 12) snareEnv = 1f
-        if (inBar % 2 == 0) hatEnv = 1f else hatEnv = 0.5f
+        if ((kickMask shr inBar) and 1 == 1) { kickEnv = 1f; kickPhase = 0.0 }
+        if ((snareMask shr inBar) and 1 == 1) snareEnv = 1f
+        hatEnv = (if (inBar % 2 == 0) 1f else 0.5f) * hatLevel
+        if (curStation == 2 && inBar % 4 == 2) hatEnv = 1.4f
         // breakdown every 8 bars: lighter drums
         if ((step / 64) % 2 == 1 && inBar % 8 == 4) hatEnv = 1f
     }

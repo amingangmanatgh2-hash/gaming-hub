@@ -59,6 +59,8 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
 
     override lateinit var save: SaveManager
     override val progression: Progression by lazy { Progression(save) }
+    override val messages: com.amin.racing3d.core.Messages by lazy { com.amin.racing3d.core.Messages(save) }
+    override val gameWorld: World get() = world
     override val activity: Activity get() = this
     override val tiltAvailable: Boolean get() = tilt.available
     override val tiltSensor: String get() = tilt.sensorName
@@ -368,6 +370,32 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
                 push(com.amin.racing3d.ui.DialogueScreen(this, intent.getIntExtra("mission", 0).coerceIn(0, StoryData.missions.size - 1)))
             }
             "mission" -> startMission(intent.getIntExtra("mission", 0).coerceIn(0, StoryData.missions.size - 1))
+            // v2.0: taxi job (stage 1 = passenger waiting ahead, 2 = ride in progress), walking, phone, photo mode
+            "taxi" -> {
+                val stage = i.getIntExtra("stage", 1)
+                startRace()
+                handler.postDelayed({ glView.queueEvent { world.debugTaxi(stage) } }, i.getIntExtra("after", 8000).toLong())
+            }
+            "onfoot" -> {
+                startRace()
+                handler.postDelayed({ glView.queueEvent { world.debugExitCar() } }, i.getIntExtra("after", 8000).toLong())
+            }
+            "phone" -> {
+                val app = i.getIntExtra("app", 0)
+                val stage = i.getIntExtra("stage", 0)
+                startRace()
+                if (stage > 0) handler.postDelayed({ glView.queueEvent { world.debugTaxi(stage) } }, 6000)
+                handler.postDelayed({ openPhone(app) }, i.getIntExtra("after", 9000).toLong())
+            }
+            "photo" -> {
+                startRace()
+                val after = i.getIntExtra("after", 8000).toLong()
+                handler.postDelayed({ glView.queueEvent { world.debugExitCar() } }, after)
+                handler.postDelayed({
+                    openPhone(com.amin.racing3d.ui.PhoneScreen.APP_CAMERA)
+                    replaceTop(com.amin.racing3d.ui.PhotoModeScreen(this, 2.55f, 0.18f, 6.5f))
+                }, after + 2500)
+            }
             else -> replaceAll(MainMenuScreen(this))
         }
     }
@@ -517,6 +545,80 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         display(screen, true)
     }
 
+    override fun replaceTop(screen: Screen) {
+        if (stack.isNotEmpty()) stack.removeAt(stack.size - 1).onHidden()
+        stack.add(screen)
+        display(screen, true)
+    }
+
+    // ================================================================= v2.0 phone
+    private fun openPhone(app: Int = com.amin.racing3d.ui.PhoneScreen.APP_HOME) {
+        if (!inRace || racePaused) return
+        if (world.hudState != World.STATE_RACING && world.hudState != World.STATE_CRASHED) return
+        racePaused = true
+        input.reset()
+        glView.queueEvent { world.paused = true }
+        updateTiltListening()
+        push(com.amin.racing3d.ui.PhoneScreen(this, app))
+    }
+
+    override fun setTaxiShift(on: Boolean) {
+        glView.queueEvent {
+            if (world.mode == GameData.MODE_ENDLESS) world.taxiInEndless = on
+            world.setTaxiShift(on)
+        }
+    }
+
+    override fun setRadio(station: Int) {
+        audio.station = station.coerceIn(0, AudioEngine.NUM_STATIONS - 1)
+    }
+
+    override fun photoMode(on: Boolean) {
+        renderer.photoMode = on
+        hud.visibility = if (on || !inRace) View.GONE else View.VISIBLE
+    }
+
+    override fun photoOrbit(yaw: Float, pitch: Float, dist: Float) {
+        renderer.photoYaw = yaw; renderer.photoPitch = pitch; renderer.photoDist = dist
+    }
+
+    private fun photoDir(): java.io.File = java.io.File(filesDir, "photos").also { it.mkdirs() }
+
+    override fun photos(): List<java.io.File> =
+        (photoDir().listFiles { f -> f.name.endsWith(".jpg") } ?: emptyArray()).sortedByDescending { it.lastModified() }
+
+    override fun takePhoto(done: (java.io.File?) -> Unit) {
+        val w = glView.width; val h = glView.height
+        if (w <= 0 || h <= 0) { done(null); return }
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        try {
+            android.view.PixelCopy.request(glView, bmp, { result ->
+                if (result != android.view.PixelCopy.SUCCESS) { done(null); return@request }
+                Thread {
+                    var out: java.io.File? = null
+                    try {
+                        val name = "amin_racing_" + System.currentTimeMillis() + ".jpg"
+                        val f = java.io.File(photoDir(), name)
+                        java.io.FileOutputStream(f).use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it) }
+                        out = f
+                        // keep the newest 24 in the app; also export to the gallery (Android 10+ needs no permission)
+                        photos().drop(24).forEach { it.delete() }
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            val cv = android.content.ContentValues()
+                            cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                            cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                            cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Amin Racing")
+                            val uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
+                            if (uri != null) contentResolver.openOutputStream(uri)?.use { os -> f.inputStream().use { it.copyTo(os) } }
+                        }
+                    } catch (_: Throwable) {}
+                    val res = out
+                    handler.post { done(res) }
+                }.start()
+            }, handler)
+        } catch (_: Throwable) { done(null) }
+    }
+
     override fun back() {
         if (stack.isNotEmpty()) stack.removeAt(stack.size - 1).onHidden()
         val top = stack.lastOrNull()
@@ -578,6 +680,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
             world.paused = false
             world.configureCar(car, color, lSpeed, lHandling, lBrakes, lNitro)
             world.flameStyle = cus[GameData.CUS_FLAME]
+            world.taxiInEndless = save.prefInt("taxi_endless", 1) == 1
             world.startRace(cfg)
             renderer.resetTiming()
         }
@@ -725,6 +828,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         renderer.cameraShakeEnabled = save.cameraShake
         audio.sfxEnabled = save.sfxOn
         audio.musicEnabled = save.musicOn
+        audio.station = save.prefInt("radio_station").coerceIn(0, AudioEngine.NUM_STATIONS - 1)
         audio.muted = save.muted
         hud.showFps = save.showFps
         tilt.sensitivity = save.sensitivity
@@ -831,6 +935,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
 
     // ================================================================= HudView.Listener
     override fun onPausePressed() = pauseRace()
+    override fun onPhonePressed() = openPhone()
     override fun onHudFrame(state: Int) {}
     override fun onButtonHaptic() {
         if (save.vibration) hud.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -839,6 +944,22 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
     // ================================================================= GameListener (GL thread)
     override fun onNearMiss(points: Int, combo: Int, oncoming: Boolean) {
         handler.post { vibrate(18, 70) }
+    }
+
+    override fun onTaxiFare(coins: Int, stars: Int) {
+        handler.post {
+            save.putPrefInt("stat_taxi_rides", save.prefInt("stat_taxi_rides") + 1)
+            save.putPrefLong("stat_taxi_coins", save.prefLong("stat_taxi_coins") + coins)
+            save.putPrefInt("stat_taxi_stars", save.prefInt("stat_taxi_stars") + stars)
+            val i = (System.nanoTime() % com.amin.racing3d.core.Messages.PASSENGERS_FA.size).toInt().let { if (it < 0) -it else it }
+            val q = (System.nanoTime() / 7 % 2).toInt().let { if (it < 0) -it else it }
+            val st = stars.coerceIn(1, 5)
+            val starsTxt = "★".repeat(st) + "☆".repeat(5 - st)
+            messages.add("🚕", com.amin.racing3d.core.Messages.PASSENGERS_FA[i], com.amin.racing3d.core.Messages.PASSENGERS_EN[i],
+                starsTxt + "  " + com.amin.racing3d.core.Messages.REVIEWS_FA[st - 1][q] + "  (+" + Lang.num(coins) + ")",
+                starsTxt + "  " + com.amin.racing3d.core.Messages.REVIEWS_EN[st - 1][q] + "  (+" + Lang.num(coins) + ")")
+            vibrate(40, 120)
+        }
     }
 
     override fun onHardBrake(strength: Float) {

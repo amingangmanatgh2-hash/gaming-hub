@@ -81,6 +81,10 @@ class SaveManager(context: Context) {
         GameData.CAR_OFFROAD -> 3
         GameData.CAR_POLICE -> 7
         GameData.CAR_RACE -> 2
+        GameData.CAR_HATCH -> 1
+        GameData.CAR_EV -> 6
+        GameData.CAR_TAXI -> 2
+        GameData.CAR_DRIFT -> 5
         else -> 1
     }
 

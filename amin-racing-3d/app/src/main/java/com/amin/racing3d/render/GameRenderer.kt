@@ -154,6 +154,13 @@ class GameRenderer(
     private lateinit var roadBatch: InstanceBatch
     private lateinit var groundBatch: InstanceBatch
     private lateinit var showroomBatch: InstanceBatch
+    // v2.0: people (walking driver, taxi passengers) and taxi markers
+    private lateinit var torsoBatch: InstanceBatch
+    private lateinit var legBatch: InstanceBatch
+    private lateinit var armBatch: InstanceBatch
+    private lateinit var markerBatch: InstanceBatch
+    /** smoothed on-foot camera heading */
+    private var footCamYaw = 0f
     private lateinit var additive: SpriteBatch
     private lateinit var alphaSprites: SpriteBatch
 
@@ -174,6 +181,12 @@ class GameRenderer(
     private var fovY = 60f
     private var camRoll = 0f
     private var camInit = false
+    private var footBlend = false
+    // v2.0 phone camera: orbit around the car (or the walker) while the game is paused
+    @Volatile var photoMode = false
+    @Volatile var photoYaw = 0.6f
+    @Volatile var photoPitch = 0.25f
+    @Volatile var photoDist = 7f
 
     // ------------------------------------------------------------------ lighting palette
     private val sunDir = FloatArray(3)
@@ -349,6 +362,10 @@ class GameRenderer(
         st.add { pm[7] = Models.offroad() }
         st.add { pm[8] = Models.police() }
         st.add { pm[9] = Models.raceCar() }
+        st.add { pm[10] = Models.hotHatch() }
+        st.add { pm[11] = Models.electricGT() }
+        st.add { pm[12] = Models.taxiCar() }
+        st.add { pm[13] = Models.driftCoupe() }
         st.add {
             playerModels = pm.requireNoNulls()
             for (m in playerModels) m.sporty = true
@@ -396,6 +413,12 @@ class GameRenderer(
             dealerBatch = InstanceBatch(Models.dealership(), 4)
         }
         st.add { mountainBatch = InstanceBatch(Models.mountains(7), 1) }
+        st.add {
+            torsoBatch = InstanceBatch(Models.personTorso(), 6)
+            legBatch = InstanceBatch(Models.personLeg(), 12)
+            armBatch = InstanceBatch(Models.personArm(), 12)
+            markerBatch = InstanceBatch(Models.markerRing(), 2)
+        }
         st.add { roadBatch = InstanceBatch(Models.road(Textures.ROAD_HALF_WIDTH), 1); groundBatch = InstanceBatch(Models.ground(), 1) }
         // 6. batch lists, shadow map
         st.add {
@@ -404,7 +427,7 @@ class GameRenderer(
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
                 buildingBatch, pineBatch, snowPineBatch, treeBatch, cactusBatch, lampBatch, sign1Batch, sign2Batch,
                 billboardBatch, checkpointBatch, railBatch, palmBatch, warehouseBatch, chimneyBatch, tankBatch,
-                tunnelBatch, portalBatch, bridgeBatch, gasBatch, dealerBatch
+                tunnelBatch, portalBatch, bridgeBatch, gasBatch, dealerBatch, torsoBatch, legBatch, armBatch
             )
             allSceneBatches = arrayOf(*playerBatches,
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
@@ -413,7 +436,7 @@ class GameRenderer(
                 treeBatch, bushBatch, cactusBatch, rockBatch, sign1Batch, sign2Batch, billboardBatch, checkpointBatch,
                 palmBatch, warehouseBatch, chimneyBatch, tankBatch, tunnelBatch, portalBatch, bridgeBatch, waterBatch,
                 gasBatch, parkingBatch, dealerBatch,
-                mountainBatch, roadBatch, groundBatch, showroomBatch
+                mountainBatch, roadBatch, groundBatch, showroomBatch, torsoBatch, legBatch, armBatch, markerBatch
             )
 
             createShadowMap(if (qualityLevel >= 2) 2048 else 1024)
@@ -719,14 +742,26 @@ class GameRenderer(
                 val back = 6.4f + speedRatio * 1.0f + (if (portrait) 1.8f else 0f)
                 val up = 2.45f + (if (portrait) 0.95f else 0f) - speedRatio * 0.15f
                 val pz = -w.ps
-                if (w.state == World.STATE_CRASHED || w.state == World.STATE_OVER) {
+                if (w.onFoot) {
+                    // third person behind the walker, heading smoothed
+                    var dy = w.footYaw - footCamYaw
+                    while (dy > Math.PI) dy -= (2 * Math.PI).toFloat()
+                    while (dy < -Math.PI) dy += (2 * Math.PI).toFloat()
+                    footCamYaw += dy * min(1f, dt * 4f)
+                    val fx = -sin(footCamYaw); val fz = -cos(footCamYaw)
+                    val back2 = if (portrait) 5.2f else 4.2f
+                    val fzw = -w.footS
+                    tx = w.footX - fx * back2; ty = if (portrait) 2.5f else 2.1f; tz = fzw - fz * back2
+                    lx = w.footX + fx * 3f; ly = 1.25f; lz = fzw + fz * 3f
+                } else if (w.state == World.STATE_CRASHED || w.state == World.STATE_OVER) {
                     tx = camX + (w.px + 4f - camX) * 0.02f; ty = 3.4f; tz = camZ + ((pz + 9f) - camZ) * 0.03f
                     lx = w.px; ly = 0.8f; lz = pz
                 } else {
+                    footCamYaw = w.yaw
                     tx = w.px * 0.86f; ty = up; tz = pz + back
                     lx = w.px * 0.95f; ly = 1.0f; lz = pz - 14f
                 }
-                val nitroBoost = if (w.nitroActive) 9f else 0f
+                val nitroBoost = if (w.nitroActive) 9f else if (w.onFoot) -6f else 0f
                 targetFov = if (portrait) {
                     val hfov = 66f + speedRatio * 16f + nitroBoost
                     val v = 2f * Math.toDegrees(atan(tan(Math.toRadians(hfov / 2.0)) / aspect).toDouble()).toFloat()
@@ -735,16 +770,32 @@ class GameRenderer(
                 targetRoll = -w.vx * 0.006f
             }
         }
+        val photo = photoMode && ready && w.state != World.STATE_SHOWROOM
+        if (photo) {
+            val ox = if (w.onFoot) w.footX else w.px
+            val oz = if (w.onFoot) -w.footS else -w.ps
+            val oy = if (w.onFoot) 1.0f else 0.75f
+            val cp = cos(photoPitch); val hd = photoDist * cp
+            tx = ox + sin(photoYaw) * hd; ty = max(0.25f, oy + sin(photoPitch) * photoDist); tz = oz + cos(photoYaw) * hd
+            lx = ox; ly = oy; lz = oz
+            targetFov = if (portrait) 64f else 46f
+            targetRoll = 0f
+        }
         if (!camInit) {
             camX = tx; camY = ty; camZ = tz; lookX = lx; lookY = ly; lookZ = lz; fovY = targetFov; camInit = true
         }
-        val follow = if (w.state == World.STATE_RACING) 1f - exp01(-dt * 10f) else k
+        if (photo) footBlend = true
+        val locked = w.state == World.STATE_RACING && !w.onFoot && !footBlend && !photo
+        val follow = if (w.state == World.STATE_RACING) 1f - exp01(-dt * (if (w.onFoot || footBlend) 5f else 10f)) else k
         camX += (tx - camX) * follow
         camY += (ty - camY) * follow
-        camZ = if (w.state == World.STATE_RACING) tz else camZ + (tz - camZ) * follow
+        camZ = if (locked) tz else camZ + (tz - camZ) * follow
         lookX += (lx - lookX) * follow
         lookY += (ly - lookY) * follow
-        lookZ = if (w.state == World.STATE_RACING) lz else lookZ + (lz - lookZ) * follow
+        lookZ = if (locked) lz else lookZ + (lz - lookZ) * follow
+        // after getting back in, glide from the walking camera to the chase camera
+        if (w.onFoot) footBlend = true
+        else if (footBlend && abs(camZ - tz) < 0.3f && abs(camX - tx) < 0.3f) footBlend = false
         fovY += (targetFov - fovY) * (1f - exp01(-dt * 3f))
         camRoll += (targetRoll - camRoll) * (1f - exp01(-dt * 4f))
 
@@ -793,7 +844,7 @@ class GameRenderer(
         mountainBatch.add(camX, 0f, camZ, 0f, 0f, 0f, 1f, 1f, 1f, mt[0], mt[1], mt[2], 1f, 0f, 0f, 0f, 0f)
 
         // scenery
-        val minS = w.ps - 30f
+        val minS = w.ps - w.sceneryBack
         val maxS = w.ps + drawDist
         val lampGlow = lightsOn > 0.05f && q >= 1
         for (it in w.scenery) {
@@ -876,6 +927,18 @@ class GameRenderer(
         addCustomParts(spec, pm, w.px, w.suspY, pz, w.yaw, w.pitch, w.roll, cr, cg, cb, cus, brake)
         shadowBatch.add(w.px, 0f, pz, w.yaw, 0f, 0f, pm.width * 1.3f, 1f, pm.length * 1.15f, 1f, 1f, 1f, 0.6f, 0f, 0f, 0f, 0f)
         addVehicleGlows(pm, w.px, pz, w.yaw, brake, false)
+
+        // v2.0: the walking driver, the taxi passenger and taxi markers
+        if (w.onFoot) {
+            val walk = (abs(w.footSpeed) / 2.5f).coerceIn(0f, 1.3f)
+            addPerson(w.footX, w.footS, w.footYaw, w.footPhase, walk, 0f, w.footFallK, DRIVER_SHIRT, DRIVER_PANTS, 1f)
+        }
+        if (w.paxVisible) addPerson(w.paxX, w.paxS, w.paxYaw, w.paxPhase, w.paxWalk, w.paxWave, 0f, w.paxShirt, w.paxPants, 0.97f)
+        when (w.taxiState) {
+            World.TAXI_WAITING, World.TAXI_BOARDING -> addMarker(w.taxiPickSide * (GameData.ROAD_HALF - 0.4f), w.taxiPickS, 1f, 0.78f, 0.1f, w.ps + drawDist)
+            World.TAXI_RIDING -> addMarker(w.taxiDropSide * (GameData.ROAD_HALF - 0.4f), w.taxiDropS, 0.2f, 1f, 0.45f, w.ps + drawDist)
+            else -> {}
+        }
 
         // AI rivals and police
         for (r in w.rivals) {
@@ -1037,6 +1100,62 @@ class GameRenderer(
                 }
             }
         }
+    }
+
+    /**
+     * One person: torso/head + two legs + two arms. [walk] 0..1 scales the stride, [wave] raises
+     * the right arm (hailing a taxi), [fall] tips the whole body over backwards.
+     */
+    private fun addPerson(x: Float, s: Float, yaw: Float, phase: Float, walk: Float, wave: Float, fall: Float, shirt: Int, pants: Int, scale: Float) {
+        val z = -s
+        val sr = ((shirt shr 16) and 0xFF) / 255f; val sg = ((shirt shr 8) and 0xFF) / 255f; val sb = (shirt and 0xFF) / 255f
+        val pr = ((pants shr 16) and 0xFF) / 255f; val pg = ((pants shr 8) and 0xFF) / 255f; val pb = (pants and 0xFF) / 255f
+        val bodyPitch = fall * 1.42f
+        val ca = cos(yaw); val sa = sin(yaw)
+        val cb = cos(bodyPitch); val sbp = sin(bodyPitch)
+        val bob = abs(sin(phase)) * 0.045f * walk * (1f - fall)
+        val by = bob + fall * 0.12f
+        torsoBatch.add(x, by, z, yaw, bodyPitch, 0f, scale, scale, scale, sr, sg, sb, 1f, 0f, 0f, 0f, 0f)
+        // joint world position from body-local (lx, ly): column0 * lx + column1 * ly
+        val swing = sin(phase) * 0.62f * walk * (1f - fall)
+        for (side in 0..1) {
+            val lx = (if (side == 0) -0.1f else 0.1f) * scale
+            val ly = 0.92f * scale
+            val jx = x + ca * lx + sa * sbp * ly
+            val jy = by + cb * ly
+            val jz = z - sa * lx + ca * sbp * ly
+            val legSwing = if (side == 0) swing else -swing
+            legBatch.add(jx, jy, jz, yaw, bodyPitch + legSwing + fall * 0.3f, 0f, scale, scale, scale, pr, pg, pb, 1f, 0f, 0f, 0f, 0f)
+        }
+        for (side in 0..1) {
+            val lx = (if (side == 0) -0.27f else 0.27f) * scale
+            val ly = 1.42f * scale
+            val jx = x + ca * lx + sa * sbp * ly
+            val jy = by + cb * ly
+            val jz = z - sa * lx + ca * sbp * ly
+            var armPitch = (if (side == 0) -swing else swing) * 0.85f
+            var roll = if (side == 0) -0.08f else 0.08f
+            if (side == 1 && wave > 0.01f) {
+                // hail: right arm up, hand waving side to side
+                armPitch = armPitch * (1f - wave) + wave * (2.75f + sin(animTime * 9f) * 0.2f)
+                roll = 0.08f + wave * sin(animTime * 9f) * 0.25f
+            }
+            armBatch.add(jx, jy, jz, yaw, bodyPitch + armPitch + fall * 0.6f, roll, scale, scale, scale, sr, sg, sb, 1f, 0f, 0f, 0f, 0f)
+        }
+        shadowBatch.add(x, 0f, z, yaw, 0f, 0f, 0.9f, 1f, 0.9f + fall * 1.2f, 1f, 1f, 1f, 0.45f, 0f, 0f, 0f, 0f)
+    }
+
+    /** Taxi pick-up / drop-off: glowing ring on the road plus a light column visible from afar. */
+    private fun addMarker(x: Float, s: Float, r: Float, g: Float, b: Float, maxS: Float) {
+        if (s > maxS || s < world.ps - 40f) return
+        val z = -s
+        val pulse = 0.85f + 0.15f * sin(animTime * 5f)
+        markerBatch.add(x, 0f, z, animTime * 0.6f, 0f, 0f, pulse, 1f, pulse, r, g, b, 1f, 0f, 0f, 0f, 0f)
+        for (k in 0 until 9) {
+            val y = 0.6f + k * 1.4f
+            additive.add(x, y, z, 2.4f - k * 0.12f, r, g, b, (0.34f - k * 0.03f) * pulse)
+        }
+        additive.add(x, 0.25f, z, 5.5f, r, g, b, 0.28f * pulse)
     }
 
     private fun addParked(m: VehicleModel, batch: InstanceBatch, x: Float, z: Float, yaw: Float, color: Int) {
@@ -1316,7 +1435,10 @@ class GameRenderer(
         for (sb in spoilerBatches) sb.draw()
         caliperBatch.draw()
         showroomBatch.draw()
-        if (ready) drawWorldOpaque(w)
+        if (ready) {
+            torsoBatch.draw(); legBatch.draw(); armBatch.draw(); markerBatch.draw()
+            drawWorldOpaque(w)
+        }
 
         // translucent window glass (interiors visible behind it)
         GLES30.glEnable(GLES30.GL_BLEND)
@@ -1603,6 +1725,8 @@ class GameRenderer(
         val DENSITY = floatArrayOf(0.45f, 0.75f, 1f, 1f)
         val PARTICLES = intArrayOf(240, 460, 700, 1000)
         val DRAW_DIST = floatArrayOf(270f, 370f, 480f, 560f)
+        private const val DRIVER_SHIRT = 0xFF14C8E8.toInt()
+        private const val DRIVER_PANTS = 0xFF23262E.toInt()
         val FOG = floatArrayOf(0.0062f, 0.0046f, 0.0036f, 0.0031f)
         val REFLECT = floatArrayOf(0.5f, 1f, 1.1f, 1.25f)
         val SNOW_COUNT = intArrayOf(110, 220, 360, 480)

@@ -17,6 +17,7 @@ import com.amin.racing3d.core.Lang
 import com.amin.racing3d.game.GameData
 import com.amin.racing3d.game.World
 import com.amin.racing3d.input.InputState
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -32,6 +33,8 @@ class HudView(context: Context, private val world: World, private val input: Inp
         fun onPausePressed()
         fun onHudFrame(state: Int)
         fun onButtonHaptic()
+        /** v2.0: the phone button in the top bar */
+        fun onPhonePressed() {}
     }
 
     var listener: Listener? = null
@@ -74,6 +77,31 @@ class HudView(context: Context, private val world: World, private val input: Inp
     private val sEvWave = context.getString(R.string.ev_wave)
     private val sEvRegion = context.getString(R.string.ev_region)
     private val sDriftLost = context.getString(R.string.drift_lost)
+    // v2.0 on foot / taxi
+    private val sWalk = context.getString(R.string.btn_walk)
+    private val sRun = context.getString(R.string.btn_run)
+    private val sBack = context.getString(R.string.btn_back)
+    private val sDoorExit = context.getString(R.string.door_exit)
+    private val sDoorEnter = context.getString(R.string.door_enter)
+    private val sEvExit = context.getString(R.string.ev_exit)
+    private val sEvOuch = context.getString(R.string.ev_ouch)
+    private val sTaxi = context.getString(R.string.taxi_title)
+    private val sTaxiWaiting = context.getString(R.string.taxi_waiting)
+    private val sTaxiBoarding = context.getString(R.string.taxi_boarding)
+    private val sTaxiStop = context.getString(R.string.taxi_stop_hint)
+    private val sTaxiNew = context.getString(R.string.taxi_new)
+    private val sTaxiAboard = context.getString(R.string.taxi_aboard)
+    private val sTaxiPaid = context.getString(R.string.taxi_paid)
+    private val sTaxiMissed = context.getString(R.string.taxi_missed)
+    private val sTaxiReroute = context.getString(R.string.taxi_reroute)
+    private val sTaxiCancel = context.getString(R.string.taxi_cancel)
+    private val sTaxiLate = context.getString(R.string.taxi_late)
+    private val sKerbL = context.getString(R.string.taxi_kerb_left)
+    private val sKerbR = context.getString(R.string.taxi_kerb_right)
+    private val sM = context.getString(R.string.unit_m)
+    private val sDest = Array(World.NUM_DESTS) { context.getString(DESTS[it]) }
+    private var lastTaxiSeq = -1
+    private val pCard = Paint(Paint.ANTI_ALIAS_FLAG)
     private val sWeather = Array(GameData.weatherNames.size) { context.getString(GameData.weatherNames[it]) }
     private val sEnvNames = Array(GameData.envs.size) { context.getString(GameData.envs[it].nameRes) }
     private var lastEventSeq = -1
@@ -106,7 +134,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
         var label: String = ""
     }
 
-    private val buttons = Array(7) { Button(it) }
+    private val buttons = Array(9) { Button(it) }
     private val arrowLeft = Path()
     private val arrowRight = Path()
     private val pointerButton = IntArray(12) { -1 }
@@ -152,6 +180,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
         lastEventSeq = world.hudEventSeq
         lastDriftSeq = world.hudDriftSeq
         lastDriftLostSeq = world.hudDriftLostSeq
+        lastTaxiSeq = world.hudTaxiSeq
         driftBankStart = 0L
         nearStart = 0L; checkStart = 0L; goStart = 0L
         lastState = -1
@@ -190,13 +219,15 @@ class HudView(context: Context, private val world: World, private val input: Inp
         val b = (minDim * 0.2f).coerceIn(62f * d, 104f * d)
         val gap = 10f * d
 
-        // pause button
+        // pause button, phone next to it
         buttons[B_PAUSE].r.set(padL, padT, padL + 46f * d, padT + 46f * d)
+        buttons[B_PHONE].r.set(padL + 56f * d, padT, padL + 102f * d, padT + 46f * d)
 
         val gas = buttons[B_GAS].r
         gas.set(w - padR - b, h - padB - b * 1.35f, w - padR, h - padB)
         val nitro = buttons[B_NITRO].r
         nitro.set(gas.left, gas.top - gap - b * 0.82f, gas.right, gas.top - gap)
+        buttons[B_DOOR].r.set(nitro.left - b * 0.15f, nitro.top - gap - b * 0.62f, nitro.right, nitro.top - gap)
 
         if (touchSteering) {
             buttons[B_LEFT].visible = true
@@ -260,6 +291,16 @@ class HudView(context: Context, private val world: World, private val input: Inp
                     listener?.onPausePressed()
                     return true
                 }
+                if (hit == B_PHONE) {
+                    listener?.onButtonHaptic()
+                    listener?.onPhonePressed()
+                    return true
+                }
+                if (hit == B_DOOR) {
+                    listener?.onButtonHaptic()
+                    input.doorRequest = true
+                    return true
+                }
                 if (id < pointerButton.size) pointerButton[id] = hit
                 if (hit >= 0) listener?.onButtonHaptic()
             }
@@ -269,7 +310,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
                     if (id >= pointerButton.size) continue
                     val hit = hitTest(ev.getX(i), ev.getY(i))
                     // allow sliding between steering buttons and between gas/brake
-                    if (hit != B_PAUSE) pointerButton[id] = hit
+                    if (hit != B_PAUSE && hit != B_PHONE && hit != B_DOOR) pointerButton[id] = hit
                 }
             }
             MotionEvent.ACTION_POINTER_UP -> {
@@ -287,11 +328,25 @@ class HudView(context: Context, private val world: World, private val input: Inp
     private fun hitTest(x: Float, y: Float): Int {
         val slop = 10f * d
         for (b in buttons) {
-            if (!b.visible) continue
+            if (!shown(b)) continue
             val r = b.r
             if (x >= r.left - slop && x <= r.right + slop && y >= r.top - slop && y <= r.bottom + slop) return b.id
         }
         return -1
+    }
+
+    private fun phoneAvailable(): Boolean {
+        val st = world.hudState
+        return (world.mode == GameData.MODE_ENDLESS || world.mode == GameData.MODE_FREE) && world.cfg.missionId < 0 &&
+            (st == World.STATE_RACING || st == World.STATE_CRASHED)
+    }
+
+    /** dynamic visibility: horn hides on foot, door/phone only when usable */
+    private fun shown(b: Button): Boolean = when (b.id) {
+        B_DOOR -> world.hudDoor != World.DOOR_NONE && world.hudState == World.STATE_RACING
+        B_PHONE -> phoneAvailable()
+        B_HORN -> b.visible && !world.onFoot
+        else -> b.visible
     }
 
     private fun applyButtons() {
@@ -336,7 +391,8 @@ class HudView(context: Context, private val world: World, private val input: Inp
 
         drawTopBar(canvas, w, now)
         drawModePanel(canvas, w, now)
-        drawGauge(canvas)
+        drawTaxi(canvas, w, now)
+        if (!world.onFoot) drawGauge(canvas)
         drawCombo(canvas, w, h, now)
         drawPopups(canvas, w, h, now, state)
         drawButtons(canvas)
@@ -419,6 +475,8 @@ class HudView(context: Context, private val world: World, private val input: Inp
                     World.EV_ESCAPE -> showMessage(sEvEscape)
                     World.EV_TAKEDOWN -> showMessage(sEvTakedown, 1600)
                     World.EV_WAVE -> showMessage(sEvWave, 1800)
+                    World.EV_EXIT -> showMessage(sEvExit, 3000)
+                    World.EV_OUCH -> showMessage(sEvOuch, 1800)
                     World.EV_REGION -> showMessage(sEvRegion + " " + sEnvNames[world.hudEnv.coerceIn(0, sEnvNames.size - 1)] +
                         "  •  " + sWeather[world.hudWeather.coerceIn(0, sWeather.size - 1)], 3200)
                 }
@@ -889,8 +947,22 @@ class HudView(context: Context, private val world: World, private val input: Inp
     private fun drawButtons(canvas: Canvas) {
         val state = world.hudState
         if (state != World.STATE_RACING && state != World.STATE_COUNTDOWN) return
+        val foot = world.onFoot
         for (b in buttons) {
-            if (!b.visible || b.id == B_PAUSE) continue
+            if (!shown(b) || b.id == B_PAUSE) continue
+            if (b.id == B_PHONE) { drawPhoneButton(canvas, b.r); continue }
+            if (b.id == B_DOOR) {
+                val enter = world.hudDoor == World.DOOR_ENTER
+                val acc = if (enter) Ui.GREEN else Ui.YELLOW
+                val pulse = 0.5f + 0.5f * sin(SystemClock.uptimeMillis() / 220.0).toFloat()
+                pFill.color = Ui.withAlpha(acc, (0x33 + 0x33 * pulse).toInt())
+                canvas.drawRoundRect(b.r, 16f * d, 16f * d, pFill)
+                pStroke.strokeWidth = 2f * d
+                pStroke.color = acc
+                canvas.drawRoundRect(b.r, 16f * d, 16f * d, pStroke)
+                drawLabel(canvas, if (enter) sDoorEnter else sDoorExit, b.r, acc, false, 13f)
+                continue
+            }
             val pressed = when (b.id) {
                 B_LEFT -> input.left
                 B_RIGHT -> input.right
@@ -919,6 +991,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
                     canvas.drawPath(if (b.id == B_LEFT) arrowLeft else arrowRight, pFill)
                 }
                 B_NITRO -> {
+                    if (foot) { drawLabel(canvas, sRun, r, accent, pressed); continue }
                     // flame glyph + fill level
                     val lvl = world.hudNitro.coerceIn(0f, 1f)
                     rect.set(r.left + 6f * d, r.bottom - 6f * d - (r.height() - 12f * d) * lvl, r.right - 6f * d, r.bottom - 6f * d)
@@ -926,14 +999,153 @@ class HudView(context: Context, private val world: World, private val input: Inp
                     canvas.drawRoundRect(rect, 12f * d, 12f * d, pFill)
                     drawLabel(canvas, b.label, r, accent, pressed)
                 }
+                B_GAS -> drawLabel(canvas, if (foot) sWalk else b.label, r, accent, pressed)
+                B_BRAKE -> drawLabel(canvas, if (foot) sBack else b.label, r, accent, pressed)
                 else -> drawLabel(canvas, b.label, r, accent, pressed)
             }
         }
     }
 
-    private fun drawLabel(canvas: Canvas, label: String, r: RectF, accent: Int, pressed: Boolean) {
+    /** rounded phone glyph with a notification dot while a taxi job is waiting */
+    private fun drawPhoneButton(canvas: Canvas, r: RectF) {
+        pFill.color = 0x99070A14.toInt()
+        canvas.drawRoundRect(r, 12f * d, 12f * d, pFill)
+        pStroke.strokeWidth = 1.6f * d
+        pStroke.color = Ui.withAlpha(Ui.PINK, 0xAA)
+        canvas.drawRoundRect(r, 12f * d, 12f * d, pStroke)
+        val cx = r.centerX(); val cy = r.centerY()
+        rect.set(cx - 7.5f * d, cy - 13f * d, cx + 7.5f * d, cy + 13f * d)
+        pStroke.color = Ui.TEXT
+        pStroke.strokeWidth = 2f * d
+        canvas.drawRoundRect(rect, 3.5f * d, 3.5f * d, pStroke)
+        pFill.color = Ui.TEXT
+        canvas.drawCircle(cx, cy + 9f * d, 1.6f * d, pFill)
+        rect.set(cx - 3f * d, cy - 10.5f * d, cx + 3f * d, cy - 9f * d)
+        canvas.drawRect(rect, pFill)
+        if (world.hudTaxiState == World.TAXI_WAITING) {
+            pFill.color = Ui.YELLOW
+            canvas.drawCircle(r.right - 7f * d, r.top + 7f * d, 5f * d, pFill)
+        }
+    }
+
+    /** Taxi job card: state, distance + kerb side, and for a ride the timer and the fare. */
+    private fun drawTaxi(canvas: Canvas, w: Float, now: Long) {
+        val seq = world.hudTaxiSeq
+        if (seq != lastTaxiSeq) {
+            if (lastTaxiSeq != -1) when (world.hudTaxiEvent) {
+                World.TAXI_EV_NEW -> showMessage(sTaxiNew, 2200)
+                World.TAXI_EV_ABOARD -> showMessage(sTaxiAboard + " " + sDest[world.hudTaxiDest.coerceIn(0, sDest.size - 1)], 2600)
+                World.TAXI_EV_PAID -> {
+                    val st = world.taxiStars.coerceIn(1, 5)
+                    showMessage(sTaxiPaid + " +" + Lang.num(world.taxiLastPay) + "  " + "★".repeat(st) + "☆".repeat(5 - st), 3400)
+                }
+                World.TAXI_EV_MISSED -> showMessage(sTaxiMissed, 2000)
+                World.TAXI_EV_REROUTE -> showMessage(sTaxiReroute, 2400)
+                World.TAXI_EV_CANCEL -> showMessage(sTaxiCancel, 2000)
+            }
+            lastTaxiSeq = seq
+        }
+        val ts = world.hudTaxiState
+        if (ts != World.TAXI_WAITING && ts != World.TAXI_BOARDING && ts != World.TAXI_RIDING) return
+        val st = world.hudState
+        if (st != World.STATE_RACING && st != World.STATE_CRASHED) return
+        val top = paddingTop + margin
+        val cw = 196f * d
+        val ch = if (ts == World.TAXI_RIDING) 78f * d else 60f * d
+        val x0: Float
+        val y0: Float
+        if (portrait) { x0 = paddingLeft + margin; y0 = top + 134f * d }
+        else { x0 = w - paddingRight - margin - cw; y0 = top + 62f * d }
+        rect.set(x0, y0, x0 + cw, y0 + ch)
+        pCard.shader = null
+        pCard.color = 0xCC0B0F1C.toInt()
+        canvas.drawRoundRect(rect, 14f * d, 14f * d, pCard)
+        val acc = if (ts == World.TAXI_RIDING) Ui.GREEN else Ui.YELLOW
+        pStroke.strokeWidth = 1.6f * d
+        pStroke.color = Ui.withAlpha(acc, 0xAA)
+        canvas.drawRoundRect(rect, 14f * d, 14f * d, pStroke)
+        // accent stripe
+        rect.set(x0, y0 + 10f * d, x0 + 4f * d, y0 + ch - 10f * d)
+        pFill.color = acc
+        canvas.drawRoundRect(rect, 2f * d, 2f * d, pFill)
+        val fa = Lang.isFa
+        val tx = if (fa) x0 + cw - 14f * d else x0 + 14f * d
+        val al = if (fa) Paint.Align.RIGHT else Paint.Align.LEFT
+        val ax = if (fa) x0 + 14f * d else x0 + cw - 14f * d
+        val alOpp = if (fa) Paint.Align.LEFT else Paint.Align.RIGHT
+        // line 1: title / state
+        pText.textAlign = al
+        pText.textSize = 13f * d
+        pText.color = acc
+        val title = when (ts) {
+            World.TAXI_WAITING -> sTaxiWaiting
+            World.TAXI_BOARDING -> sTaxiBoarding
+            else -> sDest[world.hudTaxiDest.coerceIn(0, sDest.size - 1)]
+        }
+        canvas.drawText(title, tx, y0 + 20f * d, pText)
+        pSmall.textAlign = alOpp
+        pSmall.textSize = 11f * d
+        pSmall.color = Ui.DIM
+        canvas.drawText(sTaxi, ax, y0 + 20f * d, pSmall)
+        // line 2: distance + kerb side
+        val dist = world.hudTaxiDist
+        val ad = abs(dist).toInt()
+        var k: Int
+        if (ad >= 1000) {
+            val tenths = ad / 100
+            k = Lang.writeInt(tenths / 10, chars, 0, false)
+            chars[k++] = if (fa) '\u066B' else '.'
+            k += Lang.writeInt(tenths % 10, chars, k, false)
+        } else k = Lang.writeInt((ad / 10) * 10, chars, 0, false)
+        pBig.textAlign = al
+        pBig.textSize = 20f * d
+        pBig.color = Ui.TEXT
+        canvas.drawText(chars, 0, k, tx, y0 + 44f * d, pBig)
+        pBig.textAlign = Paint.Align.CENTER
+        val nw = pBig.measureText(chars, 0, k)
+        pSmall.textAlign = al
+        pSmall.color = Ui.DIM
+        pSmall.textSize = 11f * d
+        val unit = if (ad >= 1000) sKm else sM
+        canvas.drawText(unit, if (fa) tx - nw - 5f * d else tx + nw + 5f * d, y0 + 44f * d, pSmall)
+        val side = if (ts == World.TAXI_RIDING) world.taxiDropSide else world.taxiPickSide
+        pText.textAlign = alOpp
+        pText.textSize = 12f * d
+        pText.color = acc
+        canvas.drawText(if (side > 0) sKerbR else sKerbL, ax, y0 + 43f * d, pText)
+        if (ts == World.TAXI_RIDING) {
+            // line 3: timer + fare
+            val left = world.hudTaxiTime
+            pText.textAlign = al
+            pText.textSize = 14f * d
+            if (left > 0f) {
+                val kk = writeClock(left, 0)
+                pText.color = if (left < 10f) Ui.withAlpha(Ui.RED, (170 + 85 * sin(now / 120.0)).toInt().coerceIn(0, 255)) else Ui.TEXT
+                canvas.drawText(chars, 0, kk, tx, y0 + 66f * d, pText)
+            } else {
+                pText.color = Ui.RED
+                canvas.drawText(sTaxiLate, tx, y0 + 66f * d, pText)
+            }
+            pText.textAlign = alOpp
+            pText.color = Ui.YELLOW
+            val fk = Lang.writeInt(world.hudTaxiFare, chars, 0, true)
+            canvas.drawText(chars, 0, fk, ax, y0 + 66f * d, pText)
+        }
+        // stop hint when close
+        if (abs(dist) < 70f && world.hudSpeed > 15) {
+            pText.textAlign = Paint.Align.CENTER
+            pText.textSize = 15f * d
+            pText.color = Ui.withAlpha(acc, (180 + 75 * sin(now / 140.0)).toInt().coerceIn(0, 255))
+            pText.setShadowLayer(6f * d, 0f, 0f, 0xFF000000.toInt())
+            canvas.drawText(sTaxiStop, w / 2, height * 0.3f, pText)
+            pText.clearShadowLayer()
+        }
+        pText.color = Ui.TEXT
+    }
+
+    private fun drawLabel(canvas: Canvas, label: String, r: RectF, accent: Int, pressed: Boolean, maxSp: Float = 16f) {
         pText.textAlign = Paint.Align.CENTER
-        pText.textSize = min(16f * d, r.width() * 0.22f)
+        pText.textSize = min(maxSp * d, r.width() * 0.22f)
         pText.color = if (pressed) Ui.TEXT else Ui.withAlpha(accent, 0xEE)
         canvas.drawText(label, r.centerX(), r.centerY() + pText.textSize * 0.35f, pText)
         pText.color = Ui.TEXT
@@ -952,5 +1164,9 @@ class HudView(context: Context, private val world: World, private val input: Inp
         const val B_NITRO = 4
         const val B_HORN = 5
         const val B_PAUSE = 6
+        const val B_DOOR = 7
+        const val B_PHONE = 8
+        val DESTS = intArrayOf(R.string.dest_0, R.string.dest_1, R.string.dest_2, R.string.dest_3, R.string.dest_4, R.string.dest_5,
+            R.string.dest_6, R.string.dest_7, R.string.dest_8, R.string.dest_9, R.string.dest_10, R.string.dest_11)
     }
 }

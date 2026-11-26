@@ -650,6 +650,203 @@ object Models {
     }
 
     // --------------------------------------------------------------------------------------
+    // v2 additions: rally hatchback, electric GT, taxi, drift coupe
+    // --------------------------------------------------------------------------------------
+    /** Rally hot hatch: short nose, tall glasshouse with a steep hatch, roof scoop, spot-light pod, mud flaps. */
+    fun hotHatch(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.1f; val w = 1.84f; val hw = w / 2; val r = 0.34f
+        val zs = floatArrayOf(-l * 0.33f, l * 0.32f)
+        val zb0 = -l * 0.2f; val zb1 = l / 2 - 0.05f
+        paint(b, 0.75f)
+        b.box(0f, 0.47f, 0f, w, 0.4f, l - 0.1f)
+        b.taper(-hw, hw, -l / 2 + 0.05f, zb0, 0.67f, -hw + 0.06f, hw - 0.06f, -l / 2 + 0.22f, zb0, 0.8f, bottom = false)
+        b.box(0f, 0.745f, (zb0 + zb1) / 2, w, 0.15f, zb1 - zb0)
+        val zt0 = zb0 + 0.72f; val zt1 = zb1 - 0.17f
+        b.glass()
+        b.taper(-hw + 0.08f, hw - 0.08f, zb0, zb1 - 0.04f, 0.82f, -hw + 0.2f, hw - 0.2f, zt0, zt1, 1.42f, bottom = false)
+        interior(b, hw - 0.08f, zb0, zb1 - 0.04f, 0.82f, zt0, zt1, 1.42f, hw)
+        paint(b, 0.75f)
+        b.box(0f, 1.435f, (zt0 + zt1) / 2, w - 0.42f, 0.03f, zt1 - zt0 + 0.02f)
+        // rally kit: roof scoop, roof spoiler, hood vents, mud flaps, side livery
+        b.color(0xFF15171B.toInt(), 0f, 0, 0.45f)
+        b.box(0f, 1.49f, zt0 + 0.25f, 0.36f, 0.09f, 0.42f)
+        b.box(0f, 1.45f, zt1 + 0.06f, w - 0.36f, 0.04f, 0.34f)
+        for (sx in floatArrayOf(-0.3f, 0.3f)) b.box(sx, 0.806f, -l * 0.33f, 0.3f, 0.012f, 0.34f)
+        b.color(0xFF0E0F12.toInt(), 0f, 0, 0.1f)
+        for (z in zs) for (sx in floatArrayOf(-1f, 1f)) b.box(sx * (hw - 0.14f), 0.2f, z + r + 0.18f, 0.26f, 0.28f, 0.02f)
+        b.color(0xFFF4F4F4.toInt(), 0f, 0, 0.5f)
+        b.box(-(hw + 0.004f), 0.56f, 0.1f, 0.008f, 0.07f, l * 0.84f)
+        b.box(hw + 0.004f, 0.56f, 0.1f, 0.008f, 0.07f, l * 0.84f)
+        b.box(-0.18f, 0.807f, -l * 0.33f, 0.12f, 0.006f, l * 0.3f)
+        b.box(0.18f, 0.807f, -l * 0.33f, 0.12f, 0.006f, l * 0.3f)
+        // front: bumper, grille, headlights, four-spot light pod
+        b.color(DARK, 0f, 0, 0.3f)
+        b.box(0f, 0.36f, -l / 2 + 0.01f, w - 0.06f, 0.18f, 0.1f)
+        b.box(0f, 0.38f, l / 2 - 0.01f, w - 0.06f, 0.18f, 0.1f)
+        b.color(0xFF060606.toInt(), 0f, 0, 0.2f)
+        b.box(0f, 0.6f, -l / 2 + 0.03f, w * 0.42f, 0.12f, 0.05f)
+        b.box(0f, 0.53f, -l / 2 - 0.03f, 1.5f, 0.04f, 0.04f)
+        b.color(HEAD, 0f, 1, 1f)
+        b.box(-(hw - 0.26f), 0.66f, -l / 2 + 0.06f, 0.36f, 0.1f, 0.08f)
+        b.box(hw - 0.26f, 0.66f, -l / 2 + 0.06f, 0.36f, 0.1f, 0.08f)
+        for (sx in floatArrayOf(-0.58f, -0.2f, 0.2f, 0.58f)) b.cylinderZ(sx, 0.53f, -l / 2 - 0.08f, 0.085f, 0.07f, 10)
+        b.color(TAIL, 0f, 2, 0.8f)
+        b.box(-(hw - 0.17f), 0.78f, l / 2 - 0.04f, 0.28f, 0.16f, 0.06f)
+        b.box(hw - 0.17f, 0.78f, l / 2 - 0.04f, 0.28f, 0.16f, 0.06f)
+        blinkers(b, hw, 0.55f, -l / 2 + 0.02f, 0.6f, l / 2 - 0.02f)
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(-0.5f, 0.3f, l / 2 + 0.03f, 0.065f, 0.14f, 10)
+        mirrors(b, hw, 0.9f, -l * 0.17f)
+        archesAndUnder(b, w, l, zs, r, 0.22f)
+        return VehicleModel(b.build(), l, w, hw - 0.1f, zs, r,
+            floatArrayOf(-(hw - 0.26f), 0.66f, -l / 2, hw - 0.26f, 0.66f, -l / 2),
+            floatArrayOf(-(hw - 0.17f), 0.78f, l / 2, hw - 0.17f, 0.78f, l / 2),
+            floatArrayOf(-0.5f, 0.3f, l / 2 + 0.1f))
+    }
+
+    /** Electric GT: smooth fastback with a panoramic glass roof, light bars front and rear, no grille or exhaust. */
+    fun electricGT(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.85f; val w = 1.98f; val hw = w / 2; val r = 0.37f
+        val zs = floatArrayOf(-l * 0.3f, l * 0.31f)
+        val zb0 = -l * 0.16f; val zb1 = l * 0.34f
+        paint(b, 0.85f)
+        b.box(0f, 0.45f, 0f, w, 0.36f, l - 0.1f)
+        b.taper(-hw, hw, -l / 2 + 0.05f, zb0, 0.63f, -hw + 0.1f, hw - 0.1f, -l / 2 + 0.35f, zb0, 0.76f, bottom = false)
+        b.taper(-hw, hw, zb1, l / 2 - 0.05f, 0.63f, -hw + 0.08f, hw - 0.08f, zb1, l / 2 - 0.2f, 0.8f, bottom = false)
+        b.box(0f, 0.695f, (zb0 + zb1) / 2, w, 0.13f, zb1 - zb0)
+        val zt0 = zb0 + 0.75f; val zt1 = 0.75f
+        // long fastback glasshouse; the roof itself is glass (panoramic)
+        b.glass()
+        b.taper(-hw + 0.09f, hw - 0.09f, zb0, zb1, 0.76f, -hw + 0.3f, hw - 0.3f, zt0, zt1, 1.3f, bottom = false)
+        interior(b, hw - 0.09f, zb0, zb1, 0.76f, zt0, zt1, 1.3f, hw)
+        b.color(0xFF0E1014.toInt(), 0f, 0, 0.5f)
+        b.box(-(hw - 0.31f), 1.305f, (zt0 + zt1) / 2, 0.035f, 0.02f, zt1 - zt0)
+        b.box(hw - 0.31f, 1.305f, (zt0 + zt1) / 2, 0.035f, 0.02f, zt1 - zt0)
+        b.box(0f, 1.305f, zt0 + 0.02f, w - 0.6f, 0.02f, 0.04f)
+        // closed nose with a lower intake, light bar across the front, full-width tail bar
+        b.color(0xFF0B0C0E.toInt(), 0f, 0, 0.4f)
+        b.box(0f, 0.38f, -l / 2 + 0.01f, w * 0.55f, 0.1f, 0.06f)
+        b.box(0f, 0.3f, l / 2 - 0.02f, w - 0.3f, 0.12f, 0.12f)
+        for (i in -3..3) b.box(i * 0.2f, 0.27f, l / 2 + 0.02f, 0.02f, 0.08f, 0.16f)
+        b.color(HEAD, 0f, 1, 1f)
+        b.box(0f, 0.72f, -l / 2 + 0.33f, w - 0.36f, 0.022f, 0.04f)
+        b.box(-(hw - 0.25f), 0.67f, -l / 2 + 0.2f, 0.34f, 0.05f, 0.12f)
+        b.box(hw - 0.25f, 0.67f, -l / 2 + 0.2f, 0.34f, 0.05f, 0.12f)
+        b.color(TAIL, 0f, 2, 0.8f)
+        b.box(0f, 0.73f, l / 2 - 0.1f, w - 0.22f, 0.035f, 0.06f)
+        b.box(-(hw - 0.2f), 0.7f, l / 2 - 0.08f, 0.3f, 0.07f, 0.06f)
+        b.box(hw - 0.2f, 0.7f, l / 2 - 0.08f, 0.3f, 0.07f, 0.06f)
+        // glowing cyan accent along the sills + charge port flap
+        b.color(0xFF19D3FF.toInt(), 0f, 5, 0.5f)
+        b.box(-(hw + 0.004f), 0.31f, 0f, 0.008f, 0.02f, l * 0.5f)
+        b.box(hw + 0.004f, 0.31f, 0f, 0.008f, 0.02f, l * 0.5f)
+        b.color(0xFF1A1C21.toInt(), 0f, 0, 0.4f)
+        b.box(-(hw + 0.003f), 0.68f, l * 0.36f, 0.006f, 0.09f, 0.13f)
+        blinkers(b, hw, 0.62f, -l / 2 + 0.14f, 0.66f, l / 2 - 0.08f)
+        mirrors(b, hw, 0.88f, -l * 0.13f)
+        archesAndUnder(b, w, l, zs, r, 0.21f)
+        return VehicleModel(b.build(), l, w, hw - 0.1f, zs, r,
+            floatArrayOf(-(hw - 0.25f), 0.67f, -l / 2 + 0.1f, hw - 0.25f, 0.67f, -l / 2 + 0.1f),
+            floatArrayOf(-(hw - 0.2f), 0.7f, l / 2, hw - 0.2f, 0.7f, l / 2),
+            floatArrayOf())
+    }
+
+    /** City taxi (player car): sedan with a lit roof sign and checker stripes; body takes the chosen paint. */
+    fun taxiCar(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.7f; val w = 1.86f; val hw = w / 2; val r = 0.33f
+        val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
+        sedanBody(b, l, w)
+        b.color(DARK, 0f, 0, 0.3f)
+        b.box(0f, 1.46f, 0.05f, 0.72f, 0.03f, 0.3f)
+        b.color(0xFFFFF3C0.toInt(), 0f, 5, 0.3f)
+        b.box(0f, 1.56f, 0.05f, 0.62f, 0.17f, 0.26f)
+        b.color(0xFF101010.toInt(), 0f, 0, 0.3f)
+        b.box(0f, 1.56f, 0.05f, 0.4f, 0.07f, 0.27f)
+        // checker band on both flanks (two staggered rows)
+        for (i in 0 until 18) {
+            val z = -1.02f + i * 0.12f
+            for (row in 0..1) {
+                b.color(if ((i + row) % 2 == 0) 0xFF111111.toInt() else 0xFFF2F2F2.toInt(), 0f, 0, 0.4f)
+                val y = 0.6f + row * 0.06f
+                b.box(-(hw + 0.004f), y, z, 0.008f, 0.06f, 0.12f)
+                b.box(hw + 0.004f, y, z, 0.008f, 0.06f, 0.12f)
+            }
+        }
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(0.5f, 0.3f, l / 2 + 0.03f, 0.045f, 0.12f, 8)
+        archesAndUnder(b, w, l, zs, r, 0.23f)
+        return VehicleModel(b.build(), l, w, hw - 0.1f, zs, r,
+            floatArrayOf(-(hw - 0.25f), 0.62f, -l / 2, hw - 0.25f, 0.62f, -l / 2),
+            floatArrayOf(-(hw - 0.22f), 0.68f, l / 2, hw - 0.22f, 0.68f, l / 2),
+            floatArrayOf(0.5f, 0.3f, l / 2 + 0.1f))
+    }
+
+    /** Drift coupe: low wedge, wide fender flares, carbon hood, big wing, quad round tail lights, single rotary tip. */
+    fun driftCoupe(): VehicleModel {
+        val b = MeshBuilder()
+        val l = 4.45f; val w = 1.88f; val hw = w / 2; val r = 0.34f
+        val zs = floatArrayOf(-l * 0.32f, l * 0.31f)
+        val zb0 = -l * 0.12f; val zb1 = l * 0.26f
+        val bw = w - 0.1f; val bh = bw / 2
+        paint(b, 0.8f)
+        b.box(0f, 0.42f, 0f, bw, 0.32f, l - 0.1f)
+        b.taper(-bh, bh, -l / 2 + 0.05f, zb0, 0.58f, -bh + 0.1f, bh - 0.1f, -l / 2 + 0.25f, zb0, 0.72f, bottom = false)
+        b.taper(-bh, bh, zb1, l / 2 - 0.05f, 0.58f, -bh + 0.05f, bh - 0.05f, zb1, l / 2 - 0.12f, 0.78f, bottom = false)
+        b.box(0f, 0.65f, (zb0 + zb1) / 2, bw, 0.14f, zb1 - zb0)
+        val zt0 = zb0 + 0.62f; val zt1 = zb1 - 0.4f
+        b.glass()
+        b.taper(-bh + 0.1f, bh - 0.1f, zb0, zb1, 0.72f, -bh + 0.28f, bh - 0.28f, zt0, zt1, 1.12f, bottom = false)
+        interior(b, bh - 0.1f, zb0, zb1, 0.72f, zt0, zt1, 1.12f, bh)
+        paint(b, 0.8f)
+        b.box(0f, 1.13f, (zt0 + zt1) / 2, bw - 0.56f, 0.025f, zt1 - zt0 + 0.02f)
+        // wide fender flares over all four wheels
+        for (z in zs) {
+            b.box(-(hw - 0.03f), 0.5f, z, 0.16f, 0.2f, r * 2.7f)
+            b.box(hw - 0.03f, 0.5f, z, 0.16f, 0.2f, r * 2.7f)
+        }
+        // carbon hood + vent, front lip with canards, red tow hook, side skirts
+        b.color(0xFF1E2024.toInt(), 0f, 0, 0.85f)
+        b.box(0f, 0.723f, (-l / 2 + 0.25f + zb0) / 2, bw - 0.24f, 0.006f, zb0 + l / 2 - 0.3f)
+        b.color(0xFF0B0C0E.toInt(), 0f, 0, 0.4f)
+        b.box(0f, 0.728f, -l * 0.25f, 0.6f, 0.008f, 0.26f)
+        b.box(0f, 0.25f, -l / 2 + 0.03f, w, 0.03f, 0.3f)
+        for (sx in floatArrayOf(-1f, 1f)) {
+            b.box(sx * (hw - 0.1f), 0.4f, -l / 2 + 0.1f, 0.18f, 0.015f, 0.12f)
+            b.box(sx * (hw - 0.04f), 0.27f, 0f, 0.07f, 0.05f, l * 0.48f)
+        }
+        b.color(0xFFE01020.toInt(), 0f, 0, 0.5f)
+        b.box(0.45f, 0.33f, -l / 2 - 0.04f, 0.05f, 0.05f, 0.12f)
+        // big rear wing
+        b.color(0xFF16171B.toInt(), 0f, 0, 0.6f)
+        b.box(0f, 1.06f, l / 2 - 0.18f, w - 0.1f, 0.04f, 0.36f)
+        b.box(-(hw - 0.07f), 1.0f, l / 2 - 0.18f, 0.02f, 0.2f, 0.42f)
+        b.box(hw - 0.07f, 1.0f, l / 2 - 0.18f, 0.02f, 0.2f, 0.42f)
+        b.box(-0.45f, 0.9f, l / 2 - 0.2f, 0.04f, 0.3f, 0.1f)
+        b.box(0.45f, 0.9f, l / 2 - 0.2f, 0.04f, 0.3f, 0.1f)
+        // lights: bumper headlights, quad round tail lights on a black panel
+        b.color(DARK, 0f, 0, 0.3f)
+        b.box(0f, 0.36f, l / 2 - 0.01f, bw, 0.16f, 0.1f)
+        b.box(0f, 0.66f, l / 2 - 0.07f, bw - 0.2f, 0.15f, 0.04f)
+        b.color(HEAD, 0f, 1, 1f)
+        b.box(-(hw - 0.28f), 0.5f, -l / 2 + 0.06f, 0.34f, 0.07f, 0.06f)
+        b.box(hw - 0.28f, 0.5f, -l / 2 + 0.06f, 0.34f, 0.07f, 0.06f)
+        b.color(TAIL, 0f, 2, 0.8f)
+        for (sx in floatArrayOf(-0.72f, -0.52f, 0.52f, 0.72f)) b.diskZ(sx, 0.66f, l / 2 - 0.045f, 0.075f, 12, true)
+        blinkers(b, bh, 0.5f, -l / 2 + 0.06f, 0.58f, l / 2 - 0.04f)
+        b.color(CHROME, 0f, 0, 1f)
+        b.cylinderZ(0.42f, 0.3f, l / 2 + 0.03f, 0.08f, 0.16f, 12)
+        mirrors(b, bh, 0.85f, -l * 0.1f)
+        archesAndUnder(b, w + 0.12f, l, zs, r, 0.2f)
+        return VehicleModel(b.build(), l, w, hw - 0.06f, zs, r,
+            floatArrayOf(-(hw - 0.28f), 0.5f, -l / 2, hw - 0.28f, 0.5f, -l / 2),
+            floatArrayOf(-0.62f, 0.66f, l / 2, 0.62f, 0.66f, l / 2),
+            floatArrayOf(0.42f, 0.3f, l / 2 + 0.12f))
+    }
+
+    // --------------------------------------------------------------------------------------
     // Traffic vehicles
     // --------------------------------------------------------------------------------------
     private fun sedanBody(b: MeshBuilder, l: Float, w: Float) {
@@ -989,6 +1186,94 @@ object Models {
             b.box(0f, 0.385f, 0.235f, 1.04f, 0.035f, 0.012f)
             b.box(-0.525f, 0.33f, 0.08f, 0.012f, 0.16f, 0.36f)
             b.box(0.525f, 0.33f, 0.08f, 0.012f, 0.16f, 0.36f)
+        }
+        return b.build()
+    }
+
+    // --------------------------------------------------------------------------------------
+    // People (v2.0): the on-foot driver and taxi passengers. Built from three meshes so the
+    // limbs can swing: torso/head (origin on the ground), leg (origin at the hip joint) and
+    // arm (origin at the shoulder). Paint mask = clothing, tinted per instance.
+    // Facing -Z like the cars.
+    // --------------------------------------------------------------------------------------
+    private const val SKIN = 0xFFC9946E.toInt()
+    private const val HAIR = 0xFF2A1E18.toInt()
+
+    fun personTorso(): Mesh {
+        val b = MeshBuilder()
+        // belt / hips (dark denim)
+        b.color(0xFF262A33.toInt(), 0f, 0, 0.1f)
+        b.taper(-0.17f, 0.17f, -0.1f, 0.1f, 0.86f, -0.18f, 0.18f, -0.11f, 0.11f, 1.0f)
+        // shirt: waist → chest → shoulders
+        b.color(WHITE, 1f, 0, 0.12f)
+        b.taper(-0.18f, 0.18f, -0.11f, 0.11f, 0.98f, -0.21f, 0.21f, -0.13f, 0.12f, 1.28f)
+        b.taper(-0.21f, 0.21f, -0.13f, 0.12f, 1.28f, -0.25f, 0.25f, -0.12f, 0.11f, 1.44f)
+        b.taper(-0.25f, 0.25f, -0.12f, 0.11f, 1.44f, -0.12f, 0.12f, -0.07f, 0.07f, 1.5f)
+        // collar
+        b.color(0xFFE8E8E8.toInt(), 0f, 0, 0.1f)
+        b.box(0f, 1.49f, -0.02f, 0.16f, 0.03f, 0.12f)
+        // neck + head
+        b.color(SKIN, 0f, 0, 0.15f)
+        b.cylinderY(0f, 1.46f, 0f, 0.055f, 0.05f, 0.1f, 8)
+        b.blob(0f, 1.66f, -0.005f, 0.105f, 0.125f, 0.115f, 6, 10, 0f, 1)
+        b.box(0f, 1.63f, -0.12f, 0.035f, 0.05f, 0.03f)     // nose
+        b.box(-0.105f, 1.65f, 0f, 0.025f, 0.05f, 0.04f)    // ears
+        b.box(0.105f, 1.65f, 0f, 0.025f, 0.05f, 0.04f)
+        // eyes
+        b.color(0xFF141414.toInt(), 0f, 0, 0.6f)
+        b.box(-0.04f, 1.68f, -0.108f, 0.025f, 0.018f, 0.01f)
+        b.box(0.04f, 1.68f, -0.108f, 0.025f, 0.018f, 0.01f)
+        // hair cap
+        b.color(HAIR, 0f, 0, 0.25f)
+        b.blob(0f, 1.73f, 0.012f, 0.112f, 0.075f, 0.122f, 5, 10, 0f, 2)
+        b.box(0f, 1.7f, 0.08f, 0.2f, 0.1f, 0.06f)
+        return b.build()
+    }
+
+    fun personLeg(): Mesh {
+        val b = MeshBuilder()
+        b.color(WHITE, 1f, 0, 0.08f)
+        b.taper(-0.075f, 0.075f, -0.08f, 0.08f, -0.47f, -0.085f, 0.085f, -0.09f, 0.09f, 0.04f)   // thigh
+        b.taper(-0.06f, 0.06f, -0.06f, 0.065f, -0.86f, -0.072f, 0.072f, -0.075f, 0.075f, -0.45f)  // shin
+        // trainers
+        b.color(0xFFF2F2F2.toInt(), 0f, 0, 0.3f)
+        b.taper(-0.06f, 0.06f, -0.2f, 0.06f, -0.92f, -0.055f, 0.055f, -0.13f, 0.055f, -0.85f)
+        b.color(0xFF1C1C1C.toInt(), 0f, 0, 0.2f)
+        b.box(0f, -0.915f, -0.07f, 0.125f, 0.02f, 0.27f)
+        return b.build()
+    }
+
+    fun personArm(): Mesh {
+        val b = MeshBuilder()
+        b.color(WHITE, 1f, 0, 0.1f)
+        b.taper(-0.05f, 0.05f, -0.055f, 0.055f, -0.27f, -0.065f, 0.065f, -0.065f, 0.065f, 0.03f)   // sleeve
+        b.color(SKIN, 0f, 0, 0.15f)
+        b.taper(-0.04f, 0.04f, -0.042f, 0.042f, -0.55f, -0.047f, 0.047f, -0.048f, 0.048f, -0.26f)   // forearm
+        b.blob(0f, -0.6f, 0f, 0.045f, 0.06f, 0.05f, 4, 8, 0f, 3)                                      // hand
+        return b.build()
+    }
+
+    /** Glowing ground ring + low bollards for taxi pick-up / drop-off spots (tinted per instance). */
+    fun markerRing(): Mesh {
+        val b = MeshBuilder()
+        b.color(WHITE, 1f, 5, 0.2f)
+        val seg = 36
+        val r0 = 2.0f; val r1 = 2.35f
+        for (i in 0 until seg) {
+            val a0 = (Math.PI * 2 * i / seg).toFloat(); val a1 = (Math.PI * 2 * (i + 1) / seg).toFloat()
+            val c0 = cos(a0); val s0 = sin(a0); val c1 = cos(a1); val s1 = sin(a1)
+            b.quad(r0 * c0, 0.03f, r0 * s0, r1 * c0, 0.03f, r1 * s0, r1 * c1, 0.03f, r1 * s1, r0 * c1, 0.03f, r0 * s1, 0f, 1f, 0f)
+        }
+        // inner arrow chevrons pointing up the road (-Z)
+        for (k in 0 until 2) {
+            val z = 0.5f - k * 0.75f
+            b.quad(-0.9f, 0.03f, z + 0.45f, -0.6f, 0.03f, z + 0.45f, 0f, 0.03f, z - 0.15f, 0f, 0.03f, z - 0.55f, 0f, 1f, 0f)
+            b.quad(0.6f, 0.03f, z + 0.45f, 0.9f, 0.03f, z + 0.45f, 0f, 0.03f, z - 0.55f, 0f, 0.03f, z - 0.15f, 0f, 1f, 0f)
+        }
+        // four glowing bollards
+        for (i in 0 until 4) {
+            val a = (Math.PI / 4 + Math.PI / 2 * i).toFloat()
+            b.cylinderY(cos(a) * 2.6f, 0f, sin(a) * 2.6f, 0.09f, 0.07f, 0.9f, 8)
         }
         return b.build()
     }
