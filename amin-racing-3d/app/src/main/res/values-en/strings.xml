@@ -176,7 +176,7 @@
     <string name="mode_street">Street Race</string>
     <string name="mode_street_desc">Race three rivals through traffic and cross the line first.</string>
     <string name="mode_drift">Drift</string>
-    <string name="mode_drift_desc">Handbrake + steer: slide, build drift chains and bank points.</string>
+    <string name="mode_drift_desc">Handbrake + steer to slide. Every drift second ≥500 pts; long drifts, transitions and near misses grow the multiplier up to ×6.</string>
     <string name="mode_trial">Time Trial</string>
     <string name="mode_trial_desc">Cover the distance faster than the target times to earn medals.</string>
     <string name="mode_police">Police Chase</string>
@@ -378,4 +378,18 @@
     <string name="shop_vs">vs %1$s</string>
     <string name="shop_locked_info">Unlocks at level %1$s (you are level %2$s). Story missions also reward cars.</string>
     <string name="shop_already_owned">You already own this car — nothing was charged</string>
+    <string name="st_drift_chain">Best single drift</string>
+    <string name="st_drift_long">Longest drift</string>
+    <string name="st_drift_mult">Highest drift multiplier</string>
+    <string name="dq_good">GOOD</string>
+    <string name="dq_great">GREAT</string>
+    <string name="dq_awesome">AWESOME</string>
+    <string name="dq_insane">INSANE</string>
+    <string name="dq_legendary">LEGENDARY</string>
+    <string name="drift_help_1">Every second of real drift = at least 500 pts; more angle, speed and time = more</string>
+    <string name="drift_help_2">Multiplier: +×0.25 every 2 s of drift, clean transitions and near misses (max ×6)</string>
+    <string name="drift_help_3">Straighten up to bank the chain; hitting a wall or a car loses it</string>
+    <string name="drift_link">Keep it going! The chain is still alive</string>
+    <string name="drift_mult_label">MULTIPLIER</string>
+    <string name="drift_per_sec">/s</string>
 </resources>

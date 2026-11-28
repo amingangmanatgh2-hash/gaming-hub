@@ -216,10 +216,11 @@ class World(private val input: InputState) {
     var medal = 0; private set
     var driftAngle = 0f; private set
     var drifting = false; private set
-    var driftChain = 0f; private set
-    var driftMult = 1; private set
-    private var driftChainTime = 0f
-    private var driftEndTimer = 0f
+    /** v2.1 drift scoring (angle, speed, duration, transitions, near misses, multiplier, quality) */
+    val drift = DriftScorer()
+    private var driftLostSeen = 0
+    /** points banked from drifts in this run (Free Roam shows/rewards them separately) */
+    var driftPoints = 0L; private set
     var bust = 0f; private set
     var escape = 0f; private set
     var heat = 1; private set
@@ -287,6 +288,20 @@ class World(private val input: InputState) {
     @Volatile var hudDriftSeq = 0
     @Volatile var hudDriftBank = 0
     @Volatile var hudDriftLostSeq = 0
+    @Volatile var hudDriftLost = 0
+    @Volatile var hudDriftMultX100 = 100
+    @Volatile var hudDriftProgress = 0f
+    @Volatile var hudDriftRate = 0
+    @Volatile var hudDriftAngle = 0
+    @Volatile var hudDriftTime = 0f
+    @Volatile var hudDriftGrace = 0f
+    @Volatile var hudDriftActive = false
+    @Volatile var hudDriftLinks = 0
+    @Volatile var hudDriftLastRaw = 0
+    @Volatile var hudDriftLastMultX100 = 100
+    @Volatile var hudDriftLastQuality = 0
+    @Volatile var hudDriftLastBonus = 0
+    @Volatile var hudDriftMultUpSeq = 0
     @Volatile var hudBust = 0f
     @Volatile var hudEscape = 0f
     @Volatile var hudHeat = 1
@@ -383,7 +398,7 @@ class World(private val input: InputState) {
         cloud = GameData.W_CLOUD[weather]; fogMul = GameData.W_FOGMUL[weather]
         lightning = 0f; thunderT = -1f; nextFlashT = rand(3f, 8f); weatherTimer = rand(70f, 130f)
         raceTime = 0f; position = 1; success = false; medal = 0; crashedReason = REASON_CRASH; copsOut = false
-        driftAngle = 0f; drifting = false; driftChain = 0f; driftMult = 1; driftChainTime = 0f; driftEndTimer = 0f
+        driftAngle = 0f; drifting = false; drift.resetRun(); driftLostSeen = drift.lostSeq; driftPoints = 0L
         bust = 0f; escape = 0f; heat = 1; escapes = 0; takedowns = 0; copWaveTimer = 3.5f; sirenLevel = 0f
         tunnelK = 0f
         onFoot = false; footDown = 0f; footFallK = 0f; footSpeed = 0f; sceneryBack = 30f
@@ -1185,7 +1200,7 @@ class World(private val input: InputState) {
             if (mode == GameData.MODE_FREE && crashTimer > 2.0f) {
                 respawn()
             } else if (crashTimer > 2.3f) {
-                if (driftChain > 0f) { driftChain = 0f }
+                drift.hit()
                 evaluateResult(false)
                 state = STATE_OVER
                 timeScale = 1f
@@ -1579,6 +1594,7 @@ class World(private val input: InputState) {
                 }
             }
             GameData.MODE_POLICE -> policeLogic(dt)
+            GameData.MODE_FREE -> driftScoring(dt)
             GameData.MODE_ENDLESS, GameData.MODE_TWO_WAY, GameData.MODE_TIME_ATTACK -> {
                 // story missions: reach the target score
                 if (cfg.missionId >= 0 && cfg.goal > 0f && score >= cfg.goal) {
@@ -1592,30 +1608,28 @@ class World(private val input: InputState) {
     }
 
     private fun driftScoring(dt: Float) {
-        val ang = abs(driftAngle)
-        if (ang > 0.14f && speed > 11f) {
-            driftChainTime += dt
-            driftMult = min(5, 1 + (driftChainTime / 2.2f).toInt())
-            driftChain += Math.toDegrees(ang.toDouble()).toFloat() * speedKmh * dt * 0.05f * driftMult
-            driftEndTimer = 0f
-        } else if (driftChain > 0f) {
-            driftEndTimer += dt
-            if (driftEndTimer > 0.7f) bankDrift()
-        }
-        if (scraping > 0.5f && driftChain > 0f) {
-            driftChain = 0f; driftChainTime = 0f; driftMult = 1
+        // a chain only runs while genuinely drifting; wall contact, a crash or reversing ends it as LOST
+        val invalid = scraping > 0.5f || state == STATE_CRASHED || reversing || onFoot
+        val banked = drift.update(dt, driftAngle, max(0f, speed), invalid)
+        if (banked > 0) onDriftBanked(banked)
+        if (drift.lostSeq != driftLostSeen) {
+            driftLostSeen = drift.lostSeq
+            hudDriftLost = drift.lastLost
             hudDriftLostSeq++
         }
     }
 
     private fun bankDrift() {
-        if (driftChain >= 1f) {
-            score += driftChain
-            hudDriftBank = driftChain.toInt()
-            hudDriftSeq++
-            audio?.trigger(AudioEngine.SFX_NEAR)
-        }
-        driftChain = 0f; driftChainTime = 0f; driftMult = 1
+        val banked = drift.forceBank()
+        if (banked > 0) onDriftBanked(banked)
+    }
+
+    private fun onDriftBanked(points: Int) {
+        score += points
+        driftPoints += points
+        hudDriftBank = points
+        hudDriftSeq++
+        audio?.trigger(AudioEngine.SFX_NEAR)
     }
 
     private fun policeLogic(dt: Float) {
@@ -1690,6 +1704,7 @@ class World(private val input: InputState) {
     /** Free roam: the player ends the drive from the pause menu. */
     fun endFreeRoam() {
         if (state == STATE_RACING || state == STATE_CRASHED || state == STATE_COUNTDOWN) {
+            if (state == STATE_RACING) bankDrift()
             success = true
             paused = false
             finishRace(REASON_FINISH)
@@ -2369,7 +2384,9 @@ class World(private val input: InputState) {
                     nearMisses++
                     val mult = min(5f, 1f + (combo - 1) * 0.5f)
                     val pts = (120f * mult * (if (oncoming) 2f else 1f) * (if (gap < 0.45f) 1.5f else 1f)).toInt()
-                    if (mode == GameData.MODE_DRIFT) { if (driftChain > 0f) driftChain += pts * 0.5f } else score += pts
+                    // drifting: the near miss feeds the drift chain (+300 pts, +×0.25) instead of the traffic score
+                    val fedDrift = driftEnabled && drift.nearMiss()
+                    if (!fedDrift && mode != GameData.MODE_DRIFT) score += pts
                     nitro = min(1f, nitro + 0.11f)
                     nearMissFlash = 1f
                     shake = max(shake, 0.12f)
@@ -2477,8 +2494,21 @@ class World(private val input: InputState) {
         hudRacers = n
         hudToGo = if (finishS > 0f) max(0f, finishS - ps) else 0f
         hudRaceTime = raceTime
-        hudDriftChain = driftChain.toInt()
-        hudDriftMult = driftMult
+        hudDriftChain = drift.chainRaw.toInt()
+        hudDriftMult = drift.mult.toInt()
+        hudDriftMultX100 = (drift.mult * 100f).toInt()
+        hudDriftProgress = drift.multProgress
+        hudDriftRate = drift.liveRate.toInt()
+        hudDriftAngle = drift.angleDeg.toInt()
+        hudDriftTime = drift.chainTime
+        hudDriftGrace = if (drift.active) drift.graceLeft / DriftScorer.LINK_WINDOW else 0f
+        hudDriftActive = drift.active
+        hudDriftLinks = drift.links
+        hudDriftLastRaw = drift.lastRaw
+        hudDriftLastMultX100 = (drift.lastMult * 100f).toInt()
+        hudDriftLastQuality = drift.lastQuality
+        hudDriftLastBonus = drift.lastBonusPct
+        hudDriftMultUpSeq = drift.multUpSeq + drift.linkSeq
         hudBust = bust
         hudEscape = escape
         hudHeat = heat
@@ -2494,11 +2524,12 @@ class World(private val input: InputState) {
         val base = coinsCollected * COIN_VALUE + taxiCoins
         return when (mode) {
             GameData.MODE_STREET -> base + (if (success) intArrayOf(0, 1500, 800, 400, 150)[position.coerceIn(1, 4)] else 0) + (distance / 20f).toInt()
-            GameData.MODE_DRIFT -> base + (score / 22.0).toInt() + medal * 300
+            // v2.1: drift points are ~10× the old scale; the coin rate per medal stays the same
+            GameData.MODE_DRIFT -> base + (score / 300.0).toInt() + medal * 300
             GameData.MODE_TIME_TRIAL -> base + (if (success) 300 + medal * 350 else 0) + (distance / 25f).toInt()
             GameData.MODE_POLICE -> base + escapes * 600 + takedowns * 150 + (distance / 30f).toInt()
             GameData.MODE_CHALLENGE -> base + nearMisses * 30 + medal * 300
-            GameData.MODE_FREE -> base + (distance / 40f).toInt()
+            GameData.MODE_FREE -> base + (distance / 40f).toInt() + (driftPoints / 600L).toInt()
             else -> base + (score / 55.0).toInt()
         }
     }

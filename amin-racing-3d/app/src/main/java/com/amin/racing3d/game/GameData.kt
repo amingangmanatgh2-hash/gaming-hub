@@ -266,7 +266,9 @@ object GameData {
 
     fun defaultConfig(mode: Int, env: Int, tod: Int, weather: Int): RaceConfig = when (mode) {
         MODE_STREET -> RaceConfig(mode, env, tod, weather, goal = 3000f, rivals = 3, rivalSkill = 1f)
-        MODE_DRIFT -> RaceConfig(mode, env, tod, weather, gold = 30000f, silver = 17000f, bronze = 8000f, timeLimit = 90f)
+        // v2.1 drift scoring – targets from tools/drift-sim (90 s: beginner ≈ 170k, good ≈ 560k, expert ≈ 1.1M
+        // of flawless simulated driving; real play with crashes and straights scores well below that)
+        MODE_DRIFT -> RaceConfig(mode, env, tod, weather, gold = 400000f, silver = 180000f, bronze = 60000f, timeLimit = 90f)
         MODE_TIME_TRIAL -> RaceConfig(mode, env, tod, weather, goal = 2500f, gold = 54f, silver = 62f, bronze = 74f)
         MODE_POLICE -> RaceConfig(mode, env, tod, weather)
         MODE_CHALLENGE -> RaceConfig(mode, env, tod, weather, gold = 30f, silver = 22f, bronze = 15f, timeLimit = 75f)

@@ -145,6 +145,25 @@ class HudView(context: Context, private val world: World, private val input: Inp
     private var lastDriftLostSeq = -1
     private var driftBankStart = 0L
     private var driftBankPts = 0
+    // v2.1 drift panel state
+    private var bankRaw = 0
+    private var bankMultX100 = 100
+    private var bankQuality = 0
+    private var bankBonus = 0
+    private var driftLostStart = 0L
+    private var driftLostPts = 0
+    private var lastMultUpSeq = -1
+    private var multPopStart = 0L
+    private val sQuality = arrayOf(R.string.dq_good, R.string.dq_great, R.string.dq_awesome, R.string.dq_insane, R.string.dq_legendary).map { context.getString(it) }.toTypedArray()
+    private val qualityColor = intArrayOf(0xFF8FD3FF.toInt(), 0xFF2BE07A.toInt(), 0xFFFFC21A.toInt(), 0xFFFF7A1A.toInt(), 0xFFFF4FD8.toInt())
+    private val sDriftHelp1 = context.getString(R.string.drift_help_1)
+    private val sDriftHelp2 = context.getString(R.string.drift_help_2)
+    private val sDriftHelp3 = context.getString(R.string.drift_help_3)
+    private val sDriftLink = context.getString(R.string.drift_link)
+    private val sDriftMultLabel = context.getString(R.string.drift_mult_label)
+    private val sPerSec = context.getString(R.string.drift_per_sec)
+    private val sSec = context.getString(R.string.unit_s)
+    private val pRing = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
     private var message: String? = null
     private var messageUntil = 0L
 
@@ -160,7 +179,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
     private val pVignette = Paint()
     private val pFlash = Paint()
 
-    private val chars = CharArray(48)
+    private val chars = CharArray(96)
     private val rect = RectF()
 
     // ---------------------------------------------------------------- buttons
@@ -219,6 +238,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
         lastDriftLostSeq = world.hudDriftLostSeq
         lastTaxiSeq = world.hudTaxiSeq
         driftBankStart = 0L
+        driftLostStart = 0L; multPopStart = 0L; lastMultUpSeq = world.hudDriftMultUpSeq
         nearStart = 0L; checkStart = 0L; goStart = 0L
         lastState = -1
         displaySpeed = 0f
@@ -537,6 +557,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
 
         drawTopBar(canvas, w, now)
         drawModePanel(canvas, w, now)
+        if (world.driftEnabled && !world.onFoot) drawDriftPanel(canvas, w, h, now)
         drawTaxi(canvas, w, now)
         if (!world.onFoot) drawGauge(canvas)
         drawCombo(canvas, w, h, now)
@@ -636,12 +657,20 @@ class HudView(context: Context, private val world: World, private val input: Inp
             lastEventSeq = es
         }
         if (world.hudDriftSeq != lastDriftSeq) {
-            if (lastDriftSeq != -1) { driftBankStart = now; driftBankPts = world.hudDriftBank }
+            if (lastDriftSeq != -1) {
+                driftBankStart = now; driftBankPts = world.hudDriftBank
+                bankRaw = world.hudDriftLastRaw; bankMultX100 = world.hudDriftLastMultX100
+                bankQuality = world.hudDriftLastQuality; bankBonus = world.hudDriftLastBonus
+            }
             lastDriftSeq = world.hudDriftSeq
         }
         if (world.hudDriftLostSeq != lastDriftLostSeq) {
-            if (lastDriftLostSeq != -1) showMessage(sDriftLost, 1400)
+            if (lastDriftLostSeq != -1) { driftLostStart = now; driftLostPts = world.hudDriftLost }
             lastDriftLostSeq = world.hudDriftLostSeq
+        }
+        if (world.hudDriftMultUpSeq != lastMultUpSeq) {
+            if (lastMultUpSeq != -1) multPopStart = now
+            lastMultUpSeq = world.hudDriftMultUpSeq
         }
         if (world.hudState != World.STATE_RACING && world.hudState != World.STATE_CRASHED && world.hudState != World.STATE_COUNTDOWN) return
         val cx = w / 2
@@ -679,29 +708,6 @@ class HudView(context: Context, private val world: World, private val input: Inp
             }
             GameData.MODE_DRIFT -> {
                 drawTimeLeft(canvas, cx, top + 96f * d, now)
-                val chain = world.hudDriftChain
-                if (chain > 0) {
-                    pText.textSize = 22f * d
-                    pText.color = Ui.PINK
-                    pText.setShadowLayer(8f * d, 0f, 0f, Ui.PINK)
-                    var k = Lang.writeInt(chain, chars, 0, true)
-                    chars[k++] = ' '; chars[k++] = '×'
-                    k += Lang.writeInt(world.hudDriftMult, chars, k, false)
-                    canvas.drawText(chars, 0, k, cx, height * 0.36f, pText)
-                    pText.clearShadowLayer()
-                    pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 12f * d; pSmall.color = Ui.withAlpha(Ui.PINK, 0xCC)
-                    canvas.drawText(sDrift, cx, height * 0.36f - 26f * d, pSmall)
-                }
-                val age = now - driftBankStart
-                if (driftBankStart > 0L && age < 1300L) {
-                    val a = 1f - age / 1300f
-                    pText.textSize = 20f * d
-                    pText.color = Ui.withAlpha(Ui.GREEN, (255 * a).toInt())
-                    var k = 0
-                    chars[k++] = '+'
-                    k += Lang.writeInt(driftBankPts, chars, k, true)
-                    canvas.drawText(chars, 0, k, cx, height * 0.3f - age / 1300f * 40f * d, pText)
-                }
             }
             GameData.MODE_CHALLENGE -> {
                 drawTimeLeft(canvas, cx, top + 96f * d, now)
@@ -958,6 +964,169 @@ class HudView(context: Context, private val world: World, private val input: Inp
         pSmall.textSize = 10f * d
         pSmall.color = Ui.withAlpha(Ui.CYAN, 0xCC)
         canvas.drawText(sNitro, cx, top + barH + 12f * d, pSmall)
+    }
+
+    /** writes v/100 with two decimals ("2.75" / "۲٫۷۵") */
+    private fun writeX100(v: Int, out: CharArray, off: Int): Int {
+        var k = off
+        k += Lang.writeInt(v / 100, out, k, false)
+        out[k++] = if (Lang.isFa) '\u066B' else '.'
+        val frac = v % 100
+        if (frac < 10) k += Lang.writeInt(0, out, k, false)
+        k += Lang.writeInt(frac, out, k, false)
+        return k
+    }
+
+    /**
+     * v2.1 drift HUD: multiplier badge with progress ring (the most prominent element), live chain
+     * points, the running calculation (points × multiplier = total), angle / speed / time / rate,
+     * the link window after straightening, and the banked result with its quality rating.
+     */
+    private fun drawDriftPanel(canvas: Canvas, w: Float, h: Float, now: Long) {
+        val st = world.hudState
+        if (st != World.STATE_RACING && st != World.STATE_CRASHED) return
+        val active = world.hudDriftActive
+        val cx = w / 2f
+        val baseY = h * (if (portrait) 0.3f else 0.27f)
+        val m100 = world.hudDriftMultX100
+        val tierCol = when { m100 >= 400 -> Ui.PINK; m100 >= 200 -> Ui.YELLOW; else -> Ui.CYAN }
+
+        // first seconds of a Drift run: how the score works
+        if (!active && world.mode == GameData.MODE_DRIFT && raceStart > 0L && now - raceStart in 2500L..11000L && driftBankStart == 0L) {
+            val a = (min(1f, (now - raceStart - 2500L) / 400f) * min(1f, (11000L - (now - raceStart)) / 500f)).coerceIn(0f, 1f)
+            pText.textAlign = Paint.Align.CENTER
+            pText.textSize = 12.5f * d
+            val tw = max(pText.measureText(sDriftHelp1), max(pText.measureText(sDriftHelp2), pText.measureText(sDriftHelp3)))
+            rect.set(cx - tw / 2 - 14f * d, baseY - 22f * d, cx + tw / 2 + 14f * d, baseY + 42f * d)
+            pFill.color = Ui.withAlpha(0xFF070A14.toInt(), (190 * a).toInt())
+            canvas.drawRoundRect(rect, 12f * d, 12f * d, pFill)
+            pText.color = Ui.withAlpha(Ui.YELLOW, (255 * a).toInt())
+            canvas.drawText(sDriftHelp1, cx, baseY - 4f * d, pText)
+            pText.color = Ui.withAlpha(Ui.TEXT, (255 * a).toInt())
+            canvas.drawText(sDriftHelp2, cx, baseY + 14f * d, pText)
+            canvas.drawText(sDriftHelp3, cx, baseY + 32f * d, pText)
+            pText.color = Ui.TEXT
+        }
+
+        if (active) {
+            // ---- multiplier badge (left of centre) with ring = progress to the next +0.25
+            val r = 30f * d
+            val bx = cx - 92f * d
+            val pop = if (multPopStart > 0L && now - multPopStart < 350L) 1f + 0.3f * (1f - (now - multPopStart) / 350f) else 1f
+            pFill.color = 0xCC070A14.toInt()
+            canvas.drawCircle(bx, baseY, r * pop + 4f * d, pFill)
+            pRing.strokeWidth = 4f * d
+            pRing.color = 0x44FFFFFF
+            canvas.drawCircle(bx, baseY, r * pop, pRing)
+            pRing.color = tierCol
+            rect.set(bx - r * pop, baseY - r * pop, bx + r * pop, baseY + r * pop)
+            canvas.drawArc(rect, -90f, 360f * world.hudDriftProgress.coerceIn(0f, 1f), false, pRing)
+            pBig.textSize = 19f * d * pop
+            pBig.color = tierCol
+            var k = 0
+            chars[k++] = '×'
+            k = writeX100(m100, chars, k)
+            canvas.drawText(chars, 0, k, bx, baseY + 7f * d, pBig)
+            pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 9.5f * d; pSmall.color = Ui.withAlpha(tierCol, 0xCC)
+            canvas.drawText(sDriftMultLabel, bx, baseY + r + 16f * d, pSmall)
+
+            // ---- chain points + live calculation
+            val tx = cx + 30f * d
+            val chain = world.hudDriftChain
+            pText.textAlign = Paint.Align.CENTER
+            pText.textSize = 24f * d
+            pText.color = Ui.TEXT
+            pText.setShadowLayer(8f * d, 0f, 0f, tierCol)
+            k = Lang.writeInt(chain, chars, 0, true)
+            canvas.drawText(chars, 0, k, tx, baseY - 2f * d, pText)
+            pText.clearShadowLayer()
+            // "12,450 × 2.75 = 34,237"
+            val total = (chain.toLong() * m100 / 100L).toInt()
+            k = Lang.writeInt(chain, chars, 0, true)
+            chars[k++] = ' '; chars[k++] = '×'; chars[k++] = ' '
+            k = writeX100(m100, chars, k)
+            chars[k++] = ' '; chars[k++] = '='; chars[k++] = ' '
+            k += Lang.writeInt(total, chars, k, true)
+            pSmall.textSize = 12f * d; pSmall.color = tierCol
+            canvas.drawText(chars, 0, k, tx, baseY + 16f * d, pSmall)
+            // angle · time · rate
+            k = Lang.writeInt(world.hudDriftAngle, chars, 0, false)
+            chars[k++] = '°'; chars[k++] = ' '; chars[k++] = '·'; chars[k++] = ' '
+            val t10 = (world.hudDriftTime * 10f).toInt()
+            k += Lang.writeInt(t10 / 10, chars, k, false)
+            chars[k++] = if (Lang.isFa) '\u066B' else '.'
+            k += Lang.writeInt(t10 % 10, chars, k, false)
+            for (c in sSec) chars[k++] = c
+            val rate = world.hudDriftRate
+            if (rate > 0 && k < chars.size - 16) {
+                chars[k++] = ' '; chars[k++] = '·'; chars[k++] = ' '; chars[k++] = '+'
+                k += Lang.writeInt(rate, chars, k, true)
+                for (c in sPerSec) { if (k < chars.size) chars[k++] = c }
+            }
+            pSmall.textSize = 11f * d; pSmall.color = Ui.DIM
+            canvas.drawText(chars, 0, k, tx, baseY + 31f * d, pSmall)
+
+            // link window after the car straightened: keep the chain alive
+            val g = world.hudDriftGrace
+            if (g > 0f) {
+                val bw = 150f * d
+                val y = baseY + 42f * d
+                rect.set(tx - bw / 2, y, tx + bw / 2, y + 5f * d)
+                pFill.color = 0x44FFFFFF
+                canvas.drawRoundRect(rect, 3f * d, 3f * d, pFill)
+                rect.right = rect.left + bw * g.coerceIn(0f, 1f)
+                pFill.color = Ui.YELLOW
+                canvas.drawRoundRect(rect, 3f * d, 3f * d, pFill)
+                pSmall.textSize = 10.5f * d; pSmall.color = Ui.YELLOW
+                canvas.drawText(sDriftLink, tx, y + 18f * d, pSmall)
+            }
+        }
+
+        // ---- banked: quality + full calculation
+        val age = now - driftBankStart
+        if (driftBankStart > 0L && age < 2600L && !active) {
+            val a = (1f - ((age - 1800L).coerceAtLeast(0L) / 800f)).coerceIn(0f, 1f)
+            val q = bankQuality.coerceIn(0, 4)
+            val qc = qualityColor[q]
+            val y = baseY - age / 2600f * 16f * d
+            pBig.textSize = 22f * d
+            pBig.color = Ui.withAlpha(qc, (255 * a).toInt())
+            pBig.setShadowLayer(10f * d, 0f, 0f, qc)
+            canvas.drawText(sQuality[q], cx, y - 8f * d, pBig)
+            pBig.clearShadowLayer()
+            // "12,450 × 2.75 + 20% = 41,085"
+            var k = Lang.writeInt(bankRaw, chars, 0, true)
+            chars[k++] = ' '; chars[k++] = '×'; chars[k++] = ' '
+            k = writeX100(bankMultX100, chars, k)
+            if (bankBonus > 0) {
+                chars[k++] = ' '; chars[k++] = '+'; chars[k++] = ' '
+                k += Lang.writeInt(bankBonus, chars, k, false)
+                chars[k++] = if (Lang.isFa) '٪' else '%'
+            }
+            chars[k++] = ' '; chars[k++] = '='
+            pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 12f * d; pSmall.color = Ui.withAlpha(Ui.TEXT, (230 * a).toInt())
+            canvas.drawText(chars, 0, k, cx, y + 12f * d, pSmall)
+            pText.textAlign = Paint.Align.CENTER; pText.textSize = 22f * d
+            pText.color = Ui.withAlpha(Ui.GREEN, (255 * a).toInt())
+            k = 0; chars[k++] = '+'
+            k += Lang.writeInt(driftBankPts, chars, k, true)
+            canvas.drawText(chars, 0, k, cx, y + 36f * d, pText)
+            pText.color = Ui.TEXT
+        }
+        // ---- lost
+        val la = now - driftLostStart
+        if (driftLostStart > 0L && la < 1600L && !active) {
+            val a = (1f - la / 1600f).coerceIn(0f, 1f)
+            pBig.textSize = 20f * d
+            pBig.color = Ui.withAlpha(Ui.RED, (255 * a).toInt())
+            canvas.drawText(sDriftLost, cx, baseY + 4f * d, pBig)
+            if (driftLostPts > 0) {
+                var k = 0; chars[k++] = '−'
+                k += Lang.writeInt(driftLostPts, chars, k, true)
+                pSmall.textAlign = Paint.Align.CENTER; pSmall.textSize = 13f * d; pSmall.color = Ui.withAlpha(Ui.RED, (220 * a).toInt())
+                canvas.drawText(chars, 0, k, cx, baseY + 24f * d, pSmall)
+            }
+        }
     }
 
     private fun drawCombo(canvas: Canvas, w: Float, h: Float, now: Long) {

@@ -107,7 +107,7 @@ object StoryData {
         // ================================================================ chapter 2
         Mission(1, "شن داغ", "Hot Sand",
             cfg(GameData.MODE_DRIFT, GameData.ENV_DESERT, GameData.TOD_SUNSET, GameData.W_CLEAR,
-                gold = 28000f, silver = 18000f, bronze = 10000f, time = 75f, id = 4),
+                gold = 320000f, silver = 140000f, bronze = 50000f, time = 75f, id = 4),
             1200, -1, 0,
             arrayOf(
                 Line(LEILA, "شاهین آدم‌هاش رو از بین دریفت‌کارهای صحرا انتخاب می‌کنه. برای رسیدن بهش باید از این‌جا رد بشی.", "Shahin recruits from the desert drifters. To reach him, you go through them."),
@@ -168,7 +168,7 @@ object StoryData {
             Line(MAHTAB, "تو طوفان هیچ‌کس از دست من فرار نمی‌کنه.", "Nobody escapes me in a storm.")),
         Mission(2, "دریفت صنعتی", "Industrial Drift",
             cfg(GameData.MODE_DRIFT, GameData.ENV_INDUSTRIAL, GameData.TOD_NIGHT, GameData.W_LIGHT_RAIN,
-                gold = 36000f, silver = 26000f, bronze = 18000f, time = 80f, id = 10),
+                gold = 420000f, silver = 200000f, bronze = 90000f, time = 80f, id = 10),
             2500, -1, 0,
             arrayOf(
                 Line(REZA, "شاهین قبل از هر مسابقه آدم‌هاش رو با دریفت امتحان می‌کنه. این آخرین در قبل از اونه.", "Shahin tests everyone with a drift before he races. This is the last door before him."),

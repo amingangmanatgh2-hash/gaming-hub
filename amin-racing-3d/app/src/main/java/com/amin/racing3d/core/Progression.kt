@@ -25,7 +25,13 @@ class Progression(private val save: SaveManager) {
         val escapes: Int,
         val takedowns: Int,
         val missionPassed: Boolean,
-        val car: Int
+        val car: Int,
+        // v2.1 drift records of the run
+        val driftBest: Int = 0,
+        val driftLongest: Float = 0f,
+        val driftMaxMult: Float = 1f,
+        val driftLegendary: Int = 0,
+        val driftTotal: Long = 0L
     )
 
     /** One reward line shown on the results screen. */
@@ -37,6 +43,12 @@ class Progression(private val save: SaveManager) {
     // statistics (new in v2)
     val streetWins get() = save.prefInt("stat_street_wins")
     val bestDrift get() = save.prefInt("stat_best_drift")
+    // v2.1 drift records (single drift chain, any mode)
+    val bestDriftChain get() = save.prefInt("drift_best_chain")
+    val longestDriftMs get() = save.prefInt("drift_longest_ms")
+    val maxDriftMultX100 get() = save.prefInt("drift_max_mult", 100)
+    val legendaryDrifts get() = save.prefInt("drift_legendary")
+    val driftPointsTotal get() = save.prefLong("drift_points_total")
     val totalDrift get() = save.prefLong("stat_total_drift")
     val totalEscapes get() = save.prefInt("stat_escapes")
     val totalTakedowns get() = save.prefInt("stat_takedowns")
@@ -56,7 +68,7 @@ class Progression(private val save: SaveManager) {
         DailyType("امروز %d نزدیک‌گذر انجام بده", "Get %d near misses today", intArrayOf(40, 70, 100), 700),
         DailyType("به سرعت %d کیلومتر بر ساعت برس", "Reach %d km/h", intArrayOf(220, 250, 280), 500),
         DailyType("%d مسابقهٔ خیابانی را اول شو", "Win %d street race(s)", intArrayOf(1, 2, 3), 900),
-        DailyType("در یک دور دریفت %d امتیاز بگیر", "Score %d in one drift run", intArrayOf(10000, 18000, 26000), 800),
+        DailyType("در یک دور دریفت %d امتیاز بگیر", "Score %d in one drift run", intArrayOf(60000, 120000, 200000), 800),
         DailyType("%d بار از پلیس فرار کن", "Escape the police %d time(s)", intArrayOf(1, 2, 3), 900),
         DailyType("در %d حالت مدال بگیر (تایم تریل، دریفت یا چالش)", "Earn %d medal(s) (time trial, drift or challenge)", intArrayOf(1, 2, 3), 800),
         DailyType("در یک دور ترافیک %d امتیاز بگیر", "Score %d in one traffic run", intArrayOf(6000, 12000, 20000), 700),
@@ -133,7 +145,12 @@ class Progression(private val save: SaveManager) {
         Achievement("speed_320", "موشک", "Rocket", "به ۳۲۰ کیلومتر بر ساعت برس", "Reach 320 km/h", 2500, "🚀"),
         Achievement("street_win", "اولین پیروزی", "First Victory", "یک مسابقهٔ خیابانی را اول شو", "Win a street race", 600, "🥇"),
         Achievement("street_win_10", "پادشاه خیابان", "Street King", "۱۰ مسابقهٔ خیابانی را اول شو", "Win 10 street races", 3000, "👑"),
-        Achievement("drift_20k", "سلطان دود", "Smoke King", "۲۰,۰۰۰ امتیاز در یک دور دریفت", "20,000 points in one drift run", 1200, "🔥"),
+        // v2.1 drift scoring (≥500 pts/s + multiplier): run target raised from 20,000 to 200,000; id kept so earned stays earned
+        Achievement("drift_20k", "سلطان دود", "Smoke King", "۲۰۰,۰۰۰ امتیاز در یک دور دریفت", "200,000 points in one drift run", 1200, "🔥"),
+        Achievement("drift_chain_50k", "یک نفس", "One Breath", "یک دریفت پیوسته با ۵۰,۰۰۰ امتیاز", "A single drift chain worth 50,000", 1000, "💨"),
+        Achievement("drift_10s", "ده ثانیه دود", "Ten Second Smoke", "یک دریفت ۱۰ ثانیه‌ای بدون قطع", "Hold one drift chain for 10 seconds", 1200, "⏱"),
+        Achievement("drift_x4", "ضریب چهار", "Times Four", "ضریب دریفت را به ×۴ برسان", "Reach a ×4 drift multiplier", 1500, "✖"),
+        Achievement("drift_legend", "افسانهٔ دود", "Smoke Legend", "یک دریفت با رتبهٔ «افسانه‌ای»", "Land a Legendary-rated drift", 2500, "🌟"),
         Achievement("escape_1", "فراری", "Fugitive", "یک بار از پلیس فرار کن", "Escape the police once", 600, "🚨"),
         Achievement("takedown_5", "شکارچی آژیر", "Siren Hunter", "۵ ماشین پلیس را از کار بینداز", "Take out 5 police cars", 1500, "💥"),
         Achievement("gold_any", "طلایی", "Golden", "یک مدال طلا بگیر", "Earn a gold medal", 800, "🏅"),
@@ -168,7 +185,11 @@ class Progression(private val save: SaveManager) {
         "speed_320" -> save.bestTopSpeed.toLong() to 320L
         "street_win" -> streetWins.toLong() to 1L
         "street_win_10" -> streetWins.toLong() to 10L
-        "drift_20k" -> bestDrift.toLong() to 20000L
+        "drift_20k" -> bestDrift.toLong() to 200000L
+        "drift_chain_50k" -> bestDriftChain.toLong() to 50000L
+        "drift_10s" -> (longestDriftMs / 1000).toLong() to 10L
+        "drift_x4" -> (maxDriftMultX100 / 100).toLong() to 4L
+        "drift_legend" -> legendaryDrifts.toLong().coerceAtMost(1L) to 1L
         "escape_1" -> totalEscapes.toLong() to 1L
         "takedown_5" -> totalTakedowns.toLong() to 5L
         "gold_any" -> goldMedals.coerceAtMost(1).toLong() to 1L
@@ -231,6 +252,11 @@ class Progression(private val save: SaveManager) {
             if (r.score > bestDrift) save.putPrefInt("stat_best_drift", r.score)
             save.putPrefLong("stat_total_drift", totalDrift + r.score)
         }
+        if (r.driftBest > bestDriftChain) save.putPrefInt("drift_best_chain", r.driftBest)
+        if ((r.driftLongest * 1000f).toInt() > longestDriftMs) save.putPrefInt("drift_longest_ms", (r.driftLongest * 1000f).toInt())
+        if ((r.driftMaxMult * 100f).toInt() > maxDriftMultX100) save.putPrefInt("drift_max_mult", (r.driftMaxMult * 100f).toInt())
+        if (r.driftLegendary > 0) save.putPrefInt("drift_legendary", legendaryDrifts + r.driftLegendary)
+        if (r.driftTotal > 0) save.putPrefLong("drift_points_total", driftPointsTotal + r.driftTotal)
         if (r.escapes > 0) save.putPrefInt("stat_escapes", totalEscapes + r.escapes)
         if (r.takedowns > 0) save.putPrefInt("stat_takedowns", totalTakedowns + r.takedowns)
         if (r.bestCombo > bestCombo) save.putPrefInt("stat_best_combo", r.bestCombo)

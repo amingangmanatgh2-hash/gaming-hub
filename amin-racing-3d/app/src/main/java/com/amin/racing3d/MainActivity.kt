@@ -843,7 +843,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         if (mPassed) save.xp += 150
         val rewards = progression.onRun(Progression.RunInfo(mode, score, distance, topSpeed, near, combo,
             extra?.success ?: false, extra?.medal ?: 0, extra?.position ?: 0, extra?.escapes ?: 0, extra?.takedowns ?: 0,
-            mPassed, car), levelBefore)
+            mPassed, car, world.drift.runBest, world.drift.runLongest, world.drift.runMaxMult, world.drift.runLegendary, world.drift.runTotal), levelBefore)
         val result = if (extra == null) RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode), rewards = rewards)
         else RunResult(mode, score, distance, topSpeed, near, combo, earned, timeUp, record, save.highScore(mode),
             extra.reason, extra.success, extra.medal, extra.position, extra.racers, extra.raceTime, extra.escapes, extra.takedowns,

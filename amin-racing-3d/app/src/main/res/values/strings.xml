@@ -179,7 +179,7 @@
     <string name="mode_street">مسابقهٔ خیابانی</string>
     <string name="mode_street_desc">در ترافیک با سه رقیب مسابقه بده و اول از خط پایان رد شو.</string>
     <string name="mode_drift">دریفت</string>
-    <string name="mode_drift_desc">ترمز دستی + فرمان: سُر بخور، زنجیرهٔ دریفت بساز و امتیاز جمع کن.</string>
+    <string name="mode_drift_desc">ترمزدستی + فرمان: سُر بخور. هر ثانیه دریفت ≥۵۰۰ امتیاز، ضریب تا ×۶ با دریفت طولانی، تغییر جهت و لایی.</string>
     <string name="mode_trial">تایم تریل</string>
     <string name="mode_trial_desc">مسافت مشخص را سریع‌تر از زمان هدف برو و مدال بگیر.</string>
     <string name="mode_police">تعقیب پلیس</string>
@@ -381,4 +381,18 @@
     <string name="shop_vs">در مقایسه با %1$s</string>
     <string name="shop_locked_info">این ماشین از سطح %1$s باز می‌شود (سطح شما: %2$s). مأموریت‌های داستان هم ماشین هدیه می‌دهند.</string>
     <string name="shop_already_owned">این ماشین را قبلاً خریده‌اید — سکه‌ای کم نشد</string>
+    <string name="st_drift_chain">بهترین تک‌دریفت</string>
+    <string name="st_drift_long">طولانی‌ترین دریفت</string>
+    <string name="st_drift_mult">بیشترین ضریب دریفت</string>
+    <string name="dq_good">خوب</string>
+    <string name="dq_great">عالی</string>
+    <string name="dq_awesome">فوق‌العاده</string>
+    <string name="dq_insane">دیوانه‌وار</string>
+    <string name="dq_legendary">افسانه‌ای</string>
+    <string name="drift_help_1">هر ثانیه دریفت واقعی = حداقل ۵۰۰ امتیاز؛ زاویه، سرعت و مدت بیشتر = امتیاز بیشتر</string>
+    <string name="drift_help_2">ضریب: هر ۲ ثانیه دریفت پیوسته، تغییر جهت تمیز و لایی ‎+×۰٫۲۵ (تا ×۶)</string>
+    <string name="drift_help_3">صاف شوی امتیاز ذخیره می‌شود؛ برخورد با دیواره یا ماشین = از دست رفتن زنجیره</string>
+    <string name="drift_link">ادامه بده! زنجیره هنوز زنده است</string>
+    <string name="drift_mult_label">ضریب</string>
+    <string name="drift_per_sec">/ث</string>
 </resources>
