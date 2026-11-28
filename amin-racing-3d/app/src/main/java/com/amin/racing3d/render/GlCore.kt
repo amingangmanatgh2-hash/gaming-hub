@@ -10,6 +10,8 @@ import java.nio.ShortBuffer
 
 object Gl {
     private const val TAG = "AminGL"
+    /** draw calls issued in the current frame (developer overlay) */
+    @JvmField var drawCalls = 0
 
     fun floatBuffer(size: Int): FloatBuffer =
         ByteBuffer.allocateDirect(size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
@@ -202,6 +204,7 @@ class InstanceBatch(val mesh: Mesh, val capacity: Int, private val share: Instan
     fun draw() {
         if (count == 0) return
         upload()
+        Gl.drawCalls++
         GLES30.glBindVertexArray(vao)
         GLES30.glDrawElementsInstanced(GLES30.GL_TRIANGLES, mesh.indexCount, mesh.indexType, 0, count)
         GLES30.glBindVertexArray(0)
@@ -267,6 +270,7 @@ class SpriteBatch(val capacity: Int) {
 
     fun draw() {
         if (count == 0) return
+        Gl.drawCalls++
         buffer.position(0)
         buffer.put(data, 0, count * 8)
         buffer.position(0)

@@ -81,6 +81,10 @@ class GameRenderer(
     // ------------------------------------------------------------------ GL objects
     private var ready = false
     private var mainProg = 0
+    // Low preset: the main shader compiled without shadow / wet-road / paint-finish paths
+    private var liteProg = 0
+    private lateinit var uMain: MainUniforms
+    private var uLite: MainUniforms? = null
     private var depthProg = 0
     private var skyProg = 0
     private var spriteProg = 0
@@ -146,6 +150,9 @@ class GameRenderer(
     private lateinit var tunnelBatch: InstanceBatch
     private lateinit var portalBatch: InstanceBatch
     private lateinit var bridgeBatch: InstanceBatch
+    private lateinit var sidewalkBatch: InstanceBatch
+    private lateinit var curbBatch: InstanceBatch
+    private var texPave = 0
     private lateinit var waterBatch: InstanceBatch
     private lateinit var gasBatch: InstanceBatch
     private lateinit var parkingBatch: InstanceBatch
@@ -280,7 +287,10 @@ class GameRenderer(
             depthProg = Gl.program(Shaders.DEPTH_VS, Shaders.DEPTH_FS)
             skyProg = Gl.program(Shaders.SKY_VS, Shaders.SKY_FS)
             spriteProg = Gl.program(Shaders.SPRITE_VS, Shaders.SPRITE_FS)
-            u = MainUniforms(mainProg)
+            uMain = MainUniforms(mainProg)
+            u = uMain
+            liteProg = try { Gl.program(Shaders.MAIN_VS, Shaders.MAIN_FS_LITE) } catch (_: Throwable) { 0 }
+            if (liteProg != 0) uLite = MainUniforms(liteProg)
             uDepthLightVP = GLES30.glGetUniformLocation(depthProg, "uLightVP")
             uSkyCamFwd = GLES30.glGetUniformLocation(skyProg, "uCamFwd")
             uSkyCamRight = GLES30.glGetUniformLocation(skyProg, "uCamRight")
@@ -407,6 +417,7 @@ class GameRenderer(
         st.add { chimneyBatch = InstanceBatch(Models.chimney(), 40); tankBatch = InstanceBatch(Models.tank(), 80) }
         st.add { tunnelBatch = InstanceBatch(Models.tunnelSection(), 64); portalBatch = InstanceBatch(Models.tunnelPortal(), 8) }
         st.add { bridgeBatch = InstanceBatch(Models.bridgeSection(), 64); waterBatch = InstanceBatch(Models.water(), 6) }
+        st.add { sidewalkBatch = InstanceBatch(Models.sidewalk(), 80); curbBatch = InstanceBatch(Models.curb(), 80); texPave = Textures.pavement() }
         st.add {
             gasBatch = InstanceBatch(Models.gasStation(), 4)
             parkingBatch = InstanceBatch(Models.parkingLot(), 4)
@@ -427,7 +438,7 @@ class GameRenderer(
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
                 buildingBatch, pineBatch, snowPineBatch, treeBatch, cactusBatch, lampBatch, sign1Batch, sign2Batch,
                 billboardBatch, checkpointBatch, railBatch, palmBatch, warehouseBatch, chimneyBatch, tankBatch,
-                tunnelBatch, portalBatch, bridgeBatch, gasBatch, dealerBatch, torsoBatch, legBatch, armBatch
+                tunnelBatch, portalBatch, bridgeBatch, gasBatch, dealerBatch, torsoBatch, legBatch, armBatch, curbBatch
             )
             allSceneBatches = arrayOf(*playerBatches,
                 trafficBatches[0], trafficBatches[1], trafficBatches[2], trafficBatches[3], trafficBatches[4],
@@ -435,11 +446,12 @@ class GameRenderer(
                 caliperBatch, coinBatch, shadowBatch, skidBatch, railBatch, lampBatch, buildingBatch, pineBatch, snowPineBatch,
                 treeBatch, bushBatch, cactusBatch, rockBatch, sign1Batch, sign2Batch, billboardBatch, checkpointBatch,
                 palmBatch, warehouseBatch, chimneyBatch, tankBatch, tunnelBatch, portalBatch, bridgeBatch, waterBatch,
-                gasBatch, parkingBatch, dealerBatch,
+                gasBatch, parkingBatch, dealerBatch, sidewalkBatch, curbBatch,
                 mountainBatch, roadBatch, groundBatch, showroomBatch, torsoBatch, legBatch, armBatch, markerBatch
             )
 
-            createShadowMap(if (qualityLevel >= 2) 2048 else 1024)
+            // shadows are only drawn on High/Ultra: Low/Medium never allocate the 2048² depth map
+            if (qualityLevel >= 2) createShadowMap(2048)
             Gl.checkError("init")
         }
     }
@@ -490,7 +502,22 @@ class GameRenderer(
     }
 
     // ================================================================== frame
+    /** CPU time of the last frame (simulation + scene build + GL submission), for the developer overlay */
+    @Volatile var lastFrameMs = 0
+    @Volatile var drawCalls = 0
+    private var frameMsAvg = 0f
+
     override fun onDrawFrame(gl: GL10?) {
+        val t0 = System.nanoTime()
+        Gl.drawCalls = 0
+        drawFrame(gl)
+        val ms = (System.nanoTime() - t0) / 1e6f
+        frameMsAvg += (ms - frameMsAvg) * 0.1f
+        lastFrameMs = frameMsAvg.toInt()
+        drawCalls = Gl.drawCalls
+    }
+
+    private fun drawFrame(gl: GL10?) {
         val now = System.nanoTime()
         var dt = (now - lastNanos) / 1e9f
         lastNanos = now
@@ -539,8 +566,16 @@ class GameRenderer(
         appliedQuality = q
         world.setSceneryDensity(DENSITY[q])
         world.particles.limit = PARTICLES[q]
-        val wantShadow = if (q >= 2) 2048 else 1024
-        if (shadowFbo != 0 && wantShadow != shadowSize) createShadowMap(wantShadow)
+        world.trafficScale = TRAFFIC[q]
+        if (q >= 2 && shadowFbo == 0 && shadowsSupported) createShadowMap(2048)
+        else if (q < 2 && shadowFbo != 0) deleteShadowMap()
+    }
+
+    private fun deleteShadowMap() {
+        val ids = IntArray(1)
+        if (shadowTex != 0) { ids[0] = shadowTex; GLES30.glDeleteTextures(1, ids, 0) }
+        if (shadowFbo != 0) { ids[0] = shadowFbo; GLES30.glDeleteFramebuffers(1, ids, 0) }
+        shadowTex = 0; shadowFbo = 0
     }
 
     // ================================================================== loading scene
@@ -682,7 +717,8 @@ class GameRenderer(
             horizon[0] += (0.12f - horizon[0]) * tk; horizon[1] += (0.09f - horizon[1]) * tk; horizon[2] += (0.06f - horizon[2]) * tk
             night = max(night, 0.7f * tk)
         }
-        fogDensity = fog
+        // Low draws only 240 m: a little more fog hides the shorter draw distance instead of popping
+        fogDensity = if (appliedQuality == 0) max(fog, 0.0048f) else fog
         lightsOn = max(smooth(0.2f, 0.55f, night), max(smooth(0.35f, 0.8f, cl) * 0.85f, tk))
     }
 
@@ -813,7 +849,9 @@ class GameRenderer(
         }
         val upX = sin(camRoll); val upY = cos(camRoll)
         Matrix.setLookAtM(view, 0, camX + sx, camY + sy, camZ, lookX + sx * 0.5f, lookY + sy * 0.5f, lookZ, upX, upY, 0f)
-        Matrix.perspectiveM(proj, 0, fovY, aspect, 0.35f, 1300f)
+        // near plane pushed out a little: with far = 1300 m this keeps the depth buffer precise enough
+        // that the road (y 0), kerbs and the ground plane (y -0.06) never fight
+        Matrix.perspectiveM(proj, 0, fovY, aspect, 0.5f, 1300f)
         Matrix.multiplyMM(viewProj, 0, proj, 0, view, 0)
     }
 
@@ -886,6 +924,7 @@ class GameRenderer(
         }
 
         addZones(w, drawDist)
+        addSidewalks(w, drawDist)
 
         // coins
         for (c in w.coins) {
@@ -1027,6 +1066,42 @@ class GameRenderer(
             val a = (1f - ph) * 0.4f
             alphaSprites.add(x, 0.05f + ph * 0.08f, z, 0.05f + ph * 0.16f, 0.85f, 0.88f, 0.95f, a)
         }
+    }
+
+    /**
+     * Raised kerb + paved sidewalk on built-up roads (city, industrial, coast promenade), in 20 m
+     * pieces so they stop cleanly at bridges, tunnels and roadside lots instead of clipping them.
+     */
+    private fun addSidewalks(w: World, drawDist: Float) {
+        val tint = when (w.env) {
+            GameData.ENV_CITY -> SW_CITY
+            GameData.ENV_INDUSTRIAL -> SW_INDUSTRIAL
+            GameData.ENV_COAST -> SW_COAST
+            else -> return
+        }
+        val pi = Math.PI.toFloat()
+        var s = Math.floor(((w.ps - 40f) / 20f).toDouble()).toFloat() * 20f + 10f
+        val end = w.ps + min(drawDist, 260f)
+        while (s < end) {
+            for (side in SIDES) {
+                if (sidewalkBlocked(w, s, side)) continue
+                val yaw = if (side > 0) 0f else pi
+                sidewalkBatch.add(0f, 0f, -s, yaw, 0f, 0f, 1f, 1f, 1f, tint[0], tint[1], tint[2], 1f, 0f, 0f, 0f, 0f)
+                curbBatch.add(0f, 0f, -s, yaw, 0f, 0f, 1f, 1f, 1f, tint[0], tint[1], tint[2], 1f, 0f, 0f, 0f, 0f)
+            }
+            s += 20f
+        }
+    }
+
+    private fun sidewalkBlocked(w: World, s: Float, side: Int): Boolean {
+        for (z in w.zones) {
+            if (!z.active) continue
+            val pad = if (z.type == World.ZONE_TUNNEL || z.type == World.ZONE_BRIDGE) 12f else 4f
+            if (s + 10f < z.s0 - pad || s - 10f > z.s1 + pad) continue
+            if (z.type == World.ZONE_TUNNEL || z.type == World.ZONE_BRIDGE) return true
+            if (z.side == side) return true
+        }
+        return false
     }
 
     /** Tunnels, bridges, gas stations, parking lots and dealerships. */
@@ -1372,7 +1447,9 @@ class GameRenderer(
         }
 
         // main pass
-        GLES30.glUseProgram(mainProg)
+        val lite = q == 0 && liteProg != 0
+        u = if (lite) uLite!! else uMain
+        GLES30.glUseProgram(if (lite) liteProg else mainProg)
         GLES30.glUniformMatrix4fv(u.viewProj, 1, false, viewProj, 0)
         GLES30.glUniformMatrix4fv(u.lightVP, 1, false, lightVP, 0)
         GLES30.glUniform1f(u.blink, blinkPhase)
@@ -1468,10 +1545,12 @@ class GameRenderer(
         bindTex(texBuilding, 3, Textures.BUILDING_TILE_W, Textures.BUILDING_TILE_H)
         buildingBatch.draw()
         bindTex(texWhite, 0, 1f, 1f)
-        warehouseBatch.draw()
+        warehouseBatch.draw(); curbBatch.draw()
         // road & ground
         bindTex(if (w.mode == GameData.MODE_TWO_WAY) texRoadTwo else texRoadOne, 1, Textures.ROAD_TILE, 1f)
         roadBatch.draw()
+        bindTex(texPave, 6, Textures.PAVE_TILE, 1f)
+        sidewalkBatch.draw()
         bindTex(texGround, 2, Textures.GROUND_TILE, 1f)
         groundBatch.draw()
         // mountains: no shadows, reduced fog
@@ -1722,9 +1801,15 @@ class GameRenderer(
     companion object {
         /** factory seat colour (also used for traffic interiors) */
         const val DEFAULT_SEAT = 0x23262D
-        val DENSITY = floatArrayOf(0.45f, 0.75f, 1f, 1f)
-        val PARTICLES = intArrayOf(240, 460, 700, 1000)
-        val DRAW_DIST = floatArrayOf(270f, 370f, 480f, 560f)
+        // v2.1 Low: thinner scenery, half the particles, ~55 % traffic (see CHANGELOG for the reasoning)
+        val DENSITY = floatArrayOf(0.38f, 0.72f, 1f, 1f)
+        val PARTICLES = intArrayOf(140, 400, 700, 1000)
+        val TRAFFIC = floatArrayOf(0.55f, 0.8f, 1f, 1f)
+        val DRAW_DIST = floatArrayOf(240f, 360f, 480f, 560f)
+        private val SIDES = intArrayOf(-1, 1)
+        private val SW_CITY = floatArrayOf(1f, 1f, 1f)
+        private val SW_INDUSTRIAL = floatArrayOf(0.78f, 0.78f, 0.76f)
+        private val SW_COAST = floatArrayOf(1.08f, 0.98f, 0.82f)
         private const val DRIVER_SHIRT = 0xFF14C8E8.toInt()
         private const val DRIVER_PANTS = 0xFF23262E.toInt()
         val FOG = floatArrayOf(0.0062f, 0.0046f, 0.0036f, 0.0031f)

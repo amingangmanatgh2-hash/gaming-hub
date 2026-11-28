@@ -56,6 +56,10 @@ class TiltController(context: Context, private val input: InputState) : SensorEv
 
     /** 0..1 – higher means less tilt is needed for full lock. */
     @Volatile var sensitivity = 0.55f
+    /** 0..1 from the settings (default 0.15 → 3 % dead zone) */
+    @Volatile var deadZone = 0.15f
+    /** response curve, see [InputState.shapeCurve] */
+    @Volatile var curve = 1
 
     /** Neutral angle in radians captured by [calibrate]. */
     @Volatile var offset = 0f
@@ -137,12 +141,9 @@ class TiltController(context: Context, private val input: InputState) : SensorEv
     /** Calibrated angle (rad) → steering -1..1. */
     private fun mapAngle(a: Float): Float {
         val range = MAX_RANGE + (MIN_RANGE - MAX_RANGE) * sensitivity.coerceIn(0f, 1f)
-        var t = a / range
-        val dead = 0.025f
-        t = if (abs(t) < dead) 0f else (t - dead * sign(t)) / (1f - dead)
-        t = t.coerceIn(-1f, 1f)
-        // nearly linear: small tilts already steer (the old curve made the centre feel dead)
-        return t * (0.78f + 0.22f * abs(t))
+        val t = (a / range).coerceIn(-1f, 1f)
+        // v2.1: user dead zone (default 3 %) and response curve from the control settings
+        return InputState.shapeCurve(t, 0.01f + deadZone * 0.13f, curve)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}

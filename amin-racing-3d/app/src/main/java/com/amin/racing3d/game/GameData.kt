@@ -146,22 +146,24 @@ object GameData {
         0xFFFF4FD8.toInt(), 0xFF6E7B8B.toInt()
     )
 
+    // v2.1 economy: price follows the performance index (GameData.performanceIndex) with a premium
+    // for 4×4 utility (snow / gravel grip) and the taxi's fare bonus. Every price is unique.
     val cars = arrayOf(
         CarSpec(CAR_SPORTS, R.string.car_sports, 0, 228f, 7.6f, 8.6f, 13f, 1.25f, 4.4f, 1.9f, 0.34f, 1.0f, PAINT_PALETTE,
             R.string.cat_sports, 1350, 1.0f, 1.1f),
         CarSpec(CAR_MUSCLE, R.string.car_muscle, 9000, 246f, 8.8f, 7.6f, 12f, 1.30f, 4.9f, 2.0f, 0.36f, 1.4f, PAINT_PALETTE,
             R.string.cat_muscle, 1650, 0.92f, 1.45f),
-        CarSpec(CAR_SUV, R.string.car_suv, 16000, 214f, 7.2f, 7.2f, 14f, 1.28f, 4.8f, 2.05f, 0.42f, 1.7f, PAINT_PALETTE,
+        CarSpec(CAR_SUV, R.string.car_suv, 13500, 214f, 7.2f, 7.2f, 14f, 1.28f, 4.8f, 2.05f, 0.42f, 1.7f, PAINT_PALETTE,
             R.string.cat_suv, 2050, 0.93f, 0.8f, true),
-        CarSpec(CAR_SUPER, R.string.car_super, 38000, 292f, 10.4f, 10.2f, 16f, 1.36f, 4.6f, 2.02f, 0.36f, 2.2f, PAINT_PALETTE,
+        CarSpec(CAR_SUPER, R.string.car_super, 44000, 292f, 10.4f, 10.2f, 16f, 1.36f, 4.6f, 2.02f, 0.36f, 2.2f, PAINT_PALETTE,
             R.string.cat_hyper, 1420, 1.1f, 1.0f),
         CarSpec(CAR_CLASSIC, R.string.car_classic, 6000, 205f, 6.6f, 6.8f, 10.5f, 1.22f, 4.7f, 1.86f, 0.35f, 1.2f, PAINT_PALETTE,
             R.string.cat_classic, 1240, 0.86f, 1.35f),
         CarSpec(CAR_SEDAN, R.string.car_sedan, 12000, 238f, 8.0f, 8.0f, 13.5f, 1.27f, 4.8f, 1.9f, 0.35f, 1.3f, PAINT_PALETTE,
             R.string.cat_sedan, 1680, 1.0f, 0.95f),
-        CarSpec(CAR_PICKUP, R.string.car_pickup, 14000, 198f, 6.8f, 6.2f, 11.5f, 1.25f, 5.5f, 2.06f, 0.45f, 1.5f, PAINT_PALETTE,
+        CarSpec(CAR_PICKUP, R.string.car_pickup, 7500, 198f, 6.8f, 6.2f, 11.5f, 1.25f, 5.5f, 2.06f, 0.45f, 1.5f, PAINT_PALETTE,
             R.string.cat_pickup, 2350, 0.9f, 0.85f, true),
-        CarSpec(CAR_OFFROAD, R.string.car_offroad, 18000, 186f, 6.4f, 6.0f, 11f, 1.24f, 4.3f, 2.0f, 0.48f, 1.5f, PAINT_PALETTE,
+        CarSpec(CAR_OFFROAD, R.string.car_offroad, 10500, 186f, 6.4f, 6.0f, 11f, 1.24f, 4.3f, 2.0f, 0.48f, 1.5f, PAINT_PALETTE,
             R.string.cat_offroad, 2100, 0.96f, 0.7f, true),
         CarSpec(CAR_POLICE, R.string.car_police, 30000, 262f, 9.4f, 8.8f, 15f, 1.32f, 4.9f, 1.92f, 0.36f, 1.9f, PAINT_PALETTE,
             R.string.cat_police, 1800, 1.02f, 1.0f),
@@ -171,7 +173,7 @@ object GameData {
         CarSpec(CAR_HATCH, R.string.car_hatch, 11000, 222f, 8.4f, 9.0f, 13.5f, 1.27f, 4.1f, 1.84f, 0.34f, 1.25f, PAINT_PALETTE,
             R.string.cat_rally, 1180, 1.04f, 1.15f, true),
         // electric GT: instant torque (highest launch accel), heavy battery, planted
-        CarSpec(CAR_EV, R.string.car_ev, 42000, 268f, 10.9f, 9.4f, 15.5f, 1.30f, 4.85f, 1.98f, 0.37f, 2.0f, PAINT_PALETTE,
+        CarSpec(CAR_EV, R.string.car_ev, 38000, 268f, 10.9f, 9.4f, 15.5f, 1.30f, 4.85f, 1.98f, 0.37f, 2.0f, PAINT_PALETTE,
             R.string.cat_electric, 2080, 1.05f, 0.75f),
         // taxi: cheap, soft and steady; earns more on taxi fares
         CarSpec(CAR_TAXI, R.string.car_taxi, 5000, 200f, 6.9f, 7.4f, 12.5f, 1.22f, 4.7f, 1.86f, 0.33f, 1.1f, PAINT_PALETTE,
@@ -285,6 +287,53 @@ object GameData {
     fun nitroDrain(lvl: Int) = 0.22f * (1f - 0.08f * lvl)
 
     /** Normalized (0..1) stat values for garage bars. */
+    // ---------------------------------------------------------------- v2.1 shop data
+    /**
+     * Performance index 100..999 from top speed, launch, handling, braking and grip – the same
+     * formulas the physics use, so a higher PI really is a faster car.
+     */
+    fun performanceIndex(car: CarSpec, lvlSpeed: Int = 0, lvlHandling: Int = 0, lvlBrakes: Int = 0): Int {
+        val spd = (topSpeedKmh(car, lvlSpeed) - 180f) / 130f
+        val acc = (car.accel - 6f) / 5f
+        val han = (handling(car, lvlHandling) - 6f) / 5f
+        val brk = (brake(car, lvlBrakes) - 10f) / 8f
+        val grp = (car.grip - 0.85f) / 0.3f
+        val v = 0.32f * spd + 0.28f * acc + 0.22f * han + 0.1f * brk + 0.08f * grp
+        return (100f + v.coerceIn(0f, 1.2f) * 750f).toInt().coerceIn(100, 999)
+    }
+
+    /** PI class letter (D < 300 ≤ C < 450 ≤ B < 600 ≤ A < 750 ≤ S) */
+    fun piClass(pi: Int): String = when {
+        pi >= 750 -> "S"
+        pi >= 600 -> "A"
+        pi >= 450 -> "B"
+        pi >= 300 -> "C"
+        else -> "D"
+    }
+
+    /** 0–100 km/h time in seconds, integrated with the game's acceleration model (no nitro). */
+    fun zeroTo100(car: CarSpec, lvlSpeed: Int = 0): Float {
+        val maxV = topSpeedKmh(car, lvlSpeed) / 3.6f
+        var v = 0f; var t = 0f
+        val dt = 1f / 120f
+        while (v < 27.78f && t < 30f) {
+            val f = 1f - (v / maxV) * (v / maxV)
+            v += car.accel * kotlin.math.max(f, 0.06f) * dt
+            t += dt
+        }
+        return t
+    }
+
+    /** player level needed before a car can be bought (story rewards bypass it) */
+    fun carLevelReq(car: CarSpec): Int = when {
+        car.price <= 0 -> 1
+        car.price < 10000 -> 1
+        car.price < 20000 -> 2
+        car.price < 35000 -> 4
+        car.price < 50000 -> 6
+        else -> 8
+    }
+
     fun statBar(car: CarSpec, stat: Int, lvl: Int): Float = when (stat) {
         0 -> (topSpeedKmh(car, lvl) - 180f) / 180f
         1 -> (car.accel - 5f) / 7f

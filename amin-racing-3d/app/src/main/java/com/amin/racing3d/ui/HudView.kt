@@ -42,7 +42,43 @@ class HudView(context: Context, private val world: World, private val input: Inp
     /** When false (tilt steering) the left/right buttons are hidden. */
     var touchSteering = true
         set(v) { field = v; layoutButtons() }
+
+    // ---------------------------------------------------------------- v2.1 control layout
+    /** steering source: SaveManager.CONTROL_TILT / CONTROL_TOUCH / CONTROL_WHEEL */
+    var steerMode = 1
+        set(v) { if (field != v) { field = v; layoutButtons() } }
+    /** button size 0..1 (0.5 = default) */
+    var hudScale = 0.5f
+        set(v) { field = v; layoutButtons() }
+    /** button opacity 0..1 */
+    var hudAlpha = 0.85f
+    /** pedals on the left, steering on the right */
+    var mirror = false
+        set(v) { field = v; layoutButtons() }
+    /** per-group offsets in screen fractions: [G_STEER, G_GAS, G_BRAKE] × (x, y) */
+    val groupOffset = FloatArray(NUM_GROUPS * 2)
+    /** layout editor: all controls are shown and dragging moves a whole group */
+    var editMode = false
+        set(v) { field = v; layoutButtons(); invalidate() }
+    /** called when the user finished dragging a group in the editor */
+    var onGroupMoved: ((group: Int, x: Float, y: Float) -> Unit)? = null
+    fun setOffsets(src: (Int) -> FloatArray) {
+        for (g in 0 until NUM_GROUPS) { val o = src(g); groupOffset[g * 2] = o[0]; groupOffset[g * 2 + 1] = o[1] }
+        layoutButtons()
+    }
+    private val useWheel: Boolean get() = steerMode == 2
+    // virtual wheel state (UI thread)
+    private var wheelPointer = -1
+    private var wheelAngle = 0f          // degrees, + = right
+    private var wheelLastTouch = 0f
+    private var wheelLastFrame = 0L
+    private var dragGroup = -1
+    private var dragPointer = -1
+    private var dragX = 0f
+    private var dragY = 0f
     var showFps = false
+    /** developer overlay line: render size, preset, depth bits, frame time, draw calls */
+    @Volatile var devInfo: String? = null
     @Volatile var fps = 60
 
     // ---------------------------------------------------------------- strings (prefetched)
@@ -134,7 +170,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
         var label: String = ""
     }
 
-    private val buttons = Array(9) { Button(it) }
+    private val buttons = Array(11) { Button(it) }
     private val arrowLeft = Path()
     private val arrowRight = Path()
     private val pointerButton = IntArray(12) { -1 }
@@ -165,6 +201,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
         buttons[B_BRAKE].label = sBrake
         buttons[B_NITRO].label = sBtnNitro
         buttons[B_HORN].label = sHorn
+        buttons[B_HAND].label = context.getString(R.string.btn_handbrake)
         setWillNotDraw(false)
     }
 
@@ -187,6 +224,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
         displaySpeed = 0f
         nitroGlow = 0f
         for (i in pointerButton.indices) pointerButton[i] = -1
+        wheelPointer = -1; wheelAngle = 0f
         input.reset()
     }
 
@@ -216,8 +254,9 @@ class HudView(context: Context, private val world: World, private val input: Inp
         val padR = paddingRight + margin
         val padB = paddingBottom + margin
         val padT = paddingTop + margin
-        val b = (minDim * 0.2f).coerceIn(62f * d, 104f * d)
+        val b = (minDim * 0.2f).coerceIn(62f * d, 104f * d) * (0.75f + 0.5f * hudScale)
         val gap = 10f * d
+        val steerButtons = steerMode == 1
 
         // pause button, phone next to it
         buttons[B_PAUSE].r.set(padL, padT, padL + 46f * d, padT + 46f * d)
@@ -229,20 +268,38 @@ class HudView(context: Context, private val world: World, private val input: Inp
         nitro.set(gas.left, gas.top - gap - b * 0.82f, gas.right, gas.top - gap)
         buttons[B_DOOR].r.set(nitro.left - b * 0.15f, nitro.top - gap - b * 0.62f, nitro.right, nitro.top - gap)
 
-        if (touchSteering) {
-            buttons[B_LEFT].visible = true
-            buttons[B_RIGHT].visible = true
+        buttons[B_LEFT].visible = steerButtons
+        buttons[B_RIGHT].visible = steerButtons
+        buttons[B_WHEEL].visible = useWheel
+        if (steerMode != 0) {
             buttons[B_LEFT].r.set(padL, h - padB - b, padL + b, h - padB)
             buttons[B_RIGHT].r.set(padL + b + gap, h - padB - b, padL + 2 * b + gap, h - padB)
+            val ws = min(b * 2.15f, h * 0.48f)
+            buttons[B_WHEEL].r.set(padL, h - padB - ws, padL + ws, h - padB)
             val brake = buttons[B_BRAKE].r
             brake.set(gas.left - gap - b, h - padB - b, gas.left - gap, h - padB)
-            buttons[B_HORN].r.set(brake.left, brake.top - gap - b * 0.62f, brake.right, brake.top - gap)
+            buttons[B_HAND].r.set(brake.left, brake.top - gap - b * 0.62f, brake.right, brake.top - gap)
+            val hand = buttons[B_HAND].r
+            buttons[B_HORN].r.set(brake.left, hand.top - gap - b * 0.5f, brake.right, hand.top - gap)
         } else {
-            buttons[B_LEFT].visible = false
-            buttons[B_RIGHT].visible = false
             val brake = buttons[B_BRAKE].r
             brake.set(padL, h - padB - b * 1.2f, padL + b, h - padB)
-            buttons[B_HORN].r.set(padL, brake.top - gap - b * 0.62f, padL + b, brake.top - gap)
+            buttons[B_HAND].r.set(padL, brake.top - gap - b * 0.62f, padL + b, brake.top - gap)
+            val hand = buttons[B_HAND].r
+            buttons[B_HORN].r.set(padL, hand.top - gap - b * 0.5f, padL + b, hand.top - gap)
+        }
+        // user layout: move groups, then mirror
+        for (bt in buttons) {
+            val g = groupOf(bt.id)
+            if (g < 0) continue
+            val r = bt.r
+            r.offset(groupOffset[g * 2] * w, groupOffset[g * 2 + 1] * h)
+        }
+        clampGroups(w, h)
+        if (mirror) for (bt in buttons) {
+            if (groupOf(bt.id) < 0) continue
+            val r = bt.r
+            r.set(w - r.right, r.top, w - r.left, r.bottom)
         }
         buildArrow(arrowLeft, buttons[B_LEFT].r, -1f)
         buildArrow(arrowRight, buttons[B_RIGHT].r, 1f)
@@ -255,15 +312,40 @@ class HudView(context: Context, private val world: World, private val input: Inp
             // landscape: keep the centre (the car) clear – the gauge sits on the left side
             gaugeR = (h * 0.12f).coerceIn(40f * d, 76f * d)
             val below = gaugeR + 36f * d   // nitro bar + label under the dial
-            if (touchSteering) {
-                val arrowsTop = buttons[B_LEFT].r.top
-                gaugeX = padL + b + gap / 2f
+            if (steerMode != 0) {
+                val arrowsTop = if (useWheel) buttons[B_WHEEL].r.top else buttons[B_LEFT].r.top
+                gaugeX = if (useWheel) buttons[B_WHEEL].r.centerX() else padL + b + gap / 2f
                 gaugeY = arrowsTop - 8f * d - below
                 if (gaugeY - gaugeR < padT + 56f * d) gaugeY = padT + 56f * d + gaugeR
             } else {
                 gaugeX = padL + b + gap + gaugeR + 18f * d
                 gaugeY = h - padB - below
             }
+            if (mirror) gaugeX = w - gaugeX
+        }
+    }
+
+    /** control group of a button (only these can be moved by the user), -1 = fixed */
+    private fun groupOf(id: Int): Int = when (id) {
+        B_LEFT, B_RIGHT, B_WHEEL -> G_STEER
+        B_GAS, B_NITRO, B_DOOR -> G_GAS
+        B_BRAKE, B_HAND, B_HORN -> G_BRAKE
+        else -> -1
+    }
+
+    /** keep every moved group fully on screen */
+    private fun clampGroups(w: Float, h: Float) {
+        val m = 4f * d
+        for (g in 0 until NUM_GROUPS) {
+            var l = Float.MAX_VALUE; var t = Float.MAX_VALUE; var r = -Float.MAX_VALUE; var bt = -Float.MAX_VALUE
+            for (b in buttons) if (groupOf(b.id) == g && b.visible) {
+                l = min(l, b.r.left); t = min(t, b.r.top); r = max(r, b.r.right); bt = max(bt, b.r.bottom)
+            }
+            if (l == Float.MAX_VALUE) continue
+            var dx = 0f; var dy = 0f
+            if (l < m) dx = m - l else if (r > w - m) dx = w - m - r
+            if (t < 60f * d) dy = 60f * d - t else if (bt > h - m) dy = h - m - bt
+            if (dx != 0f || dy != 0f) for (b in buttons) if (groupOf(b.id) == g) b.r.offset(dx, dy)
         }
     }
 
@@ -287,6 +369,17 @@ class HudView(context: Context, private val world: World, private val input: Inp
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val id = ev.getPointerId(idx)
                 val hit = hitTest(ev.getX(idx), ev.getY(idx))
+                if (editMode) {
+                    val g = if (hit >= 0) groupOf(hit) else -1
+                    if (g >= 0) { dragGroup = g; dragPointer = id; dragX = ev.getX(idx); dragY = ev.getY(idx) }
+                    return true
+                }
+                if (hit == B_WHEEL && wheelPointer < 0) {
+                    wheelPointer = id
+                    wheelLastTouch = touchAngle(ev.getX(idx), ev.getY(idx))
+                    listener?.onButtonHaptic()
+                    return true
+                }
                 if (hit == B_PAUSE) {
                     listener?.onPausePressed()
                     return true
@@ -305,8 +398,21 @@ class HudView(context: Context, private val world: World, private val input: Inp
                 if (hit >= 0) listener?.onButtonHaptic()
             }
             MotionEvent.ACTION_MOVE -> {
+                if (editMode) {
+                    val pi = ev.findPointerIndex(dragPointer)
+                    if (dragGroup >= 0 && pi >= 0) {
+                        val w = width.toFloat(); val h = height.toFloat()
+                        val dx = (ev.getX(pi) - dragX) * (if (mirror) -1f else 1f)
+                        groupOffset[dragGroup * 2] += dx / w
+                        groupOffset[dragGroup * 2 + 1] += (ev.getY(pi) - dragY) / h
+                        dragX = ev.getX(pi); dragY = ev.getY(pi)
+                        layoutButtons(); invalidate()
+                    }
+                    return true
+                }
                 for (i in 0 until ev.pointerCount) {
                     val id = ev.getPointerId(i)
+                    if (id == wheelPointer) { updateWheel(ev.getX(i), ev.getY(i)); continue }
                     if (id >= pointerButton.size) continue
                     val hit = hitTest(ev.getX(i), ev.getY(i))
                     // allow sliding between steering buttons and between gas/brake
@@ -315,14 +421,46 @@ class HudView(context: Context, private val world: World, private val input: Inp
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 val id = ev.getPointerId(idx)
+                if (id == wheelPointer) wheelPointer = -1
+                if (editMode && id == dragPointer) endDrag()
                 if (id < pointerButton.size) pointerButton[id] = -1
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 for (i in pointerButton.indices) pointerButton[i] = -1
+                wheelPointer = -1
+                if (editMode) endDrag()
             }
         }
         applyButtons()
         return true
+    }
+
+    private fun endDrag() {
+        val g = dragGroup
+        dragGroup = -1; dragPointer = -1
+        if (g >= 0) onGroupMoved?.invoke(g, groupOffset[g * 2], groupOffset[g * 2 + 1])
+    }
+
+    /** angle (deg) of a touch around the wheel centre */
+    private fun touchAngle(x: Float, y: Float): Float {
+        val r = buttons[B_WHEEL].r
+        return Math.toDegrees(kotlin.math.atan2((y - r.centerY()).toDouble(), (x - r.centerX()).toDouble())).toFloat()
+    }
+
+    /** rotate the wheel by how far the finger moved around its centre (like a real rim) */
+    private fun updateWheel(x: Float, y: Float) {
+        val r = buttons[B_WHEEL].r
+        val dx = x - r.centerX(); val dy = y - r.centerY()
+        val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+        val a = touchAngle(x, y)
+        if (dist > r.width() * 0.12f) {
+            var delta = a - wheelLastTouch
+            if (delta > 180f) delta -= 360f
+            if (delta < -180f) delta += 360f
+            wheelAngle = (wheelAngle + delta).coerceIn(-WHEEL_MAX, WHEEL_MAX)
+        }
+        wheelLastTouch = a
+        input.wheel = wheelAngle / WHEEL_MAX
     }
 
     private fun hitTest(x: Float, y: Float): Int {
@@ -330,6 +468,11 @@ class HudView(context: Context, private val world: World, private val input: Inp
         for (b in buttons) {
             if (!shown(b)) continue
             val r = b.r
+            if (b.id == B_WHEEL) {
+                val dx = x - r.centerX(); val dy = y - r.centerY(); val rr = r.width() * 0.5f + slop
+                if (dx * dx + dy * dy <= rr * rr) return b.id
+                continue
+            }
             if (x >= r.left - slop && x <= r.right + slop && y >= r.top - slop && y <= r.bottom + slop) return b.id
         }
         return -1
@@ -342,15 +485,17 @@ class HudView(context: Context, private val world: World, private val input: Inp
     }
 
     /** dynamic visibility: horn hides on foot, door/phone only when usable */
-    private fun shown(b: Button): Boolean = when (b.id) {
+    private fun shown(b: Button): Boolean = if (editMode) b.visible && b.id != B_PAUSE && b.id != B_PHONE else when (b.id) {
         B_DOOR -> world.hudDoor != World.DOOR_NONE && world.hudState == World.STATE_RACING
         B_PHONE -> phoneAvailable()
         B_HORN -> b.visible && !world.onFoot
+        B_HAND -> world.driftEnabled && !world.onFoot
+        // on foot the wheel is replaced by the steer buttons' job (turning) – keep the wheel visible
         else -> b.visible
     }
 
     private fun applyButtons() {
-        var l = false; var r = false; var g = false; var br = false; var n = false; var h = false
+        var l = false; var r = false; var g = false; var br = false; var n = false; var h = false; var hb = false
         for (p in pointerButton) {
             when (p) {
                 B_LEFT -> l = true
@@ -359,9 +504,10 @@ class HudView(context: Context, private val world: World, private val input: Inp
                 B_BRAKE -> br = true
                 B_NITRO -> n = true
                 B_HORN -> h = true
+                B_HAND -> hb = true
             }
         }
-        input.left = l; input.right = r; input.gas = g; input.brake = br; input.nitro = n; input.horn = h
+        input.left = l; input.right = r; input.gas = g; input.brake = br; input.nitro = n; input.horn = h; input.handbrake = hb
     }
 
     // ================================================================= drawing
@@ -405,6 +551,12 @@ class HudView(context: Context, private val world: World, private val input: Inp
             val r = buttons[B_PAUSE].r
             canvas.drawText(sFps, r.left, r.bottom + 16f * d, pSmall)
             canvas.drawText(chars, 0, n, r.left + 30f * d, r.bottom + 16f * d, pSmall)
+            val info = devInfo
+            if (info != null) {
+                pSmall.textSize = 9.5f * d
+                pSmall.color = Ui.withAlpha(Ui.GREEN, 0xCC)
+                canvas.drawText(info, r.left, r.bottom + 29f * d, pSmall)
+            }
         }
 
         val msg = message
@@ -784,7 +936,11 @@ class HudView(context: Context, private val world: World, private val input: Inp
         pSmall.textAlign = Paint.Align.CENTER
         pSmall.textSize = r * 0.2f
         pSmall.color = Ui.DIM
-        canvas.drawText(sKmh, cx, cy + r * 0.48f, pSmall)
+        if (world.hudReverse) {
+            pSmall.color = Ui.YELLOW
+            pSmall.textSize = r * 0.26f
+            canvas.drawText("R", cx, cy + r * 0.5f, pSmall)
+        } else canvas.drawText(sKmh, cx, cy + r * 0.48f, pSmall)
 
         // nitro bar
         val barW = r * 2.1f
@@ -946,11 +1102,22 @@ class HudView(context: Context, private val world: World, private val input: Inp
 
     private fun drawButtons(canvas: Canvas) {
         val state = world.hudState
-        if (state != World.STATE_RACING && state != World.STATE_COUNTDOWN) return
-        val foot = world.onFoot
+        if (!editMode && state != World.STATE_RACING && state != World.STATE_COUNTDOWN) return
+        val foot = world.onFoot && !editMode
+        // self-centring wheel when released
+        val nowMs = SystemClock.uptimeMillis()
+        val fdt = ((nowMs - wheelLastFrame) / 1000f).coerceIn(0f, 0.1f)
+        wheelLastFrame = nowMs
+        if (wheelPointer < 0 && wheelAngle != 0f) {
+            val back = 720f * fdt
+            wheelAngle = if (kotlin.math.abs(wheelAngle) <= back) 0f else wheelAngle - back * kotlin.math.sign(wheelAngle)
+            input.wheel = wheelAngle / WHEEL_MAX
+        }
+        alphaK = hudAlpha.coerceIn(0.2f, 1f)
         for (b in buttons) {
             if (!shown(b) || b.id == B_PAUSE) continue
             if (b.id == B_PHONE) { drawPhoneButton(canvas, b.r); continue }
+            if (b.id == B_WHEEL) { drawWheel(canvas, b.r); continue }
             if (b.id == B_DOOR) {
                 val enter = world.hudDoor == World.DOOR_ENTER
                 val acc = if (enter) Ui.GREEN else Ui.YELLOW
@@ -969,6 +1136,7 @@ class HudView(context: Context, private val world: World, private val input: Inp
                 B_GAS -> input.gas
                 B_BRAKE -> input.brake
                 B_NITRO -> input.nitro
+                B_HAND -> input.handbrake
                 else -> input.horn
             }
             val accent = when (b.id) {
@@ -976,18 +1144,23 @@ class HudView(context: Context, private val world: World, private val input: Inp
                 B_BRAKE -> Ui.RED
                 B_NITRO -> Ui.PINK
                 B_HORN -> Ui.YELLOW
+                B_HAND -> 0xFFFF8A3D.toInt()
                 else -> Ui.CYAN
             }
             val r = b.r
             val rad = 18f * d
             pFill.color = if (pressed) Ui.withAlpha(accent, 0x88) else 0x55070A14
+            fa(pFill)
             canvas.drawRoundRect(r, rad, rad, pFill)
             pStroke.strokeWidth = (if (pressed) 2.5f else 1.6f) * d
             pStroke.color = Ui.withAlpha(accent, if (pressed) 0xFF else 0x99)
+            if (editMode) pStroke.color = Ui.withAlpha(accent, if (groupOf(b.id) == dragGroup) 0xFF else 0xCC)
+            fa(pStroke)
             canvas.drawRoundRect(r, rad, rad, pStroke)
             when (b.id) {
                 B_LEFT, B_RIGHT -> {
                     pFill.color = Ui.withAlpha(Ui.TEXT, if (pressed) 0xFF else 0xCC)
+                    fa(pFill)
                     canvas.drawPath(if (b.id == B_LEFT) arrowLeft else arrowRight, pFill)
                 }
                 B_NITRO -> {
@@ -1004,6 +1177,32 @@ class HudView(context: Context, private val world: World, private val input: Inp
                 else -> drawLabel(canvas, b.label, r, accent, pressed)
             }
         }
+    }
+
+    private var alphaK = 1f
+    private fun fa(p: Paint) { if (alphaK < 0.999f) p.alpha = (p.alpha * alphaK).toInt() }
+
+    /** virtual steering wheel: rim, spokes and a top marker that turn with [wheelAngle] */
+    private fun drawWheel(canvas: Canvas, r: RectF) {
+        val cx = r.centerX(); val cy = r.centerY(); val rad = r.width() * 0.5f
+        val held = wheelPointer >= 0
+        pFill.color = 0x44070A14; fa(pFill)
+        canvas.drawCircle(cx, cy, rad, pFill)
+        pStroke.strokeWidth = rad * 0.16f
+        pStroke.color = Ui.withAlpha(if (held) Ui.CYAN else Ui.TEXT, if (held) 0xEE else 0x99); fa(pStroke)
+        canvas.drawCircle(cx, cy, rad * 0.82f, pStroke)
+        canvas.save()
+        canvas.rotate(wheelAngle, cx, cy)
+        pStroke.strokeWidth = rad * 0.1f
+        canvas.drawLine(cx - rad * 0.78f, cy, cx - rad * 0.22f, cy, pStroke)
+        canvas.drawLine(cx + rad * 0.22f, cy, cx + rad * 0.78f, cy, pStroke)
+        canvas.drawLine(cx, cy + rad * 0.22f, cx, cy + rad * 0.78f, pStroke)
+        pFill.color = Ui.withAlpha(Ui.TEXT, 0xAA); fa(pFill)
+        canvas.drawCircle(cx, cy, rad * 0.24f, pFill)
+        pStroke.color = Ui.YELLOW; fa(pStroke)
+        pStroke.strokeWidth = rad * 0.17f
+        canvas.drawLine(cx, cy - rad * 0.9f, cx, cy - rad * 0.74f, pStroke)
+        canvas.restore()
     }
 
     /** rounded phone glyph with a notification dot while a taxi job is waiting */
@@ -1166,6 +1365,14 @@ class HudView(context: Context, private val world: World, private val input: Inp
         const val B_PAUSE = 6
         const val B_DOOR = 7
         const val B_PHONE = 8
+        const val B_HAND = 9
+        const val B_WHEEL = 10
+        const val G_STEER = 0
+        const val G_GAS = 1
+        const val G_BRAKE = 2
+        const val NUM_GROUPS = 3
+        /** wheel rotation for full lock, degrees */
+        const val WHEEL_MAX = 120f
         val DESTS = intArrayOf(R.string.dest_0, R.string.dest_1, R.string.dest_2, R.string.dest_3, R.string.dest_4, R.string.dest_5,
             R.string.dest_6, R.string.dest_7, R.string.dest_8, R.string.dest_9, R.string.dest_10, R.string.dest_11)
     }

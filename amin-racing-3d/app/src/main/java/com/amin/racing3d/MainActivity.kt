@@ -81,6 +81,8 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
     private var confirmView: View? = null
 
     private val handler = Handler(Looper.getMainLooper())
+    private val eglChooser = com.amin.racing3d.render.EglChooser()
+    private var renderSizeKey = 0L
     private val stack = ArrayList<Screen>()
     private var glReady = false
     private var inRace = false
@@ -155,6 +157,8 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
 
         glView = GLSurfaceView(this)
         glView.setEGLContextClientVersion(3)
+        glView.setEGLConfigChooser(eglChooser)
+        glView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateRenderSize() }
         glView.preserveEGLContextOnPause = true
         glView.setRenderer(renderer)
         glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -339,6 +343,7 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         if (i.hasExtra("tod")) save.selectedTod = i.getIntExtra("tod", 0).coerceIn(0, 3)
         if (i.hasExtra("autogas")) save.autoGas = i.getBooleanExtra("autogas", true)
         if (i.hasExtra("fps")) save.showFps = i.getBooleanExtra("fps", false)
+        if (i.hasExtra("coins")) save.coins = i.getIntExtra("coins", save.coins)
         // debug: "custom" = comma list of Garage 2.0 options for the selected car (granted + equipped)
         i.getStringExtra("custom")?.split(',')?.forEachIndexed { cat, v ->
             val opt = v.trim().toIntOrNull() ?: return@forEachIndexed
@@ -353,7 +358,13 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         applySettings()
         when (demo) {
             "race" -> startRace()
-            "garage" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.GarageScreen(this)) }
+            "garage" -> {
+                if (i.hasExtra("sort")) save.shopSort = i.getIntExtra("sort", 0)
+                replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.GarageScreen(this, i.getIntExtra("view", -1)))
+            }
+            // v2.1: control settings and the HUD layout editor
+            "controls" -> { replaceAll(MainMenuScreen(this)); push(SettingsScreen(this)); push(com.amin.racing3d.ui.ControlsScreen(this)) }
+            "hudlayout" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.ControlsScreen(this)); push(com.amin.racing3d.ui.HudLayoutScreen(this)) }
             "modes" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.ModeSelectScreen(this)) }
             "settings" -> { replaceAll(MainMenuScreen(this)); push(SettingsScreen(this)) }
             "scores" -> { replaceAll(MainMenuScreen(this)); push(com.amin.racing3d.ui.ScoresScreen(this)) }
@@ -511,8 +522,48 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
                 audio.nitroOn = false
                 audio.hornOn = false
             }
+            tickCount++
+            if (tickCount % 10 == 0) updateRenderSize()   // follows automatic quality drops
+            hud.devInfo = if (save.showFps) devInfoText() else null
             handler.postDelayed(this, 100)
         }
+    }
+    private var tickCount = 0
+
+    /**
+     * Render resolution. The 3D view is rendered into a smaller buffer and stretched by the display
+     * hardware scaler (free on every phone); the HUD and menus stay at native resolution. "Auto" caps
+     * the buffer's short side per preset: Low 540 px, Medium 720 px, High 1080 px, Ultra native.
+     */
+    private fun renderScaleFactor(vw: Int, vh: Int): Float {
+        val q = renderer.qualityLevel.coerceIn(0, 3)
+        val manual = RENDER_SCALES.getOrElse(save.renderScale) { 0f }
+        if (manual > 0f) return manual
+        val short = min(vw, vh).toFloat()
+        val cap = AUTO_SHORT_SIDE[q]
+        var f = if (cap <= 0f) 1f else min(1f, cap / short)
+        if (q == 0) f = min(f, 0.7f)
+        return f.coerceIn(0.4f, 1f)
+    }
+
+    private fun updateRenderSize() {
+        if (!::glView.isInitialized) return
+        val vw = glView.width; val vh = glView.height
+        if (vw <= 0 || vh <= 0) return
+        val f = renderScaleFactor(vw, vh)
+        val bw = if (f >= 0.999f) vw else ((vw * f).toInt() and 1.inv()).coerceAtLeast(2)
+        val bh = if (f >= 0.999f) vh else ((vh * f).toInt() and 1.inv()).coerceAtLeast(2)
+        val key = (bw.toLong() shl 32) or bh.toLong()
+        if (key == renderSizeKey) return
+        renderSizeKey = key
+        if (bw == vw && bh == vh) glView.holder.setSizeFromLayout() else glView.holder.setFixedSize(bw, bh)
+    }
+
+    private fun devInfoText(): String {
+        val sz = renderSizeKey
+        val res = if (sz == 0L) "${glView.width}×${glView.height}" else "${sz ushr 32}×${sz and 0xFFFFFFFFL}"
+        val q = arrayOf("Low", "Med", "High", "Ultra")[renderer.qualityLevel.coerceIn(0, 3)]
+        return "$res · $q · D${eglChooser.depthBits} · ${renderer.lastFrameMs}ms · ${renderer.drawCalls} dc"
     }
 
     // ================================================================= navigation
@@ -836,6 +887,8 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
     // ================================================================= settings
     override fun applySettings() {
         renderer.qualityLevel = save.graphics
+        renderSizeKey = 0L
+        handler.post { updateRenderSize() }
         renderer.autoQuality = save.autoQuality
         renderer.cameraShakeEnabled = save.cameraShake
         audio.sfxEnabled = save.sfxOn
@@ -845,11 +898,30 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
         hud.showFps = save.showFps
         tilt.sensitivity = save.sensitivity
         tilt.offset = save.tiltOffset
+        tilt.deadZone = save.deadZone
+        tilt.curve = save.steerCurve
         useTilt = tilt.available && save.controlMode == SaveManager.CONTROL_TILT
         input.useTilt = useTilt
+        input.useWheel = save.controlMode == SaveManager.CONTROL_WHEEL
         input.autoGas = save.autoGas
+        input.steerSens = save.steerSens
+        input.gasSens = save.gasSens
+        input.brakeSens = save.brakeSens
+        input.deadZone = save.deadZone
+        input.smoothing = save.steerSmoothing
+        input.curve = save.steerCurve
+        applyHudLayout(hud)
         if (hud.touchSteering == useTilt) hud.touchSteering = !useTilt
         updateTiltListening()
+    }
+
+    /** steering mode, button size/opacity/side and custom group positions from the save */
+    override fun applyHudLayout(h: HudView) {
+        h.steerMode = if (useTilt) SaveManager.CONTROL_TILT else if (save.controlMode == SaveManager.CONTROL_WHEEL) SaveManager.CONTROL_WHEEL else SaveManager.CONTROL_TOUCH
+        h.hudAlpha = save.hudAlpha
+        h.hudScale = save.hudScale
+        h.mirror = save.hudMirror
+        h.setOffsets { save.hudOffset(it) }
     }
 
     private fun updateTiltListening() {
@@ -1176,6 +1248,9 @@ class MainActivity : Activity(), GameHost, GameListener, RendererCallbacks, HudV
     companion object {
         private const val KEY_SETTINGS = "reopen_settings"
         private const val EXTRA_DEMO = "demo"
+        /** settings index -> render scale (0 = automatic per preset) */
+        val RENDER_SCALES = floatArrayOf(0f, 1f, 0.85f, 0.7f, 0.55f)
+        private val AUTO_SHORT_SIDE = floatArrayOf(540f, 720f, 1080f, 0f)
         private const val EXTRA_LANG = "lang"
     }
 }

@@ -175,6 +175,26 @@ alive phone || exit 1
 demo 7 --es demo menu
 shot 42-main-menu-v2
 
+# ---------------------------------------------------------------- v2.1: shop, controls, Low preset, roads
+demo 8 --es demo garage --ei sort 0 --ei view 4 --ei coins 9500
+shot 43-shop-cheapest-first
+demo 8 --es demo garage --ei sort 2 --ei view 9 --ei coins 9500
+shot 44-shop-performance-locked
+demo 6 --es demo controls --ei control 2
+shot 45-controls-settings
+demo 6 --es demo hudlayout --ei control 2
+shot 46-hud-layout-editor
+alive v21-ui || exit 1
+demo 30 --es demo race --ei mode 4 --ei env 0 --ei tod 0 --ei weather 0 --ei car 13 --ei gfx 2 --ez autogas true --ei control 2 --ez fps true
+shot 47-drift-wheel-handbrake
+demo 32 --es demo race --ei mode 8 --ei env 0 --ei tod 0 --ei weather 0 --ei car 0 --ei gfx 0 --ez autogas true --ei control 1 --ez fps true
+shot 48-low-preset-city-dev-overlay
+demo 32 --es demo race --ei mode 8 --ei env 0 --ei tod 0 --ei weather 0 --ei car 0 --ei gfx 2 --ez autogas true --ei control 1 --ez fps true
+shot 49-high-preset-city-sidewalks
+demo 32 --es demo race --ei mode 8 --ei env 5 --ei tod 1 --ei weather 1 --ei car 5 --ei gfx 1 --ez autogas true --ei control 1 --ez fps true
+shot 50-medium-industrial-rain-asphalt
+alive v21-race || exit 1
+
 # ---------------------------------------------------------------- English UI (fresh launch)
 adb shell am force-stop "$PKG"
 sleep 1

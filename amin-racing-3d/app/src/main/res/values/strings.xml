@@ -357,4 +357,28 @@
     <string name="menu_quick_play">مسابقهٔ سریع</string>
     <string name="menu_progress_short">چالش‌ها</string>
     <string name="badge_new">جدید</string>
+    <string name="btn_handbrake">ترمزدستی</string>
+    <string name="ctl_wheel">فرمان مجازی</string>
+    <string name="ctl_current">روش فعلی: %1$s</string>
+    <string name="ctl_open">تنظیمات کنترل و چیدمان دکمه‌ها</string>
+    <string name="set_render_scale">وضوح رندر</string>
+    <string name="rs_auto">خودکار</string>
+    <string name="set_render_scale_info">وضوح سه‌بعدی کمتر = FPS بیشتر روی گوشی‌های ضعیف. «خودکار»: پایین ۵۴۰p، متوسط ۷۲۰p، بالا ۱۰۸۰p، اولترا کامل. منو و HUD همیشه با وضوح کامل.</string>
+    <string name="sort_cheap">ارزان‌ترین</string>
+    <string name="sort_expensive">گران‌ترین</string>
+    <string name="sort_perf">قوی‌ترین</string>
+    <string name="sort_category">دسته</string>
+    <string name="shop_owned">خریداری‌شده</string>
+    <string name="shop_level">سطح %1$s</string>
+    <string name="shop_short">%1$s سکه کم دارید</string>
+    <string name="shop_pi">شاخص عملکرد</string>
+    <string name="shop_0100">۰ تا ۱۰۰</string>
+    <string name="unit_s">ث</string>
+    <string name="shop_drift">دریفت</string>
+    <string name="shop_drive">محور</string>
+    <string name="shop_rwd">عقب</string>
+    <string name="shop_taxi_bonus">🚕 کرایه تاکسی ×۱٫۵</string>
+    <string name="shop_vs">در مقایسه با %1$s</string>
+    <string name="shop_locked_info">این ماشین از سطح %1$s باز می‌شود (سطح شما: %2$s). مأموریت‌های داستان هم ماشین هدیه می‌دهند.</string>
+    <string name="shop_already_owned">این ماشین را قبلاً خریده‌اید — سکه‌ای کم نشد</string>
 </resources>

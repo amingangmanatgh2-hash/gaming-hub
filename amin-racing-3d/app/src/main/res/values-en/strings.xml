@@ -354,4 +354,28 @@
     <string name="menu_quick_play">QUICK RACE</string>
     <string name="menu_progress_short">Challenges</string>
     <string name="badge_new">NEW</string>
+    <string name="btn_handbrake">HANDBRAKE</string>
+    <string name="ctl_wheel">Wheel</string>
+    <string name="ctl_current">Current mode: %1$s</string>
+    <string name="ctl_open">Controls & button layout</string>
+    <string name="set_render_scale">Render resolution</string>
+    <string name="rs_auto">Auto</string>
+    <string name="set_render_scale_info">Lower 3D resolution = more FPS on weak phones. Auto: Low 540p, Medium 720p, High 1080p, Ultra native. Menus and HUD stay sharp.</string>
+    <string name="sort_cheap">Cheapest</string>
+    <string name="sort_expensive">Priciest</string>
+    <string name="sort_perf">Performance</string>
+    <string name="sort_category">Category</string>
+    <string name="shop_owned">Owned</string>
+    <string name="shop_level">Level %1$s</string>
+    <string name="shop_short">%1$s coins short</string>
+    <string name="shop_pi">Performance index</string>
+    <string name="shop_0100">0-100</string>
+    <string name="unit_s">s</string>
+    <string name="shop_drift">Drift</string>
+    <string name="shop_drive">Drive</string>
+    <string name="shop_rwd">RWD</string>
+    <string name="shop_taxi_bonus">🚕 Taxi fares ×1.5</string>
+    <string name="shop_vs">vs %1$s</string>
+    <string name="shop_locked_info">Unlocks at level %1$s (you are level %2$s). Story missions also reward cars.</string>
+    <string name="shop_already_owned">You already own this car — nothing was charged</string>
 </resources>

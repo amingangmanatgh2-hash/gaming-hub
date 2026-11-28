@@ -17,13 +17,17 @@ import com.amin.racing3d.game.GameData
 
 // =====================================================================================
 /** Garage / car select: rotating 3D showroom car, stats, paint and purchase. */
-class GarageScreen(host: GameHost) : Screen(host) {
+class GarageScreen(host: GameHost, startCar: Int = -1) : Screen(host) {
     override val dim = 0f
-    private var car = save.selectedCar
+    private var car = if (startCar in GameData.cars.indices) startCar else save.selectedCar
     private var previewPaint = save.paintIndex(car)
     private lateinit var panel: LinearLayout
     private lateinit var nameView: android.widget.TextView
     private lateinit var priceView: android.widget.TextView
+    /** v2.1: cars in the chosen shop order (default: cheapest first) */
+    private var order = sortedCars(save.shopSort)
+    private lateinit var strip: LinearLayout
+    private lateinit var stripScroll: android.widget.HorizontalScrollView
 
     @SuppressLint("ClickableViewAccessibility")
     override fun build(): View {
@@ -54,6 +58,26 @@ class GarageScreen(host: GameHost) : Screen(host) {
         nameRow.addView(nameCol, LinearLayout.LayoutParams(0, Ui.WRAP, 1f))
         nameRow.addView(next)
 
+        // v2.1 shop: sort chips + a strip of every car with price and state
+        val shop = Ui.vbox(ctx, Gravity.NO_GRAVITY)
+        shop.layoutDirection = Lang.layoutDirection
+        shop.setPadding(Ui.dp(10f), 0, Ui.dp(10f), Ui.dp(6f))
+        val sortNames = listOf(str(R.string.sort_cheap), str(R.string.sort_expensive), str(R.string.sort_perf), str(R.string.sort_category))
+        val chips = Ui.segmented(ctx, sortNames, save.shopSort, Ui.YELLOW) {
+            save.shopSort = it
+            order = sortedCars(it)
+            buildStrip()
+            scrollStripTo(car)
+        }
+        shop.addView(chips, Ui.lp())
+        stripScroll = android.widget.HorizontalScrollView(ctx)
+        stripScroll.isHorizontalScrollBarEnabled = false
+        strip = Ui.hbox(ctx, Gravity.CENTER_VERTICAL)
+        strip.setPadding(0, Ui.dp(6f), 0, 0)
+        stripScroll.addView(strip, FrameLayout.LayoutParams(Ui.WRAP, Ui.WRAP))
+        shop.addView(stripScroll, Ui.lp())
+        buildStrip()
+
         panel = Ui.panel(ctx, true, Ui.withAlpha(Ui.PINK, 0x66))
         val scroll = ScrollView(ctx)
         scroll.isVerticalScrollBarEnabled = false
@@ -64,6 +88,7 @@ class GarageScreen(host: GameHost) : Screen(host) {
             column.addView(nameRow, Ui.lp())
             val spacer = View(ctx)
             column.addView(spacer, LinearLayout.LayoutParams(Ui.MATCH, 0, 1f))
+            column.addView(shop, Ui.lp())
             val h = (ctx.resources.displayMetrics.heightPixels * 0.5f).toInt()
             val lp = LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP)
             lp.setMargins(Ui.dp(10f), 0, Ui.dp(10f), Ui.dp(10f))
@@ -80,6 +105,8 @@ class GarageScreen(host: GameHost) : Screen(host) {
             val left = Ui.vbox(ctx, Gravity.CENTER_HORIZONTAL)
             nameRow.layoutDirection = Lang.layoutDirection
             left.addView(nameRow, Ui.lp())
+            left.addView(View(ctx), LinearLayout.LayoutParams(Ui.MATCH, 0, 1f))
+            left.addView(shop, Ui.lp())
             body.addView(left, LinearLayout.LayoutParams(0, Ui.MATCH, 1f))
             val lp = LinearLayout.LayoutParams(minOf(Ui.dp(360f), (ctx.resources.displayMetrics.widthPixels * 0.46f).toInt()), Ui.MATCH)
             lp.setMargins(0, 0, Ui.dp(10f), Ui.dp(10f))
@@ -88,17 +115,98 @@ class GarageScreen(host: GameHost) : Screen(host) {
         }
         root.addView(column, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH))
         refresh(false)
+        root.post { scrollStripTo(car) }
         return root
     }
 
-    private fun step(d: Int) {
-        val n = GameData.cars.size
-        car = (car + d + n) % n
+    // ---------------------------------------------------------------- v2.1 shop
+    /** car state in the shop */
+    private fun stateOf(id: Int): Int {
+        val spec = GameData.cars[id]
+        return when {
+            save.isCarOwned(id) -> if (id == save.selectedCar) ST_SELECTED else ST_OWNED
+            save.level() < GameData.carLevelReq(spec) -> ST_LOCKED
+            save.coins < spec.price -> ST_SHORT
+            else -> ST_AVAILABLE
+        }
+    }
+
+    private fun stateColor(st: Int) = when (st) {
+        ST_SELECTED -> Ui.CYAN
+        ST_OWNED -> Ui.GREEN
+        ST_AVAILABLE -> Ui.YELLOW
+        ST_SHORT -> 0xFFFF8A3D.toInt()
+        else -> 0xFF6B7385.toInt()
+    }
+
+    private fun buildStrip() {
+        strip.removeAllViews()
+        for (id in order) {
+            val spec = GameData.cars[id]
+            val st = stateOf(id)
+            val acc = stateColor(st)
+            val sel = id == car
+            val card = Ui.vbox(ctx, Gravity.CENTER)
+            card.background = Ui.bg(if (sel) Ui.withAlpha(acc, 0x40) else 0xCC0B1020.toInt(), Ui.withAlpha(acc, if (sel) 0xFF else 0x88), 12f, if (sel) 2.2f else 1.2f)
+            card.setPadding(Ui.dp(8f), Ui.dp(5f), Ui.dp(8f), Ui.dp(5f))
+            val name = Ui.text(ctx, str(spec.nameRes), 11.5f, if (st == ST_LOCKED) Ui.DIM else Ui.TEXT, Ui.bold)
+            name.maxLines = 1
+            name.gravity = Gravity.CENTER
+            card.addView(name, Ui.lp(Ui.WRAP))
+            val pi = GameData.performanceIndex(spec)
+            val sub = Ui.text(ctx, Lang.digits(GameData.piClass(pi) + " " + pi) + (if (spec.catRes != 0) " · " + str(spec.catRes) else ""), 9.5f, Ui.DIM)
+            sub.maxLines = 1
+            card.addView(sub, Ui.lp(Ui.WRAP))
+            val badge = Ui.text(ctx, badgeText(id, st), 11f, acc, Ui.bold)
+            badge.maxLines = 1
+            card.addView(badge, Ui.lp(Ui.WRAP))
+            card.isClickable = true
+            Ui.pressable(card)
+            card.setOnClickListener {
+                if (id == car) return@setOnClickListener
+                host.sfx(AudioEngine.SFX_CLICK)
+                val dir = if (order.indexOf(id) > order.indexOf(car)) 1 else -1
+                select(id, dir)
+            }
+            card.contentDescription = str(spec.nameRes) + ", " + badgeText(id, st)
+            val lp = LinearLayout.LayoutParams(Ui.dp(118f), Ui.WRAP)
+            lp.marginEnd = Ui.dp(6f)
+            strip.addView(card, lp)
+        }
+    }
+
+    private fun badgeText(id: Int, st: Int): String {
+        val spec = GameData.cars[id]
+        return when (st) {
+            ST_SELECTED -> "✓ " + str(R.string.selected)
+            ST_OWNED -> "✓ " + str(R.string.shop_owned)
+            ST_LOCKED -> "🔒 " + str(R.string.shop_level, Lang.num(GameData.carLevelReq(spec)))
+            else -> "● " + Lang.num(spec.price)
+        }
+    }
+
+    private fun scrollStripTo(id: Int) {
+        val i = order.indexOf(id)
+        if (i < 0 || i >= strip.childCount) return
+        val c = strip.getChildAt(i)
+        stripScroll.post { stripScroll.smoothScrollTo((c.left - (stripScroll.width - c.width) / 2).coerceAtLeast(0), 0) }
+    }
+
+    private fun select(id: Int, d: Int) {
+        car = id
         previewPaint = save.paintIndex(car)
         refresh(true)
+        buildStrip()
+        scrollStripTo(car)
         nameView.translationX = Ui.dp(if (d > 0) 40f else -40f).toFloat() * (if (Lang.isFa) -1 else 1)
         nameView.alpha = 0f
         nameView.animate().translationX(0f).alpha(1f).setDuration(260).start()
+    }
+
+    private fun step(d: Int) {
+        val n = order.size
+        val i = order.indexOf(car).coerceAtLeast(0)
+        select(order[(i + d + n) % n], d)
     }
 
     private fun refresh(animate: Boolean) {
@@ -106,12 +214,15 @@ class GarageScreen(host: GameHost) : Screen(host) {
         val owned = save.isCarOwned(car)
         host.showroom(car, GameData.PAINT_PALETTE[previewPaint], if (owned) save.customs(car) else null)
         nameView.text = str(spec.nameRes)
-        priceView.text = when {
-            !owned -> "🔒 " + Lang.num(spec.price) + " " + str(R.string.coins)
-            car == save.selectedCar -> str(R.string.selected)
-            else -> "✓"
+        val st = stateOf(car)
+        priceView.text = when (st) {
+            ST_SELECTED -> "✓ " + str(R.string.selected)
+            ST_OWNED -> "✓ " + str(R.string.shop_owned)
+            ST_LOCKED -> "🔒 " + Lang.num(spec.price) + " " + str(R.string.coins) + "  ·  " + str(R.string.shop_level, Lang.num(GameData.carLevelReq(spec)))
+            ST_SHORT -> "● " + Lang.num(spec.price) + " " + str(R.string.coins) + "  ·  " + str(R.string.shop_short, Lang.num(spec.price - save.coins))
+            else -> "● " + Lang.num(spec.price) + " " + str(R.string.coins)
         }
-        priceView.setTextColor(if (owned) Ui.GREEN else Ui.YELLOW)
+        priceView.setTextColor(stateColor(st))
 
         panel.removeAllViews()
         // ---- stats
@@ -139,6 +250,28 @@ class GarageScreen(host: GameHost) : Screen(host) {
         info.append("  •  ").append(str(R.string.stat_grip)).append(": ").append(Lang.num((spec.grip * 100f).toInt())).append('%')
         if (spec.allTerrain) info.append("  •  4×4")
         panel.addView(Ui.text(ctx, info.toString(), 12f, Ui.CYAN, Ui.bold), Ui.lp(topDp = 2f))
+        // v2.1: full spec sheet (also before purchase) and a comparison with the car you drive now
+        val lvS = save.upgradeLevel(car, GameData.UPG_SPEED)
+        val lvH = save.upgradeLevel(car, GameData.UPG_HANDLING)
+        val lvB = save.upgradeLevel(car, GameData.UPG_BRAKES)
+        val pi = GameData.performanceIndex(spec, lvS, lvH, lvB)
+        val z100 = GameData.zeroTo100(spec, lvS)
+        val sheet = StringBuilder()
+        sheet.append(str(R.string.shop_pi)).append(": ").append(GameData.piClass(pi)).append(' ').append(pi)
+        sheet.append("   ").append(str(R.string.shop_0100)).append(": ").append(String.format(java.util.Locale.US, "%.1f", z100)).append(' ').append(str(R.string.unit_s))
+        sheet.append("\n").append(str(R.string.shop_drift)).append(": ").append(stars(spec.drift / 1.75f))
+        sheet.append("   ").append(str(R.string.shop_drive)).append(": ").append(if (spec.allTerrain) "4×4" else str(R.string.shop_rwd))
+        if (car == GameData.CAR_TAXI) sheet.append("\n").append(str(R.string.shop_taxi_bonus))
+        panel.addView(Ui.text(ctx, Lang.digits(sheet.toString()), 12f, Ui.TEXT), Ui.lp(topDp = 4f))
+        val cur = save.selectedCar
+        if (cur != car) {
+            val cs = GameData.cars[cur]
+            val dPi = pi - GameData.performanceIndex(cs, save.upgradeLevel(cur, GameData.UPG_SPEED), save.upgradeLevel(cur, GameData.UPG_HANDLING), save.upgradeLevel(cur, GameData.UPG_BRAKES))
+            val dZ = z100 - GameData.zeroTo100(cs, save.upgradeLevel(cur, GameData.UPG_SPEED))
+            val cmp = str(R.string.shop_vs, str(cs.nameRes)) + ": PI " + (if (dPi >= 0) "+" else "") + dPi +
+                "  ·  0-100 " + (if (dZ <= 0) "" else "+") + String.format(java.util.Locale.US, "%.1f", dZ) + str(R.string.unit_s)
+            panel.addView(Ui.text(ctx, Lang.digits(cmp), 11.5f, if (dPi >= 0) Ui.GREEN else 0xFFFF8A3D.toInt(), Ui.bold), Ui.lp(topDp = 2f))
+        }
 
         // ---- paint
         panel.addView(sectionTitle(str(R.string.paint)), Ui.lp())
@@ -183,6 +316,7 @@ class GarageScreen(host: GameHost) : Screen(host) {
                     save.selectedCar = car
                     host.sfx(AudioEngine.SFX_BUY)
                     refresh(false)
+                    buildStrip()
                 }, Ui.lp(topDp = 14f))
             }
             panel.addView(Ui.button(ctx, str(R.string.cus_open), Ui.PINK, true, 16f) {
@@ -191,23 +325,35 @@ class GarageScreen(host: GameHost) : Screen(host) {
             panel.addView(Ui.button(ctx, str(R.string.upgrade_shop), Ui.YELLOW, false, 16f) {
                 host.push(UpgradeScreen(host, car))
             }, Ui.lp(topDp = 8f))
+        } else if (st == ST_LOCKED) {
+            val t = Ui.text(ctx, "🔒 " + str(R.string.shop_locked_info, Lang.num(GameData.carLevelReq(spec)), Lang.num(save.level())), 13f, Ui.DIM, Ui.bold)
+            t.gravity = Gravity.CENTER
+            t.background = Ui.bg(0x22FFFFFF, 0x44FFFFFF, 16f, 1.2f)
+            t.setPadding(Ui.dp(8f), Ui.dp(11f), Ui.dp(8f), Ui.dp(11f))
+            panel.addView(t, Ui.lp(topDp = 14f))
         } else {
-            panel.addView(Ui.button(ctx, str(R.string.buy_for, Lang.num(spec.price)), Ui.YELLOW, true, 18f) {
+            val buyCar = car
+            panel.addView(Ui.button(ctx, str(R.string.buy_for, Lang.num(spec.price)), if (st == ST_SHORT) 0xFFFF8A3D.toInt() else Ui.YELLOW, st == ST_AVAILABLE, 18f) {
+                if (save.isCarOwned(buyCar)) { refresh(false); buildStrip(); return@button }
                 if (save.coins < spec.price) {
-                    host.toast(str(R.string.not_enough_coins), Ui.RED)
+                    host.toast(str(R.string.not_enough_coins) + " (" + str(R.string.shop_short, Lang.num(spec.price - save.coins)) + ")", Ui.RED)
                     return@button
                 }
                 host.confirm(str(R.string.buy_for, Lang.num(spec.price)) + " — " + str(spec.nameRes)) {
-                    if (save.spend(spec.price)) {
-                        save.setCarOwned(car)
-                        save.setPaintIndex(car, previewPaint)
-                        save.selectedCar = car
-                        host.sfx(AudioEngine.SFX_BUY)
-                        host.toast(str(R.string.purchased), Ui.GREEN)
-                        announceUnlocks()
-                        refreshCoins()
-                        refresh(false)
-                    } else host.toast(str(R.string.not_enough_coins), Ui.RED)
+                    // atomic: never charges twice (double tap, second dialog, story unlock in between)
+                    when (save.buyCar(buyCar)) {
+                        com.amin.racing3d.core.SaveManager.BUY_OK -> {
+                            save.setPaintIndex(buyCar, previewPaint)
+                            host.sfx(AudioEngine.SFX_BUY)
+                            host.toast(str(R.string.purchased), Ui.GREEN)
+                            announceUnlocks()
+                        }
+                        com.amin.racing3d.core.SaveManager.BUY_OWNED -> host.toast(str(R.string.shop_already_owned), Ui.CYAN)
+                        else -> host.toast(str(R.string.not_enough_coins), Ui.RED)
+                    }
+                    refreshCoins()
+                    refresh(false)
+                    buildStrip()
                 }
             }, Ui.lp(topDp = 14f))
         }
@@ -219,6 +365,31 @@ class GarageScreen(host: GameHost) : Screen(host) {
         Inspect.reset()
         host.leaveShowroom()
         host.back()
+    }
+
+    private fun stars(v: Float): String {
+        val n = (v.coerceIn(0f, 1f) * 5f + 0.5f).toInt().coerceIn(1, 5)
+        return "★".repeat(n) + "☆".repeat(5 - n)
+    }
+
+    companion object {
+        const val ST_SELECTED = 0
+        const val ST_OWNED = 1
+        const val ST_AVAILABLE = 2
+        const val ST_SHORT = 3
+        const val ST_LOCKED = 4
+        private val CAT_RANK = intArrayOf(2, 2, 3, 4, 1, 1, 3, 3, 4, 4, 1, 4, 1, 2)
+
+        /** 0 cheapest, 1 most expensive, 2 highest performance, 3 category (then price) */
+        fun sortedCars(mode: Int): List<Int> {
+            val ids = GameData.cars.indices.toList()
+            return when (mode) {
+                1 -> ids.sortedByDescending { GameData.cars[it].price }
+                2 -> ids.sortedWith(compareByDescending<Int> { GameData.performanceIndex(GameData.cars[it]) }.thenBy { GameData.cars[it].price })
+                3 -> ids.sortedWith(compareBy<Int> { CAT_RANK.getOrElse(it) { 9 } }.thenBy { GameData.cars[it].price })
+                else -> ids.sortedBy { GameData.cars[it].price }
+            }
+        }
     }
 }
 
@@ -527,43 +698,15 @@ class SettingsScreen(host: GameHost) : Screen(host) {
             if (lang != save.language) host.changeLanguage(lang)
         }, Ui.lp())
 
-        // ---- controls
+        // ---- controls (v2.1: own screen with per-axis sensitivity, curves, wheel and layout editor)
         col.addView(sectionTitle(str(R.string.set_controls)), Ui.lp())
-        if (host.tiltAvailable) {
-            col.addView(Ui.segmented(ctx, listOf(str(R.string.ctl_tilt), str(R.string.ctl_touch)), save.controlMode) {
-                save.controlMode = it
-                host.applySettings()
-            }, Ui.lp())
-            val sensor = when (host.tiltSensor) {
-                "gyro" -> str(R.string.tilt_src_gyro)
-                "gravity" -> str(R.string.tilt_src_gravity)
-                else -> str(R.string.tilt_src_accel)
-            }
-            col.addView(Ui.text(ctx, str(R.string.tilt_sensor_info, sensor), 11.5f, Ui.DIM), Ui.lp(topDp = 4f))
-        } else {
-            val n = Ui.text(ctx, str(R.string.no_tilt_sensor), 13f, Ui.YELLOW)
-            col.addView(n, Ui.lp())
+        val modeName = when (save.controlMode) {
+            com.amin.racing3d.core.SaveManager.CONTROL_TILT -> str(R.string.ctl_tilt)
+            com.amin.racing3d.core.SaveManager.CONTROL_WHEEL -> str(R.string.ctl_wheel)
+            else -> str(R.string.ctl_touch)
         }
-        col.addView(Ui.text(ctx, str(R.string.set_sensitivity), 13f, Ui.TEXT, Ui.bold), Ui.lp(topDp = 12f))
-        val seek = SeekBar(ctx)
-        seek.max = 100
-        seek.progress = (save.sensitivity * 100).toInt()
-        seek.progressTintList = ColorStateList.valueOf(Ui.CYAN)
-        seek.thumbTintList = ColorStateList.valueOf(Ui.CYAN)
-        seek.progressBackgroundTintList = ColorStateList.valueOf(Ui.DIM)
-        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
-                if (fromUser) { save.sensitivity = p / 100f; host.applySettings() }
-            }
-            override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
-        })
-        col.addView(seek, Ui.lp(topDp = 4f))
-        if (host.tiltAvailable) {
-            col.addView(Ui.text(ctx, str(R.string.calibrate_hint), 12f, Ui.DIM), Ui.lp(topDp = 6f))
-            col.addView(Ui.button(ctx, str(R.string.set_calibrate), Ui.CYAN, false, 15f) { host.calibrateTilt() }, Ui.lp(topDp = 6f))
-        }
-        col.addView(toggleRow(R.string.set_autogas, save.autoGas) { save.autoGas = it }, Ui.lp(topDp = 6f))
+        col.addView(Ui.text(ctx, str(R.string.ctl_current, modeName), 12.5f, Ui.DIM), Ui.lp())
+        col.addView(Ui.button(ctx, str(R.string.ctl_open), Ui.CYAN, true, 16f) { host.push(ControlsScreen(host)) }, Ui.lp(topDp = 6f))
 
         // ---- graphics
         col.addView(sectionTitle(str(R.string.set_graphics)), Ui.lp())
@@ -577,7 +720,13 @@ class SettingsScreen(host: GameHost) : Screen(host) {
         }, Ui.lp())
         col.addView(toggleRow(R.string.set_auto_quality, save.autoQuality) { save.autoQuality = it }, Ui.lp(topDp = 6f))
         col.addView(toggleRow(R.string.set_shake, save.cameraShake) { save.cameraShake = it }, Ui.lp())
-        col.addView(toggleRow(R.string.set_fps, save.showFps) { save.showFps = it }, Ui.lp())
+        col.addView(Ui.text(ctx, str(R.string.set_render_scale), 13f, Ui.TEXT, Ui.bold), Ui.lp(topDp = 10f))
+        col.addView(Ui.segmented(ctx, listOf(str(R.string.rs_auto), "100%", "85%", "70%", "55%").map { Lang.digits(it) }, save.renderScale) {
+            save.renderScale = it
+            host.applySettings()
+        }, Ui.lp(topDp = 4f))
+        col.addView(Ui.text(ctx, str(R.string.set_render_scale_info), 11.5f, Ui.DIM), Ui.lp(topDp = 4f))
+        col.addView(toggleRow(R.string.set_fps, save.showFps) { save.showFps = it }, Ui.lp(topDp = 6f))
 
         // ---- audio
         col.addView(sectionTitle(str(R.string.audio_title)), Ui.lp())

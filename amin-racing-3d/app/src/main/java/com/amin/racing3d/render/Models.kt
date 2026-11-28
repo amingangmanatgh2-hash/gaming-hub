@@ -1536,15 +1536,26 @@ object Models {
     fun bridgeSection(): Mesh {
         val b = MeshBuilder()
         val hw = 9.4f
-        b.color(0xFFB9B6AE.toInt(), 0f, 0, 0.2f)
-        b.box(-hw, 0.55f, 0f, 0.5f, 1.1f, 20.02f)
-        b.box(hw, 0.55f, 0f, 0.5f, 1.1f, 20.02f)
+        // deck slab: its top stays 25 cm under the road surface (the road mesh is the driving surface),
+        // so the two never share a plane and cannot z-fight
         b.color(0xFF77746D.toInt(), 0f, 0, 0.1f)
-        b.box(0f, -1.0f, 0f, 2f * hw + 1f, 2.0f, 20.02f)
+        b.box(0f, -1.25f, 0f, 2f * hw + 1f, 2.0f, 20f)
+        // raised edge beams / walkways from the road edge to the outside of the deck
+        b.color(0xFFA9A69E.toInt(), 0f, 0, 0.15f)
+        b.box(-(hw), -0.91f, 0f, 1.0f, 2.18f, 20f)
+        b.box(hw, -0.91f, 0f, 1.0f, 2.18f, 20f)
+        // parapets standing on the walkways
+        b.color(0xFFB9B6AE.toInt(), 0f, 0, 0.2f)
+        b.box(-(hw + 0.25f), 0.73f, 0f, 0.4f, 1.1f, 20f)
+        b.box(hw + 0.25f, 0.73f, 0f, 0.4f, 1.1f, 20f)
+        // expansion joint plates at the segment ends (steel, flush with the walkway)
+        b.color(0xFF3A3C40.toInt(), 0f, 0, 0.6f)
+        b.box(-hw, 0.185f, -9.95f, 1.0f, 0.01f, 0.1f)
+        b.box(hw, 0.185f, -9.95f, 1.0f, 0.01f, 0.1f)
         // truss: verticals and diagonals in painted steel
         b.color(0xFFB8322A.toInt(), 0f, 0, 0.55f)
         for (sd in intArrayOf(-1, 1)) {
-            val x = sd * (hw + 0.6f)
+            val x = sd * (hw + 0.25f)
             b.box(x, 3.6f, -10f, 0.45f, 7.2f, 0.45f)
             b.box(x, 7.2f, 0f, 0.5f, 0.5f, 20.02f)
             b.slantZ(x, 0.4f, -10f, 7.2f, 10f, 0.35f)
@@ -1577,7 +1588,7 @@ object Models {
     fun gasStation(): Mesh {
         val b = MeshBuilder()
         b.color(0xFF34373D.toInt(), 0f, 0, 0.3f)
-        b.planeY(-6f, -22f, 22f, 22f, 0.012f)
+        b.planeY(-5.3f, -22f, 22f, 22f, 0.03f)
         b.color(0xFFE8E8EA.toInt(), 0f, 0, 0.4f)
         for (px in floatArrayOf(-1f, 9f)) for (pz in floatArrayOf(-7f, 7f)) b.box(px, 2.7f, pz, 0.45f, 5.4f, 0.45f)
         b.color(0xFFD62828.toInt(), 0f, 0, 0.5f)
@@ -1613,14 +1624,14 @@ object Models {
     fun parkingLot(): Mesh {
         val b = MeshBuilder()
         b.color(0xFF2C2E33.toInt(), 0f, 0, 0.25f)
-        b.planeY(-3f, -28f, 30f, 28f, 0.012f)
+        b.planeY(-3f, -28f, 30f, 28f, 0.03f)
         b.color(0xFFE8E8E8.toInt(), 0f, 0, 0.2f)
         for (k in 0..9) {
             val z = -25f + k * 5.5f
-            b.box(9f, 0.02f, z, 6f, 0.02f, 0.14f)
-            b.box(21f, 0.02f, z, 6f, 0.02f, 0.14f)
+            b.box(9f, 0.045f, z, 6f, 0.02f, 0.14f)
+            b.box(21f, 0.045f, z, 6f, 0.02f, 0.14f)
         }
-        b.box(15f, 0.02f, 0f, 0.14f, 0.02f, 50f)
+        b.box(15f, 0.045f, 0f, 0.14f, 0.02f, 50f)
         b.color(0xFF5A6068.toInt(), 0f, 0, 0.3f)
         for (pz in floatArrayOf(-20f, 0f, 20f)) {
             b.box(15f, 3.5f, pz, 0.25f, 7f, 0.25f)
@@ -1638,7 +1649,7 @@ object Models {
     fun dealership(): Mesh {
         val b = MeshBuilder()
         b.color(0xFF505358.toInt(), 0f, 0, 0.5f)
-        b.planeY(-4f, -24f, 32f, 24f, 0.012f)
+        b.planeY(-4f, -24f, 32f, 24f, 0.03f)
         b.color(0xFFE6E8EC.toInt(), 0f, 0, 0.5f)
         b.box(22f, 6.6f, 0f, 18f, 0.6f, 30f)
         b.box(22f, 0.15f, 0f, 18f, 0.3f, 30f)
@@ -1797,9 +1808,48 @@ object Models {
         val b = MeshBuilder()
         b.color(WHITE, 0f, 0, 0.02f)
         val s = 1400f
-        b.planeY(-s, -s, s, s, -0.04f)
+        // 6 cm under the road: far enough apart for 16-bit depth buffers at the near distances
+        b.planeY(-s, -s, s, s, -0.06f)
         return b.build()
     }
+
+    /** 20 m of paved sidewalk (top surface only; textured in world space, side +X, mirrored by yaw). */
+    fun sidewalk(): Mesh {
+        val b = MeshBuilder()
+        b.color(WHITE, 0f, 0, 0.12f)
+        b.planeY(SW_IN + 0.25f, -10f, SW_OUT, 10f, 0.16f)
+        return b.build()
+    }
+
+    /** Kerb stones, outer edge and a little street furniture for one 20 m sidewalk piece. */
+    fun curb(): Mesh {
+        val b = MeshBuilder()
+        b.color(0xFFC9C6BE.toInt(), 0f, 0, 0.15f)
+        // kerb with a slightly chamfered top edge facing the road
+        b.box(SW_IN + 0.135f, 0.05f, 0f, 0.23f, 0.22f, 20f)
+        b.taper(SW_IN, SW_IN + 0.04f, -10f, 10f, -0.06f, SW_IN + 0.03f, SW_IN + 0.04f, -10f, 10f, 0.15f, bottom = false)
+        b.color(0xFF9C9992.toInt(), 0f, 0, 0.1f)
+        b.box(SW_OUT + 0.05f, 0.05f, 0f, 0.1f, 0.22f, 20f)
+        // dark joints between kerb stones every 2 m
+        b.color(0xFF55534E.toInt(), 0f, 0, 0.05f)
+        var z = -9f
+        while (z < 10f) { b.box(SW_IN + 0.135f, 0.05f, z, 0.235f, 0.225f, 0.025f); z += 2f }
+        // street furniture: bollards, a litter bin and a fire hydrant
+        b.color(0xFF2B2F36.toInt(), 0f, 0, 0.4f)
+        for (bz in floatArrayOf(-3f, -1.5f)) b.cylinderY(SW_IN + 0.6f, 0.16f, bz, 0.08f, 0.07f, 0.85f, 8)
+        b.color(0xFF2E5E3A.toInt(), 0f, 0, 0.3f)
+        b.cylinderY(SW_IN + 0.7f, 0.16f, 4f, 0.24f, 0.26f, 0.9f, 10)
+        b.color(0xFF15171A.toInt(), 0f, 0, 0.2f)
+        b.cylinderY(SW_IN + 0.7f, 1.06f, 4f, 0.27f, 0.27f, 0.05f, 10)
+        b.color(0xFFC62828.toInt(), 0f, 0, 0.5f)
+        b.cylinderY(SW_IN + 0.55f, 0.16f, 8.5f, 0.12f, 0.1f, 0.62f, 8)
+        b.cylinderY(SW_IN + 0.55f, 0.78f, 8.5f, 0.1f, 0.03f, 0.1f, 8)
+        b.box(SW_IN + 0.55f, 0.55f, 8.5f, 0.36f, 0.08f, 0.08f)
+        return b.build()
+    }
+
+    private const val SW_IN = 8.9f
+    private const val SW_OUT = 13.0f
 
     fun shadowDecal(): Mesh {
         val b = MeshBuilder()

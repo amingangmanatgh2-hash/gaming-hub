@@ -15,6 +15,8 @@ class SaveManager(context: Context) {
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences("amin_racing_3d_save", Context.MODE_PRIVATE)
 
+    init { migrate() }
+
     // ----- raw access for the progression system (new keys only) ----------------------------
     fun prefInt(key: String, def: Int = 0): Int = prefs.getInt(key, def)
     fun putPrefInt(key: String, v: Int) = prefs.edit().putInt(key, v).apply()
@@ -54,6 +56,30 @@ class SaveManager(context: Context) {
     fun setCarOwned(id: Int) {
         prefs.edit().putInt(K_OWNED, prefs.getInt(K_OWNED, 1) or (1 shl id)).apply()
     }
+
+    /**
+     * Atomic car purchase (v2.1). Never charges twice: an owned car returns [BUY_OWNED] without
+     * touching the coins, and coins + ownership are written in one commit.
+     */
+    @Synchronized
+    fun buyCar(id: Int): Int {
+        if (id !in GameData.cars.indices) return BUY_INVALID
+        if (isCarOwned(id)) return BUY_OWNED
+        val price = GameData.cars[id].price
+        val c = coins
+        if (c < price) return BUY_NO_MONEY
+        prefs.edit()
+            .putInt(K_COINS, c - price)
+            .putInt(K_OWNED, prefs.getInt(K_OWNED, 1) or (1 shl id))
+            .putInt(K_SELECTED_CAR, id)
+            .commit()
+        return BUY_OK
+    }
+
+    /** shop sort: 0 cheapest, 1 most expensive, 2 performance, 3 category */
+    var shopSort: Int
+        get() = prefs.getInt("shop_sort", 0).coerceIn(0, 3)
+        set(v) = prefs.edit().putInt("shop_sort", v.coerceIn(0, 3)).apply()
 
     var selectedCar: Int
         get() = prefs.getInt(K_SELECTED_CAR, 0).coerceIn(0, GameData.cars.size - 1)
@@ -190,10 +216,49 @@ class SaveManager(context: Context) {
         get() = prefs.getString(K_LANG, Lang.FA) ?: Lang.FA
         set(v) = prefs.edit().putString(K_LANG, v).apply()
 
-    /** 0 = tilt, 1 = touch buttons */
+    /** 0 = tilt, 1 = touch buttons, 2 = virtual steering wheel (v2.1) */
     var controlMode: Int
-        get() = prefs.getInt(K_CONTROL, CONTROL_TILT)
-        set(v) = prefs.edit().putInt(K_CONTROL, v).apply()
+        get() = prefs.getInt(K_CONTROL, CONTROL_TILT).coerceIn(0, 2)
+        set(v) = prefs.edit().putInt(K_CONTROL, v.coerceIn(0, 2)).apply()
+
+    // ---- v2.1 control tuning (new keys; defaults reproduce the v2.0 feel)
+    private fun f(key: String, def: Float) = prefs.getFloat(key, def)
+    private fun putF(key: String, v: Float) = prefs.edit().putFloat(key, v.coerceIn(0f, 1f)).apply()
+    /** button / wheel steering sensitivity 0..1 (how fast and how far the wheels turn) */
+    var steerSens: Float get() = f("ctl_steer", 0.5f); set(v) = putF("ctl_steer", v)
+    /** throttle response 0..1 (0 = gentle pedal, 1 = instant full throttle) */
+    var gasSens: Float get() = f("ctl_gas", 0.6f); set(v) = putF("ctl_gas", v)
+    /** brake response 0..1 (bite speed and maximum force) */
+    var brakeSens: Float get() = f("ctl_brake", 0.6f); set(v) = putF("ctl_brake", v)
+    /** dead zone for tilt and wheel 0..1 (mapped to 0..20 % of the travel) */
+    var deadZone: Float get() = f("ctl_dead", 0.15f); set(v) = putF("ctl_dead", v)
+    /** steering smoothing 0..1 */
+    var steerSmoothing: Float get() = f("ctl_smooth", 0.35f); set(v) = putF("ctl_smooth", v)
+    /** response curve: 0 linear, 1 progressive (precise centre), 2 aggressive (quick centre) */
+    var steerCurve: Int
+        get() = prefs.getInt("ctl_curve", 1).coerceIn(0, 2)
+        set(v) = prefs.edit().putInt("ctl_curve", v.coerceIn(0, 2)).apply()
+    /** HUD button size 0..1 (0.5 = default) */
+    var hudScale: Float get() = f("hud_scale", 0.5f); set(v) = putF("hud_scale", v)
+    /** HUD button opacity 0..1 */
+    var hudAlpha: Float get() = f("hud_alpha", 0.85f); set(v) = putF("hud_alpha", v)
+    /** 0 = pedals right / steering left, 1 = mirrored */
+    var hudMirror: Boolean
+        get() = prefs.getBoolean("hud_mirror", false)
+        set(v) = prefs.edit().putBoolean("hud_mirror", v).apply()
+    /** custom position of a HUD control group, as offset in fractions of the screen (0 = default) */
+    fun hudOffset(group: Int): FloatArray = floatArrayOf(prefs.getFloat("hud_off_x_$group", 0f), prefs.getFloat("hud_off_y_$group", 0f))
+    fun setHudOffset(group: Int, x: Float, y: Float) =
+        prefs.edit().putFloat("hud_off_x_$group", x.coerceIn(-1f, 1f)).putFloat("hud_off_y_$group", y.coerceIn(-1f, 1f)).apply()
+    fun resetHudLayout() {
+        val e = prefs.edit()
+        for (g in 0 until 8) { e.remove("hud_off_x_$g"); e.remove("hud_off_y_$g") }
+        e.remove("hud_scale"); e.remove("hud_alpha"); e.remove("hud_mirror"); e.apply()
+    }
+    /** render resolution option (index into MainActivity.RENDER_SCALES, 0 = automatic) */
+    var renderScale: Int
+        get() = prefs.getInt("render_scale", 0).coerceIn(0, 4)
+        set(v) = prefs.edit().putInt("render_scale", v.coerceIn(0, 4)).apply()
 
     var sensitivity: Float
         get() = prefs.getFloat(K_SENS, 0.55f)
@@ -292,6 +357,27 @@ class SaveManager(context: Context) {
         get() = prefs.getBoolean(K_FIRST, false)
         set(v) = prefs.edit().putBoolean(K_FIRST, v).apply()
 
+    /**
+     * Save-schema migration. v1.0/v2.0 saves have no schema key (=0); every v2.1 addition uses new
+     * keys with safe defaults, so migrating only validates old data – nothing is ever reset.
+     */
+    fun migrate() {
+        val v = prefs.getInt(K_SCHEMA, 0)
+        if (v >= SCHEMA) return
+        val e = prefs.edit()
+        // the default car is always owned; never leave a car selected that is not owned
+        val owned = prefs.getInt(K_OWNED, 1) or 1
+        e.putInt(K_OWNED, owned)
+        val sel = prefs.getInt(K_SELECTED_CAR, 0)
+        if (sel !in GameData.cars.indices || (owned and (1 shl sel)) == 0) e.putInt(K_SELECTED_CAR, 0)
+        // v2.0 stored a single tilt sensitivity – keep it as the tilt sensitivity, seed the steering one from it
+        if (v < 3 && !prefs.contains("ctl_steer") && prefs.contains(K_SENS)) e.putFloat("ctl_steer", prefs.getFloat(K_SENS, 0.5f))
+        e.putInt(K_SCHEMA, SCHEMA)
+        e.apply()
+    }
+
+    val schemaVersion: Int get() = prefs.getInt(K_SCHEMA, 0)
+
     /** Erases progress but keeps language and control settings. */
     fun resetProgress() {
         val lang = language
@@ -309,6 +395,14 @@ class SaveManager(context: Context) {
         const val START_COINS = 2500
         const val CONTROL_TILT = 0
         const val CONTROL_TOUCH = 1
+        const val CONTROL_WHEEL = 2
+        const val BUY_OK = 0
+        const val BUY_OWNED = 1
+        const val BUY_NO_MONEY = 2
+        const val BUY_INVALID = 3
+        /** v2.1 save schema */
+        const val SCHEMA = 3
+        private const val K_SCHEMA = "save_schema"
 
         private const val K_COINS = "coins"
         private const val K_OWNED = "owned_cars"

@@ -115,57 +115,153 @@ object Textures {
     const val ROAD_TILE = 12f
     val ROAD_HALF_WIDTH = GameData.ROAD_HALF + GameData.SHOULDER + 0.6f
 
+    /** antialiased coverage of a stripe [c - hw, c + hw] sampled with pixel size px */
+    private fun stripe(v: Float, c: Float, hw: Float, px: Float): Float =
+        ((hw - abs(v - c)) / px + 0.5f).coerceIn(0f, 1f)
+
+    private var asphaltCache: FloatArray? = null
+
+    /**
+     * Shared asphalt base (RGB floats, 512 x 512 = full road width x 12 m). Dense-graded asphalt:
+     * aggregate speckle, binder blotches, polished wheel tracks, oil drip lines in the lane centres,
+     * sealed cracks, a couple of repair patches, a coarser shoulder with rumble grooves and a
+     * concrete drain gutter with a grate. Tiles seamlessly along the road (periodic noise only).
+     */
+    private fun asphaltBase(w: Int, h: Int): FloatArray {
+        asphaltCache?.let { if (it.size == w * h * 3) return it }
+        val out = FloatArray(w * h * 3)
+        val width = ROAD_HALF_WIDTH * 2
+        val pxw = width / w; val pxh = ROAD_TILE / h
+        val tracks = floatArrayOf(-0.85f, 0.85f)
+        // repair patches (x centre, z centre, half sizes) - kept away from the tile seam
+        val patches = arrayOf(floatArrayOf(-4.3f, 3.1f, 1.1f, 0.9f), floatArrayOf(2.6f, 8.4f, 0.8f, 1.4f))
+        for (y in 0 until h) {
+            val zm = (y + 0.5f) * pxh
+            for (x in 0 until w) {
+                val xm = (x + 0.5f) * pxw - ROAD_HALF_WIDTH
+                val ax = abs(xm)
+                val g1 = hash(x, y, 5)
+                val g2 = hash(x shr 1, y shr 1, 11)
+                val blot = fbm(x / 64f, y / 64f, 8, 3, 9)
+                val fine = vnoise(x / 8f, y / 8f, 64, 21) // ~25 cm grain clusters
+                var c = 50f + (g1 - 0.5f) * 14f + (g2 - 0.5f) * 10f + (blot - 0.5f) * 20f + (fine - 0.5f) * 6f
+                // aggregate: bright quartz chips and dark voids
+                if (g1 > 0.965f) c += 34f * (g1 - 0.965f) / 0.035f + 8f
+                if (g2 < 0.035f) c -= 14f
+                var r = c; var g = c + 1.5f; var b = c + 4.5f
+                // polished, darker wheel tracks
+                for (lane in GameData.LANE_X) for (o in tracks) {
+                    val d = xm - (lane + o)
+                    val k = exp(-(d * d) / 0.12f) * 8f
+                    r -= k; g -= k; b -= k * 0.8f
+                }
+                // oil drip line in the lane centre
+                for (lane in GameData.LANE_X) {
+                    val d = xm - lane
+                    val drip = exp(-(d * d) / 0.05f) * (0.6f + 0.4f * fbm(x / 32f, y / 32f, 16, 2, 41)) * 7f
+                    r -= drip; g -= drip; b -= drip * 0.7f
+                }
+                // sealed cracks: thin dark tar lines along noise ridges
+                val cr = fbm(x / 128f, y / 128f, 4, 3, 77)
+                val crack = (1f - abs(cr - 0.5f) / 0.0085f).coerceIn(0f, 1f)
+                if (crack > 0f && ax < GameData.ROAD_HALF) { r -= 22f * crack; g -= 22f * crack; b -= 20f * crack }
+                // repair patches: slightly fresher binder with a sealed outline
+                for (pt in patches) {
+                    val dx = abs(xm - pt[0]) - pt[2]; val dz = abs(zm - pt[1]) - pt[3]
+                    if (dx < 0f && dz < 0f) { r -= 7f; g -= 7f; b -= 6f }
+                    val edge = maxOf(dx, dz)
+                    if (edge > -0.04f && edge < 0.03f && (dx < 0.03f && dz < 0.03f)) { r -= 14f; g -= 14f; b -= 13f }
+                }
+                // shoulder: coarser chip seal and rumble grooves next to the edge line
+                if (ax > GameData.ROAD_HALF + 0.12f) {
+                    val sh = 60f + (g1 - 0.5f) * 26f + (blot - 0.5f) * 18f
+                    r = sh; g = sh + 1f; b = sh + 3f
+                    if (ax > GameData.ROAD_HALF + 0.22f && ax < GameData.ROAD_HALF + 0.62f) {
+                        val ph = (zm / 0.3f) % 1f
+                        if (ph < 0.45f) { r -= 16f; g -= 16f; b -= 15f }
+                    }
+                }
+                // concrete drain gutter with expansion joints every 2 m and a grate every 12 m
+                if (ax > ROAD_HALF_WIDTH - 0.45f) {
+                    val cc = 142f + (g1 - 0.5f) * 26f + (blot - 0.5f) * 16f
+                    r = cc; g = cc - 1f; b = cc - 6f
+                    if ((zm % 2f) < 0.025f) { r -= 40f; g -= 40f; b -= 38f }
+                    val gz = abs(zm - 6f); val gx = abs(ax - (ROAD_HALF_WIDTH - 0.24f))
+                    if (gz < 0.32f && gx < 0.17f) {
+                        val slot = ((zm * 18f) % 1f) < 0.5f
+                        val v = if (slot) 22f else 74f
+                        r = v; g = v; b = v + 2f
+                    }
+                }
+                val i = (y * w + x) * 3
+                out[i] = r; out[i + 1] = g; out[i + 2] = b
+            }
+        }
+        asphaltCache = out
+        return out
+    }
+
     fun road(twoWay: Boolean): Int {
         val w = 512; val h = 512
+        val base = asphaltBase(w, h)
         val px = IntArray(w * h)
         val width = ROAD_HALF_WIDTH * 2
-        val trackOffsets = floatArrayOf(-0.8f, 0.8f)
+        val pxw = width / w; val pxh = ROAD_TILE / h
         for (y in 0 until h) {
-            val zm = (y + 0.5f) / h * ROAD_TILE
+            val zm = (y + 0.5f) * pxh
             for (x in 0 until w) {
-                val xm = (x + 0.5f) / w * width - ROAD_HALF_WIDTH
+                val xm = (x + 0.5f) * pxw - ROAD_HALF_WIDTH
                 val ax = abs(xm)
-                val grain = hash(x, y, 5)
-                val blot = fbm(x / 64f, y / 64f, 8, 3, 9)
-                var c = 52f + grain * 16f + (blot - 0.5f) * 18f
-                var r = c; var g = c + 1f; var b = c + 4f
-                // tyre tracks
-                for (lane in GameData.LANE_X) {
-                    for (o in trackOffsets) {
-                        val d = xm - (lane + o)
-                        val k = exp(-(d * d) / 0.09f) * 9f
-                        r -= k; g -= k; b -= k
-                    }
+                val i = (y * w + x) * 3
+                var r = base[i]; var g = base[i + 1]; var b = base[i + 2]
+                // worn thermoplastic paint: brightness varies, the aggregate shows through
+                val wear = 0.78f + 0.22f * fbm(x / 16f, y / 16f, 32, 2, 33)
+                val chip = if (hash(x, y, 91) > 0.92f) 0.82f else 1f
+                fun paint(cov: Float, pr: Float, pg: Float, pb: Float) {
+                    if (cov <= 0f) return
+                    val k = cov * wear * chip
+                    r += (pr - r) * k; g += (pg - g) * k; b += (pb - b) * k
                 }
-                if (ax > GameData.ROAD_HALF + 0.12f) {
-                    val sh = 64f + grain * 20f + (blot - 0.5f) * 20f
-                    r = sh; g = sh; b = sh + 2f
-                }
-                if (ax > ROAD_HALF_WIDTH - 0.45f) {
-                    val cc = 150f + grain * 30f
-                    r = cc; g = cc; b = cc - 6f
-                }
-                val wear = 0.82f + 0.18f * fbm(x / 16f, y / 16f, 32, 2, 33)
-                // edge lines
-                if (ax > GameData.ROAD_HALF - 0.08f && ax < GameData.ROAD_HALF + 0.12f) {
-                    r = 232f * wear; g = 232f * wear; b = 228f * wear
-                }
-                // lane dividers
-                val dashOn = zm < 4f
-                if (abs(ax - GameData.LANE_WIDTH) < 0.08f && dashOn) {
-                    r = 236f * wear; g = 236f * wear; b = 232f * wear
-                }
+                // solid edge lines
+                paint(stripe(ax, GameData.ROAD_HALF + 0.02f, 0.09f, pxw), 236f, 236f, 230f)
+                // lane dividers: 4 m dashes every 12 m, with a cat's eye in the gap
+                val dash = stripe(zm, 2f, 2f, pxh)
+                paint(stripe(ax, GameData.LANE_WIDTH, 0.075f, pxw) * dash, 238f, 238f, 232f)
+                val eye = stripe(ax, GameData.LANE_WIDTH, 0.06f, pxw) * stripe(zm, 8f, 0.06f, pxh)
+                paint(eye, 250f, 250f, 255f)
                 if (twoWay) {
-                    if (ax > 0.07f && ax < 0.19f) {
-                        r = 240f * wear; g = 186f * wear; b = 40f * wear
-                    }
-                } else if (ax < 0.08f && dashOn) {
-                    r = 236f * wear; g = 236f * wear; b = 232f * wear
+                    // double solid yellow centre line
+                    paint(stripe(ax, 0.13f, 0.06f, pxw), 242f, 190f, 42f)
+                    paint(stripe(zm, 8f, 0.06f, pxh) * stripe(ax, 0f, 0.05f, pxw), 255f, 200f, 60f)
+                } else {
+                    paint(stripe(ax, 0f, 0.075f, pxw) * dash, 238f, 238f, 232f)
                 }
                 px[y * w + x] = argb(255, r, g, b)
             }
         }
         return upload(px, w, h, true, true, 8f)
+    }
+
+    /** 2.4 m x 2.4 m of sidewalk: 4 x 4 concrete slabs (0.6 m) with joints, tone variation and chips. */
+    const val PAVE_TILE = 2.4f
+
+    fun pavement(): Int {
+        val n = 256
+        val px = IntArray(n * n)
+        val slab = n / 4
+        for (y in 0 until n) for (x in 0 until n) {
+            val sx = x / slab; val sy = y / slab
+            val tone = (hash(sx, sy, 61) - 0.5f) * 16f
+            val g1 = hash(x, y, 62)
+            val blot = fbm(x / 32f, y / 32f, 8, 3, 63)
+            var c = 168f + tone + (g1 - 0.5f) * 18f + (blot - 0.5f) * 22f
+            if (g1 > 0.97f) c -= 30f
+            val jx = minOf(x % slab, slab - 1 - x % slab); val jy = minOf(y % slab, slab - 1 - y % slab)
+            val j = minOf(jx, jy)
+            if (j == 0) c -= 52f else if (j == 1) c -= 18f
+            px[y * n + x] = argb(255, c, c - 1f, c - 4f)
+        }
+        return upload(px, n, n, true, true, 8f)
     }
 
     // ---------------------------------------------------------------- ground

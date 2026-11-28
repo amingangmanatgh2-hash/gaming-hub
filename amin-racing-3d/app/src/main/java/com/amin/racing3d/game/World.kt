@@ -263,6 +263,7 @@ class World(private val input: InputState) {
 
     // ------------------------------------------------------------------------ HUD snapshot (read on UI thread)
     @Volatile var hudSpeed = 0
+    @Volatile var hudReverse = false
     @Volatile var hudScore = 0
     @Volatile var hudDistance = 0f
     @Volatile var hudCoins = 0
@@ -386,6 +387,7 @@ class World(private val input: InputState) {
         bust = 0f; escape = 0f; heat = 1; escapes = 0; takedowns = 0; copWaveTimer = 3.5f; sirenLevel = 0f
         tunnelK = 0f
         onFoot = false; footDown = 0f; footFallK = 0f; footSpeed = 0f; sceneryBack = 30f
+        reversing = false; stillBrakeT = 0f; maxPsReached = ps; throttle = 0f; brakePedal = 0f
         resetTaxi()
         for (r in rivals) r.active = false
         for (z in zones) z.active = false
@@ -721,8 +723,13 @@ class World(private val input: InputState) {
             mode == GameData.MODE_STREET || mode == GameData.MODE_POLICE -> 12
             else -> 13
         }
-        return min(MAX_TRAFFIC - 4, base + (distance / 450f).toInt())
+        val n = min(MAX_TRAFFIC - 4, base + (distance / 450f).toInt())
+        // quality preset (Low ≈ 55 %): fewer cars to simulate, collide-test and draw
+        return max(4, (n * trafficScale).toInt())
     }
+
+    /** set by the renderer from the graphics preset */
+    @Volatile var trafficScale = 1f
 
     private fun updateTraffic(dt: Float, hornPressed: Boolean) {
         val pl = carSpec.length; val pw = carSpec.width
@@ -981,22 +988,29 @@ class World(private val input: InputState) {
         var brake: Boolean
         var wantNitro: Boolean
         val horn: Boolean
+        var hand: Boolean
         if (state == STATE_ATTRACT) {
             runAutopilot()
-            steerIn = autoSteer; gas = autoGas; brake = autoBrake; wantNitro = false; horn = false
+            steerIn = autoSteer; gas = autoGas; brake = autoBrake; wantNitro = false; horn = false; hand = false
         } else {
             steerIn = input.steer()
             gas = input.gas || input.autoGas
             brake = input.brake
             wantNitro = input.nitro
             horn = input.horn
+            hand = input.handbrake
         }
         if (input.doorRequest) { input.doorRequest = false; if (state == STATE_RACING) toggleDoor() }
         if (onFoot) {
             if (state == STATE_RACING) updateOnFoot(dt, steerIn, gas, brake, wantNitro)
-            steerIn = 0f; gas = false; brake = false; wantNitro = false
+            steerIn = 0f; gas = false; brake = false; wantNitro = false; hand = false
         }
-        if (crashed) { steerIn = 0f; gas = false; brake = true; wantNitro = false }
+        if (crashed) { steerIn = 0f; gas = false; brake = true; wantNitro = false; hand = false }
+        // v2.1 pedals: buttons are digital, the pedal position ramps at the user's sensitivity
+        val ai = state == STATE_ATTRACT
+        throttle = approach(throttle, if (gas) 1f else 0f, (if (gas) (if (ai) 10f else input.gasRate()) else 14f) * dt)
+        brakePedal = approach(brakePedal, if (brake) 1f else 0f, (if (brake) (if (ai) 12f else input.brakeRate()) else 16f) * dt)
+        updateReverse(dt, gas, brake, hand)
         val hornPressed = horn && !hornPrev && !onFoot
         hornPrev = horn
         hornOn = horn && !crashed && !onFoot
@@ -1014,17 +1028,25 @@ class World(private val input: InputState) {
         val maxV = baseMax * (if (nitroActive) GameData.nitroPower(spec, lvlNitro) else 1f)
         if (onFoot) {
             speed = 0f
+        } else if (reversing) {
+            // reverse gear (Free Roam): brake held at a standstill backs the car up slowly
+            speed = if (brake) max(-REVERSE_MAX, speed - 4.5f * brakePedal * dt) else min(0f, speed + 7f * dt)
+            if (gas) speed = min(0f, speed + 14f * dt)
         } else if (crashed) {
             speed = max(0f, speed - 16f * dt)
-        } else if (handbrakeTurn(brake, gas, steerIn)) {
+        } else if (hand && speed > 0.5f && !handbrakeTurn(brake || hand, gas, steerIn, hand)) {
+            // handbrake without steering: rear wheels lock, moderate stop
+            speed = max(0f, speed - brakeDecel(spec) * 0.55f * dt)
+        } else if (handbrakeTurn(brake || hand, gas, steerIn, hand)) {
             // handbrake turn: rear wheels lock, the car slides and bleeds speed slowly (gas holds it)
             speed = max(0f, speed - (if (gas) 0.6f else 2.6f) * dt)
             brakeHold = 0f
         } else if (brake) {
-            speed = max(0f, speed - brakeDecel(spec) * dt)
+            val force = if (ai) 1f else input.brakeForce()
+            speed = max(0f, speed - brakeDecel(spec) * force * max(0.25f, brakePedal) * dt)
         } else if (gas || nitroActive) {
             val f = 1f - (speed / maxV) * (speed / maxV)
-            val acc = spec.accel * (if (nitroActive) 2.0f else 1f)
+            val acc = spec.accel * (if (nitroActive) 2.0f else max(0.2f, throttle))
             if (speed < maxV) speed += acc * max(f, 0.06f) * dt
             else speed -= (speed - maxV) * 1.2f * dt
         } else {
@@ -1038,13 +1060,13 @@ class World(private val input: InputState) {
 
         // ---------------- steering / lateral physics
         // tilt input is already filtered by the sensor: follow it almost directly; buttons ramp in
-        val steerRate = if (input.useTilt && state != STATE_ATTRACT) 24f else 11f
+        val steerRate = if (state == STATE_ATTRACT) 11f else input.steerRate()
         steerSmooth += (steerIn - steerSmooth) * min(1f, steerRate * dt)
         val handling = GameData.handling(spec, lvlHandling)
         val speedFactor = (0.35f + speed / 22f).coerceAtMost(1f)
         val targetVx = steerSmooth * handling * speedFactor
         if (driftEnabled && !crashed) {
-            if (handbrakeTurn(brake, gas, steerIn) && speed > 13f) drifting = true
+            if (handbrakeTurn(brake || hand, gas, steerIn, hand) && speed > 13f) drifting = true
             else if (drifting && (abs(steerIn) < 0.1f || speed < 9f)) drifting = false
             val target = if (drifting) steerSmooth * 0.62f * spec.drift.coerceIn(0.6f, 1.5f) else 0f
             driftAngle += (target - driftAngle) * min(1f, (if (drifting) 2.6f else 3.4f) * dt)
@@ -1081,7 +1103,7 @@ class World(private val input: InputState) {
         }
         val step = speed * dt
         ps += step
-        if (state == STATE_RACING) distance += step
+        if (state == STATE_RACING && step > 0f) distance += step
 
         // ---------------- visual dynamics
         yaw = if (crashed) crashSpin else -atan2(vx, max(speed, 3f)) - driftAngle
@@ -2126,6 +2148,8 @@ class World(private val input: InputState) {
 
     /** 0→1 over the first ~0.17 s of a brake press (initial bite, nose dive) */
     private var brakeHold = 0f
+    private val REVERSE_MAX = 8f
+    private val REVERSE_RANGE = 26f
     private var brakePrev = false
 
     /**
@@ -2133,9 +2157,39 @@ class World(private val input: InputState) {
      * technique). Free roam: only brake + gas + steer, so plain braking always stops the car.
      * All other modes: never — the brake pedal always brakes.
      */
-    private fun handbrakeTurn(brake: Boolean, gas: Boolean, steerIn: Float): Boolean {
+    private fun handbrakeTurn(brake: Boolean, gas: Boolean, steerIn: Float, hand: Boolean = false): Boolean {
         if (!brake || !driftEnabled || speed <= 10f || abs(steerIn) <= 0.3f) return false
-        return mode == GameData.MODE_DRIFT || gas
+        // the handbrake button always kicks the rear out; the old brake+gas gesture still works
+        return hand || mode == GameData.MODE_DRIFT || gas
+    }
+
+    // ---------------- v2.1 pedals + reverse
+    /** throttle pedal position 0..1 */
+    var throttle = 0f; private set
+    /** brake pedal position 0..1 */
+    var brakePedal = 0f; private set
+    /** reverse gear engaged (Free Roam only) */
+    var reversing = false; private set
+    private var stillBrakeT = 0f
+    /** furthest point reached: reversing is limited to the streamed-in road behind the car */
+    private var maxPsReached = 0f
+
+    private fun approach(v: Float, target: Float, step: Float): Float =
+        if (v < target) min(target, v + step) else max(target, v - step)
+
+    private fun updateReverse(dt: Float, gas: Boolean, brake: Boolean, hand: Boolean) {
+        if (ps > maxPsReached) maxPsReached = ps
+        val allowed = mode == GameData.MODE_FREE && state == STATE_RACING && !onFoot && !hand
+        if (!allowed) { reversing = false; stillBrakeT = 0f; if (speed < 0f) speed = 0f; return }
+        if (!reversing) {
+            // hold brake for 0.35 s at a standstill to engage reverse
+            if (brake && !gas && speed < 0.3f) stillBrakeT += dt else stillBrakeT = 0f
+            if (stillBrakeT > 0.35f) { reversing = true; speed = 0f }
+        } else if (gas && speed >= -0.05f) {
+            reversing = false; stillBrakeT = 0f; speed = 0f
+        }
+        // never back out of the streamed road section
+        if (reversing && ps < maxPsReached - REVERSE_RANGE && speed < 0f) speed = 0f
     }
 
     /**
@@ -2404,7 +2458,8 @@ class World(private val input: InputState) {
     }
 
     private fun publish() {
-        hudSpeed = speedKmh.toInt()
+        hudSpeed = abs(speedKmh).toInt()
+        hudReverse = reversing
         hudScore = score.toInt()
         hudDistance = distance
         hudCoins = coinsCollected

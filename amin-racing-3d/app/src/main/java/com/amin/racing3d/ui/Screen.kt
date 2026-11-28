@@ -93,6 +93,10 @@ interface GameHost {
     fun takePhoto(done: (java.io.File?) -> Unit)
     /** photos taken in photo mode, newest first */
     fun photos(): List<java.io.File>
+
+    // ---- v2.1
+    /** applies the saved steering mode / button size, opacity, side and positions to a HUD */
+    fun applyHudLayout(h: HudView)
 }
 
 /** A full-screen UI page built from views. */

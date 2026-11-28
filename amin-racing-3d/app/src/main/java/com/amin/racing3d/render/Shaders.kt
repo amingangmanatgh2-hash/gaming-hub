@@ -61,7 +61,7 @@ void main() {
     vSpec = aMat.y;
     if (uTexMode == 1) {
         vUv = vec2(aUv.x, -w.z / uTexScale.x);
-    } else if (uTexMode == 2) {
+    } else if (uTexMode == 2 || uTexMode == 6) {
         vUv = w.xz / uTexScale.x;
     } else if (uTexMode == 3) {
         float sx = length(iM0.xyz);
@@ -120,6 +120,9 @@ uniform float uFlash;
 out vec4 fragColor;
 
 float shadowFactor() {
+#ifdef LITE
+    return 1.0;
+#else
     if (uShadowOn == 0) return 1.0;
     vec3 p = vShadowPos.xyz / vShadowPos.w;
     p = p * 0.5 + 0.5;
@@ -141,6 +144,7 @@ float shadowFactor() {
     s += texture(uShadowMap, vec3(p.xy + vec2(-t, t), z));
     s += texture(uShadowMap, vec3(p.xy + vec2(t, t), z));
     return s * 0.25;
+#endif
 }
 
 void main() {
@@ -151,7 +155,7 @@ void main() {
         float a = texture(uTex, vUv).a;
         fragColor = vec4(0.0, 0.0, 0.0, a * vAlpha);
         return;
-    } else if (uTexMode == 1 || uTexMode == 5) {
+    } else if (uTexMode == 1 || uTexMode == 5 || uTexMode == 6) {
         albedo *= texture(uTex, vUv).rgb;
     } else if (uTexMode == 2) {
         vec3 t1 = texture(uTex, vUv).rgb;
@@ -167,6 +171,7 @@ void main() {
     // custom paint finishes (player car): 1 metallic, 2 matte, 3 chrome
     float flake = 0.0;
     float chrome = 0.0;
+#ifndef LITE
     if (vFinish > 0.5) {
         if (vFinish < 1.5) {
             flake = fract(sin(dot(floor(vWorld * 140.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
@@ -181,8 +186,10 @@ void main() {
             albedo = mix(albedo, vec3(0.85), 0.2) * 0.32;
         }
     }
+#endif
     // wet asphalt / ground: darker albedo, mirror-like puddles that break up with a cheap world-space noise
     float wetK = 0.0;
+#ifndef LITE
     if (uWet > 0.01 && (uTexMode == 1 || uTexMode == 2) && N.y > 0.8) {
         vec2 q = vWorld.xz * vec2(0.23, 0.11);
         float puddle = 0.55 + 0.45 * sin(q.x * 3.1 + sin(q.y * 1.7) * 2.0) * sin(q.y * 2.3 + q.x * 0.7);
@@ -190,6 +197,7 @@ void main() {
         albedo *= 1.0 - 0.38 * wetK;
         spec = max(spec, wetK * 0.95);
     }
+#endif
     vec3 toCam = uCamPos - vWorld;
     float dist = length(toCam);
     vec3 V = toCam / max(dist, 0.001);
@@ -213,11 +221,13 @@ void main() {
         float pool = exp(-(dz * dz + dx * dx * 0.8) / 46.0);
         light += vec3(1.0, 0.74, 0.42) * uLampOn * 1.5 * pool * max(N.y, 0.15);
         // long reflected streaks of the street lights on a wet road
+#ifndef LITE
         if (wetK > 0.01) {
             float dzc = vWorld.z - uCamPos.z;
             float streak = exp(-(dx * dx) / 0.9) * exp(-(dz * dz) / (18.0 + abs(dzc) * 1.2));
             light += vec3(1.0, 0.78, 0.5) * uLampOn * wetK * 2.2 * streak;
         }
+#endif
     }
     light += vec3(0.75, 0.8, 1.0) * uFlash * (0.5 + 0.5 * max(N.y, 0.0));
 
@@ -230,14 +240,18 @@ void main() {
         float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
         vec3 env = mix(uFogColor, uSkyTop, clamp(R.y * 1.4 + 0.25, 0.0, 1.0));
         float rk = (fres * 0.65 + 0.08) * spec * uReflect + wetK * 0.35;
+#ifndef LITE
         if (chrome > 0.5) {
             // mirror finish: tinted environment dominates, bright sun hotspot
             rk = 0.55 + 0.4 * fres;
             env *= mix(vec3(1.0), vColor * 1.6 + 0.25, 0.5);
             col += uSunColor * pow(max(dot(N, H), 0.0), 220.0) * 3.0 * sh;
         }
+#endif
         col = mix(col, env, clamp(rk, 0.0, 0.92));
+#ifndef LITE
         if (flake > 0.93) col += uSunColor * (flake - 0.93) * 14.0 * ndl * sh;
+#endif
     }
     col += vColor * vEmis * 2.4;
     col += vec3(1.0, 0.82, 0.5) * windowLit * uNight * 1.1;
@@ -256,6 +270,9 @@ void main() {
     fragColor = vec4(col, alpha);
 }
 """
+
+    /** Low preset: same shader with the shadow, paint-finish, wet-road and chrome paths compiled out. */
+    val MAIN_FS_LITE: String get() = MAIN_FS.replaceFirst("#version 300 es\n", "#version 300 es\n#define LITE 1\n")
 
     const val DEPTH_VS = """#version 300 es
 layout(location=0) in vec3 aPos;
