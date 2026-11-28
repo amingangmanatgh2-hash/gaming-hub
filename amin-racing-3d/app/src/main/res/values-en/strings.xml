@@ -357,7 +357,7 @@
     <string name="btn_handbrake">HANDBRAKE</string>
     <string name="ctl_wheel">Wheel</string>
     <string name="ctl_current">Current mode: %1$s</string>
-    <string name="ctl_open">Controls & button layout</string>
+    <string name="ctl_open">Controls &amp; button layout</string>
     <string name="set_render_scale">Render resolution</string>
     <string name="rs_auto">Auto</string>
     <string name="set_render_scale_info">Lower 3D resolution = more FPS on weak phones. Auto: Low 540p, Medium 720p, High 1080p, Ultra native. Menus and HUD stay sharp.</string>
