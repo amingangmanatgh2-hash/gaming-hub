@@ -16,3 +16,4 @@ downloads/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+.cache/

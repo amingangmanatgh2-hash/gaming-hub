@@ -2,6 +2,7 @@ package com.amin.racing3d.render
 
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /** Geometry plus metadata needed to animate and decorate a vehicle. */
 class VehicleModel(
@@ -44,12 +45,97 @@ object Models {
     private fun paint(b: MeshBuilder, spec: Float = 0.7f) = b.color(WHITE, 1f, 0, spec)
 
     // --------------------------------------------------------------------------------------
+    // Lofted body shell (v2.1): rounded plan-view ends, crowned hood/deck, tumblehome shoulders,
+    // flared fenders and real wheel-arch cut-outs instead of stacked boxes.
+    // --------------------------------------------------------------------------------------
+    class Shell(
+        val l: Float, val w: Float, val zs: FloatArray, val r: Float,
+        /** bottom of the body sides */
+        val sill: Float,
+        /** top of the body under the glasshouse (belt line) */
+        val belt: Float,
+        /** glasshouse span on the body: the hood ends at [zCowl], the rear deck starts at [zDeck] */
+        val zCowl: Float, val zDeck: Float,
+        /** body top at the very nose / tail */
+        val noseTop: Float, val tailTop: Float,
+        val noseRound: Float = 0.5f, val tailRound: Float = 0.38f,
+        /** plan-view width at the extreme nose / tail relative to the full width */
+        val noseMinW: Float = 0.8f, val tailMinW: Float = 0.86f,
+        val flare: Float = 0.035f, val crown: Float = 0.035f, val tumble: Float = 0.12f,
+        /** how far the bumpers' lower edge lifts at the ends (approach angle) */
+        val lift: Float = 0.07f,
+        /** extra body bulge above the arches (muscle / race cars) */
+        val archBulge: Float = 0f,
+        /** 1 = player car; traffic uses ~0.5 (fewer stations) */
+        val detail: Float = 1f
+    )
+
+    private fun shell(b: MeshBuilder, s: Shell) {
+        val hw = s.w / 2
+        val z0 = -s.l / 2; val z1 = s.l / 2
+        // stations: fine near the ends and around the wheel arches, coarser elsewhere
+        val list = ArrayList<Float>()
+        var z = z0
+        while (z < z1 - 1e-4f) {
+            list.add(z)
+            val dEnd = minOf(z - z0, z1 - z)
+            var nearArch = false
+            for (zw in s.zs) if (kotlin.math.abs(z - zw) < s.r + 0.12f) nearArch = true
+            z += when { dEnd < 0.2f -> 0.04f; nearArch -> 0.05f; dEnd < 0.6f -> 0.08f; else -> 0.16f } / s.detail
+        }
+        list.add(z1)
+        val n = list.size
+        val zsArr = FloatArray(n) { list[it] }
+        val prof = Array(n) { FloatArray(16) }
+        for (k in 0 until n) {
+            val zz = zsArr[k]
+            val dF = zz - z0; val dR = z1 - zz
+            val pf = if (dF < s.noseRound) s.noseMinW + (1f - s.noseMinW) * sqrt(1f - (1f - dF / s.noseRound).let { it * it }) else 1f
+            val pr = if (dR < s.tailRound) s.tailMinW + (1f - s.tailMinW) * sqrt(1f - (1f - dR / s.tailRound).let { it * it }) else 1f
+            var bump = 0f
+            for (zw in s.zs) { val u = (zz - zw) / (s.r * 1.9f); if (kotlin.math.abs(u) < 1f) bump = maxOf(bump, (1f - u * u).let { it * it }) }
+            val hwz = hw * minOf(pf, pr) + s.flare * bump - s.flare * 0.5f
+            var top = when {
+                zz < s.zCowl -> { val u = ((zz - z0) / (s.zCowl - z0)).coerceIn(0f, 1f); s.noseTop + (s.belt - s.noseTop) * (1f - (1f - u) * (1f - u)) }
+                zz > s.zDeck -> { val u = ((z1 - zz) / (z1 - s.zDeck)).coerceIn(0f, 1f); s.tailTop + (s.belt - s.tailTop) * (1f - (1f - u) * (1f - u)) }
+                else -> s.belt
+            }
+            top += s.archBulge * bump
+            // soften the very top edge of the bumpers
+            if (dF < 0.1f) top -= 0.05f * (1f - dF / 0.1f).let { it * it }
+            if (dR < 0.08f) top -= 0.03f * (1f - dR / 0.08f).let { it * it }
+            var bot = s.sill
+            if (dF < s.noseRound) bot += s.lift * (1f - dF / s.noseRound).let { it * it }
+            if (dR < s.tailRound) bot += s.lift * 0.7f * (1f - dR / s.tailRound).let { it * it }
+            for (zw in s.zs) {
+                val rr = s.r + 0.055f
+                val dz = kotlin.math.abs(zz - zw)
+                if (dz < rr) bot = maxOf(bot, minOf(s.r + sqrt(rr * rr - dz * dz), top - 0.09f))
+            }
+            val h = top - bot
+            val crown = s.crown * minOf(pf, pr)
+            val t = s.tumble
+            val p = prof[k]
+            p[0] = 0f; p[1] = bot
+            p[2] = hwz - 0.05f; p[3] = bot
+            p[4] = hwz; p[5] = bot + minOf(0.05f, h * 0.2f)
+            p[6] = hwz + 0.01f; p[7] = bot + h * 0.42f
+            p[8] = hwz - 0.005f; p[9] = bot + h * 0.78f
+            p[10] = hwz - t * 0.45f; p[11] = top - 0.018f
+            p[12] = hwz - t; p[13] = top + crown * 0.5f
+            p[14] = 0f; p[15] = top + crown
+        }
+        val sharp = booleanArrayOf(false, true, false, false, false, false, false, false)
+        b.loft(zsArr, prof, sharp, 0xFF07080A.toInt())
+    }
+
+    // --------------------------------------------------------------------------------------
     // Shared car details
     // --------------------------------------------------------------------------------------
-    private fun archesAndUnder(b: MeshBuilder, w: Float, l: Float, zs: FloatArray, r: Float, yUnder: Float) {
+    private fun archesAndUnder(b: MeshBuilder, w: Float, l: Float, zs: FloatArray, r: Float, yUnder: Float, decals: Boolean = false) {
         val hw = w / 2
         b.color(0xFF050608.toInt(), 0f, 0, 0f)
-        for (z in zs) {
+        if (decals) for (z in zs) {
             b.box(-(hw + 0.004f), r + 0.05f, z, 0.008f, r * 1.25f, r * 2.45f)
             b.box(hw + 0.004f, r + 0.05f, z, 0.008f, r * 1.25f, r * 2.45f)
         }
@@ -143,10 +229,8 @@ object Models {
         val l = 4.4f; val w = 1.9f; val hw = w / 2; val r = 0.34f
         val zf = -l * 0.32f; val zr = l * 0.31f
         paint(b)
-        b.box(0f, 0.44f, 0f, w, 0.34f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.14f, 0.61f, -hw + 0.12f, hw - 0.12f, -l / 2 + 0.3f, -l * 0.14f, 0.75f, bottom = false)
-        b.taper(-hw, hw, l * 0.24f, l / 2 - 0.05f, 0.61f, -hw + 0.08f, hw - 0.08f, l * 0.24f, l / 2 - 0.16f, 0.8f, bottom = false)
-        b.box(0f, 0.68f, (-l * 0.14f + l * 0.24f) / 2, w, 0.15f, l * 0.38f)
+        shell(b, Shell(l - 0.1f, w, floatArrayOf(zf, zr), r, sill = 0.27f, belt = 0.755f, zCowl = -l * 0.14f, zDeck = l * 0.24f,
+            noseTop = 0.6f, tailTop = 0.78f, noseRound = 0.55f, noseMinW = 0.76f))
         // cabin glass + roof
         b.glass()
         b.taper(-hw + 0.1f, hw - 0.1f, -l * 0.14f, l * 0.24f, 0.755f, -hw + 0.3f, hw - 0.3f, -l * 0.14f + 0.64f, l * 0.24f - 0.42f, 1.13f, bottom = false)
@@ -197,10 +281,9 @@ object Models {
         val l = 4.9f; val w = 2.0f; val hw = w / 2; val r = 0.36f
         val zf = -l * 0.31f; val zr = l * 0.3f
         paint(b)
-        b.box(0f, 0.47f, 0f, w, 0.4f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.12f, 0.67f, -hw + 0.04f, hw - 0.04f, -l / 2 + 0.12f, -l * 0.12f, 0.79f, bottom = false)
-        b.taper(-hw, hw, l * 0.22f, l / 2 - 0.05f, 0.67f, -hw + 0.04f, hw - 0.04f, l * 0.22f, l / 2 - 0.1f, 0.8f, bottom = false)
-        b.box(0f, 0.735f, (-l * 0.12f + l * 0.22f) / 2, w, 0.13f, l * 0.34f)
+        shell(b, Shell(l - 0.1f, w, floatArrayOf(zf, zr), r, sill = 0.27f, belt = 0.8f, zCowl = -l * 0.12f, zDeck = l * 0.22f,
+            noseTop = 0.72f, tailTop = 0.79f, noseRound = 0.3f, tailRound = 0.25f, noseMinW = 0.9f, tailMinW = 0.92f,
+            tumble = 0.07f, crown = 0.02f, archBulge = 0.025f, flare = 0.05f))
         b.glass()
         b.taper(-hw + 0.1f, hw - 0.1f, -l * 0.12f, l * 0.22f, 0.8f, -hw + 0.24f, hw - 0.24f, -l * 0.12f + 0.52f, l * 0.22f - 0.5f, 1.22f, bottom = false)
         interior(b, hw - 0.1f, -l * 0.12f, l * 0.22f, 0.8f, -l * 0.12f + 0.52f, l * 0.22f - 0.5f, 1.22f, hw)
@@ -246,8 +329,9 @@ object Models {
         val l = 4.8f; val w = 2.05f; val hw = w / 2; val r = 0.42f
         val zf = -l * 0.31f; val zr = l * 0.31f
         paint(b, 0.6f)
-        b.box(0f, 0.74f, 0f, w, 0.56f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.18f, 1.02f, -hw + 0.06f, hw - 0.06f, -l / 2 + 0.16f, -l * 0.18f, 1.1f, bottom = false)
+        shell(b, Shell(l - 0.1f, w, floatArrayOf(zf, zr), r, sill = 0.46f, belt = 1.06f, zCowl = -l * 0.18f, zDeck = l / 2 - 0.06f,
+            noseTop = 1.0f, tailTop = 1.06f, noseRound = 0.4f, tailRound = 0.25f, noseMinW = 0.86f, tailMinW = 0.92f,
+            tumble = 0.08f, crown = 0.03f, flare = 0.06f, lift = 0.12f))
         b.glass()
         b.taper(-hw + 0.08f, hw - 0.08f, -l * 0.18f, l / 2 - 0.12f, 1.02f, -hw + 0.18f, hw - 0.18f, -l * 0.18f + 0.5f, l / 2 - 0.22f, 1.74f, bottom = false)
         interior(b, hw - 0.08f, -l * 0.18f, l / 2 - 0.12f, 1.02f, -l * 0.18f + 0.5f, l / 2 - 0.22f, 1.74f, hw)
@@ -296,9 +380,9 @@ object Models {
         val l = 4.6f; val w = 2.02f; val hw = w / 2; val r = 0.36f
         val zf = -l * 0.31f; val zr = l * 0.3f
         paint(b, 0.8f)
-        b.box(0f, 0.38f, 0f, w, 0.26f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.08f, 0.51f, -hw + 0.16f, hw - 0.16f, -l / 2 + 0.5f, -l * 0.08f, 0.66f, bottom = false)
-        b.taper(-hw, hw, -l * 0.08f, l / 2 - 0.05f, 0.51f, -hw + 0.06f, hw - 0.06f, -l * 0.0f, l / 2 - 0.22f, 0.76f, bottom = false)
+        shell(b, Shell(l - 0.1f, w, floatArrayOf(zf, zr), r, sill = 0.25f, belt = 0.7f, zCowl = -l * 0.14f, zDeck = l * 0.16f,
+            noseTop = 0.47f, tailTop = 0.76f, noseRound = 0.8f, tailRound = 0.3f, noseMinW = 0.6f, tailMinW = 0.9f,
+            tumble = 0.24f, crown = 0.03f, archBulge = 0.05f, flare = 0.05f, lift = 0.04f))
         b.glass()
         b.taper(-hw + 0.24f, hw - 0.24f, -l * 0.17f, l * 0.18f, 0.7f, -hw + 0.42f, hw - 0.42f, -l * 0.17f + 0.62f, l * 0.18f - 0.12f, 1.07f, bottom = false)
         interior(b, hw - 0.24f, -l * 0.17f, l * 0.18f, 0.7f, -l * 0.17f + 0.62f, l * 0.18f - 0.12f, 1.07f, hw)
@@ -359,10 +443,9 @@ object Models {
         val l = 4.7f; val w = 1.86f; val hw = w / 2; val r = 0.35f
         val zf = -l * 0.33f; val zr = l * 0.31f
         paint(b, 0.8f)
-        b.box(0f, 0.5f, 0f, w, 0.38f, l - 0.14f)
-        b.taper(-hw, hw, -l / 2 + 0.07f, -l * 0.05f, 0.69f, -hw + 0.1f, hw - 0.1f, -l / 2 + 0.24f, -l * 0.05f, 0.78f, bottom = false)
-        b.taper(-hw, hw, l * 0.26f, l / 2 - 0.07f, 0.69f, -hw + 0.1f, hw - 0.1f, l * 0.26f, l / 2 - 0.26f, 0.76f, bottom = false)
-        b.box(0f, 0.735f, (-l * 0.05f + l * 0.26f) / 2, w, 0.09f, l * 0.31f)
+        shell(b, Shell(l - 0.14f, w, floatArrayOf(zf, zr), r, sill = 0.31f, belt = 0.78f, zCowl = -l * 0.05f, zDeck = l * 0.26f,
+            noseTop = 0.7f, tailTop = 0.73f, noseRound = 0.35f, tailRound = 0.4f, noseMinW = 0.88f, tailMinW = 0.86f,
+            tumble = 0.08f, crown = 0.045f, archBulge = 0.04f, flare = 0.06f))
         val zt0 = -l * 0.05f + 0.42f; val zt1 = l * 0.26f - 0.38f
         b.glass()
         b.taper(-hw + 0.12f, hw - 0.12f, -l * 0.05f, l * 0.26f, 0.78f, -hw + 0.26f, hw - 0.26f, zt0, zt1, 1.2f, bottom = false)
@@ -413,7 +496,7 @@ object Models {
         val b = MeshBuilder()
         val l = 4.8f; val w = 1.9f; val hw = w / 2; val r = 0.35f
         val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
-        sedanBody(b, l, w)
+        sedanBody(b, l, w, r)
         b.color(0xFF0B0C0E.toInt(), 0f, 0, 0.4f)
         b.box(0f, 0.27f, -l / 2 + 0.08f, w + 0.02f, 0.03f, 0.22f)
         b.box(-(hw + 0.02f), 0.3f, 0f, 0.04f, 0.06f, l * 0.5f)
@@ -436,8 +519,9 @@ object Models {
         val zs = floatArrayOf(-l * 0.32f, l * 0.3f)
         val zc0 = -l * 0.2f; val zc1 = zc0 + 1.75f
         paint(b, 0.55f)
-        b.box(0f, 0.88f, 0f, w, 0.6f, l - 0.08f)
-        b.taper(-hw, hw, -l / 2 + 0.04f, zc0, 1.18f, -hw + 0.03f, hw - 0.03f, -l / 2 + 0.1f, zc0, 1.26f, bottom = false)
+        shell(b, Shell(l - 0.08f, w, zs, r, sill = 0.58f, belt = 1.22f, zCowl = zc0, zDeck = l / 2 - 0.05f,
+            noseTop = 1.16f, tailTop = 1.2f, noseRound = 0.3f, tailRound = 0.15f, noseMinW = 0.92f, tailMinW = 0.96f,
+            tumble = 0.05f, crown = 0.02f, flare = 0.07f, lift = 0.1f))
         b.glass()
         b.taper(-hw + 0.08f, hw - 0.08f, zc0, zc1, 1.18f, -hw + 0.16f, hw - 0.16f, zc0 + 0.5f, zc1 - 0.06f, 1.95f, bottom = false)
         interior(b, hw - 0.08f, zc0, zc1, 1.18f, zc0 + 0.5f, zc1 - 0.06f, 1.95f, hw)
@@ -486,8 +570,9 @@ object Models {
         val zs = floatArrayOf(-l * 0.3f, l * 0.29f)
         val zg0 = -l * 0.12f; val zg1 = l / 2 - 0.2f
         paint(b, 0.4f)
-        b.box(0f, 0.96f, 0f, w, 0.72f, l - 0.3f)
-        b.taper(-hw, hw, -l / 2 + 0.15f, zg0, 1.32f, -hw + 0.03f, hw - 0.03f, -l / 2 + 0.2f, zg0, 1.38f, bottom = false)
+        shell(b, Shell(l - 0.3f, w, zs, r, sill = 0.6f, belt = 1.36f, zCowl = zg0, zDeck = l / 2 - 0.16f,
+            noseTop = 1.3f, tailTop = 1.34f, noseRound = 0.18f, tailRound = 0.14f, noseMinW = 0.95f, tailMinW = 0.96f,
+            tumble = 0.04f, crown = 0.012f, flare = 0.1f, lift = 0.06f))
         b.glass()
         b.taper(-hw + 0.06f, hw - 0.06f, zg0, zg1, 1.32f, -hw + 0.08f, hw - 0.08f, zg0 + 0.24f, zg1 - 0.02f, 2.04f, bottom = false)
         interior(b, hw - 0.06f, zg0, zg1, 1.32f, zg0 + 0.24f, zg1 - 0.02f, 2.04f, hw)
@@ -546,7 +631,7 @@ object Models {
         val b = MeshBuilder()
         val l = 4.9f; val w = 1.92f; val hw = w / 2; val r = 0.36f
         val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
-        sedanBody(b, l, w)
+        sedanBody(b, l, w, r)
         // white door panels and a dark lower stripe (fixed livery over the chosen paint)
         b.color(0xFFF2F4F6.toInt(), 0f, 0, 0.5f)
         b.box(-(hw + 0.005f), 0.56f, l * 0.03f, 0.01f, 0.28f, l * 0.42f)
@@ -592,9 +677,9 @@ object Models {
         val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
         val zt0 = -l * 0.16f + 0.6f; val zt1 = l * 0.16f - 0.1f
         paint(b, 0.9f)
-        b.box(0f, 0.36f, 0f, w, 0.24f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.1f, 0.48f, -hw + 0.14f, hw - 0.14f, -l / 2 + 0.45f, -l * 0.1f, 0.64f, bottom = false)
-        b.taper(-hw, hw, -l * 0.1f, l / 2 - 0.05f, 0.48f, -hw + 0.1f, hw - 0.1f, 0f, l / 2 - 0.15f, 0.74f, bottom = false)
+        shell(b, Shell(l - 0.1f, w, zs, r, sill = 0.24f, belt = 0.68f, zCowl = -l * 0.16f, zDeck = l * 0.16f,
+            noseTop = 0.42f, tailTop = 0.74f, noseRound = 0.9f, tailRound = 0.25f, noseMinW = 0.55f, tailMinW = 0.94f,
+            tumble = 0.28f, crown = 0.03f, archBulge = 0.07f, flare = 0.06f, lift = 0.03f))
         b.glass()
         b.taper(-hw + 0.28f, hw - 0.28f, -l * 0.16f, l * 0.16f, 0.68f, -hw + 0.45f, hw - 0.45f, zt0, zt1, 1.05f, bottom = false)
         interior(b, hw - 0.28f, -l * 0.16f, l * 0.16f, 0.68f, zt0, zt1, 1.05f, hw)
@@ -664,9 +749,9 @@ object Models {
         val zs = floatArrayOf(-l * 0.33f, l * 0.32f)
         val zb0 = -l * 0.2f; val zb1 = l / 2 - 0.05f
         paint(b, 0.75f)
-        b.box(0f, 0.47f, 0f, w, 0.4f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, zb0, 0.67f, -hw + 0.06f, hw - 0.06f, -l / 2 + 0.22f, zb0, 0.8f, bottom = false)
-        b.box(0f, 0.745f, (zb0 + zb1) / 2, w, 0.15f, zb1 - zb0)
+        shell(b, Shell(l - 0.1f, w, zs, r, sill = 0.27f, belt = 0.82f, zCowl = zb0, zDeck = zb1 - 0.02f,
+            noseTop = 0.67f, tailTop = 0.82f, noseRound = 0.4f, tailRound = 0.18f, noseMinW = 0.82f, tailMinW = 0.93f,
+            tumble = 0.08f, flare = 0.05f))
         val zt0 = zb0 + 0.72f; val zt1 = zb1 - 0.17f
         b.glass()
         b.taper(-hw + 0.08f, hw - 0.08f, zb0, zb1 - 0.04f, 0.82f, -hw + 0.2f, hw - 0.2f, zt0, zt1, 1.42f, bottom = false)
@@ -725,10 +810,8 @@ object Models {
         val zs = floatArrayOf(-l * 0.3f, l * 0.31f)
         val zb0 = -l * 0.16f; val zb1 = l * 0.34f
         paint(b, 0.85f)
-        b.box(0f, 0.45f, 0f, w, 0.36f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, zb0, 0.63f, -hw + 0.1f, hw - 0.1f, -l / 2 + 0.35f, zb0, 0.76f, bottom = false)
-        b.taper(-hw, hw, zb1, l / 2 - 0.05f, 0.63f, -hw + 0.08f, hw - 0.08f, zb1, l / 2 - 0.2f, 0.8f, bottom = false)
-        b.box(0f, 0.695f, (zb0 + zb1) / 2, w, 0.13f, zb1 - zb0)
+        shell(b, Shell(l - 0.1f, w, zs, r, sill = 0.27f, belt = 0.76f, zCowl = zb0, zDeck = zb1, noseTop = 0.6f, tailTop = 0.79f,
+            noseRound = 0.6f, noseMinW = 0.74f, tumble = 0.1f))
         val zt0 = zb0 + 0.75f; val zt1 = 0.75f
         // long fastback glasshouse; the roof itself is glass (panoramic)
         b.glass()
@@ -777,7 +860,7 @@ object Models {
         val b = MeshBuilder()
         val l = 4.7f; val w = 1.86f; val hw = w / 2; val r = 0.33f
         val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
-        sedanBody(b, l, w)
+        sedanBody(b, l, w, r)
         b.color(DARK, 0f, 0, 0.3f)
         b.box(0f, 1.46f, 0.05f, 0.72f, 0.03f, 0.3f)
         b.color(0xFFFFF3C0.toInt(), 0f, 5, 0.3f)
@@ -811,10 +894,9 @@ object Models {
         val zb0 = -l * 0.12f; val zb1 = l * 0.26f
         val bw = w - 0.1f; val bh = bw / 2
         paint(b, 0.8f)
-        b.box(0f, 0.42f, 0f, bw, 0.32f, l - 0.1f)
-        b.taper(-bh, bh, -l / 2 + 0.05f, zb0, 0.58f, -bh + 0.1f, bh - 0.1f, -l / 2 + 0.25f, zb0, 0.72f, bottom = false)
-        b.taper(-bh, bh, zb1, l / 2 - 0.05f, 0.58f, -bh + 0.05f, bh - 0.05f, zb1, l / 2 - 0.12f, 0.78f, bottom = false)
-        b.box(0f, 0.65f, (zb0 + zb1) / 2, bw, 0.14f, zb1 - zb0)
+        shell(b, Shell(l - 0.1f, bw, zs, r, sill = 0.26f, belt = 0.72f, zCowl = zb0, zDeck = zb1,
+            noseTop = 0.56f, tailTop = 0.76f, noseRound = 0.55f, tailRound = 0.3f, noseMinW = 0.78f, tailMinW = 0.9f,
+            tumble = 0.1f, archBulge = 0.03f, flare = 0.07f))
         val zt0 = zb0 + 0.62f; val zt1 = zb1 - 0.4f
         b.glass()
         b.taper(-bh + 0.1f, bh - 0.1f, zb0, zb1, 0.72f, -bh + 0.28f, bh - 0.28f, zt0, zt1, 1.12f, bottom = false)
@@ -868,13 +950,12 @@ object Models {
     // --------------------------------------------------------------------------------------
     // Traffic vehicles
     // --------------------------------------------------------------------------------------
-    private fun sedanBody(b: MeshBuilder, l: Float, w: Float) {
+    private fun sedanBody(b: MeshBuilder, l: Float, w: Float, r: Float = 0.34f, detail: Float = 1f) {
         val hw = w / 2
         paint(b, 0.55f)
-        b.box(0f, 0.49f, 0f, w, 0.42f, l - 0.1f)
-        b.taper(-hw, hw, -l / 2 + 0.05f, -l * 0.2f, 0.7f, -hw + 0.06f, hw - 0.06f, -l / 2 + 0.2f, -l * 0.2f, 0.8f, bottom = false)
-        b.taper(-hw, hw, l * 0.26f, l / 2 - 0.05f, 0.7f, -hw + 0.06f, hw - 0.06f, l * 0.26f, l / 2 - 0.14f, 0.82f, bottom = false)
-        b.box(0f, 0.755f, (-l * 0.2f + l * 0.26f) / 2, w, 0.11f, l * 0.46f)
+        shell(b, Shell(l - 0.1f, w, floatArrayOf(-l * 0.31f, l * 0.3f), r, sill = 0.28f, belt = 0.81f, zCowl = -l * 0.2f, zDeck = l * 0.26f,
+            noseTop = 0.69f, tailTop = 0.8f, noseRound = 0.45f, tailRound = 0.35f, noseMinW = 0.82f, tailMinW = 0.88f,
+            tumble = 0.09f, detail = detail))
         b.glass()
         b.taper(-hw + 0.08f, hw - 0.08f, -l * 0.2f, l * 0.26f, 0.81f, -hw + 0.2f, hw - 0.2f, -l * 0.2f + 0.55f, l * 0.26f - 0.42f, 1.42f, bottom = false)
         interior(b, hw - 0.08f, -l * 0.2f, l * 0.26f, 0.81f, -l * 0.2f + 0.55f, l * 0.26f - 0.42f, 1.42f, hw)
@@ -900,7 +981,7 @@ object Models {
         val b = MeshBuilder()
         val l = 4.5f; val w = 1.85f; val r = 0.32f
         val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
-        sedanBody(b, l, w)
+        sedanBody(b, l, w, r, detail = 0.5f)
         archesAndUnder(b, w, l, zs, r, 0.24f)
         return VehicleModel(b.build(), l, w, w / 2 - 0.1f, zs, r,
             floatArrayOf(-(w / 2 - 0.25f), 0.62f, -l / 2, w / 2 - 0.25f, 0.62f, -l / 2),
@@ -911,7 +992,7 @@ object Models {
         val b = MeshBuilder()
         val l = 4.6f; val w = 1.85f; val r = 0.32f
         val zs = floatArrayOf(-l * 0.31f, l * 0.3f)
-        sedanBody(b, l, w)
+        sedanBody(b, l, w, r, detail = 0.5f)
         b.color(0xFFFFF3C0.toInt(), 0f, 5, 0.3f)
         b.box(0f, 1.53f, 0.05f, 0.62f, 0.16f, 0.26f)
         b.color(0xFF111111.toInt(), 0f, 0, 0.2f)
@@ -954,7 +1035,7 @@ object Models {
         b.box(hw - 0.08f, 0.95f, l / 2 - 0.01f, 0.12f, 0.4f, 0.06f)
         blinkers(b, hw, 0.62f, -l / 2 + 0.0f, 0.68f, l / 2 + 0.02f)
         mirrors(b, hw, 1.3f, -l / 2 + 1.3f)
-        archesAndUnder(b, w, l, zs, r, 0.28f)
+        archesAndUnder(b, w, l, zs, r, 0.28f, decals = true)
         return VehicleModel(b.build(), l, w, hw - 0.12f, zs, r,
             floatArrayOf(-(hw - 0.22f), 0.8f, -l / 2, hw - 0.22f, 0.8f, -l / 2),
             floatArrayOf(-(hw - 0.08f), 0.95f, l / 2, hw - 0.08f, 0.95f, l / 2), floatArrayOf())
@@ -1011,7 +1092,7 @@ object Models {
         b.box(0f, 0.6f, l / 2 - 0.05f, w - 0.2f, 0.12f, 0.12f)
         blinkers(b, hw, 0.98f, -l / 2 + 0.02f, 0.95f, l / 2 + 0.02f)
         mirrors(b, hw + 0.05f, 2.3f, -l / 2 + 0.4f)
-        archesAndUnder(b, w, l, floatArrayOf(), r, 0.55f)
+        archesAndUnder(b, w, l, floatArrayOf(), r, 0.55f, decals = true)
         return VehicleModel(b.build(), l, w, hw - 0.2f, zs, r,
             floatArrayOf(-(hw - 0.3f), 0.98f, -l / 2, hw - 0.3f, 0.98f, -l / 2),
             floatArrayOf(-(hw - 0.3f), 0.95f, l / 2, hw - 0.3f, 0.95f, l / 2), floatArrayOf())
@@ -1047,7 +1128,7 @@ object Models {
         b.box(hw - 0.15f, 1.0f, l / 2 + 0.02f, 0.2f, 0.5f, 0.05f)
         blinkers(b, hw, 0.62f, -l / 2 - 0.02f, 1.35f, l / 2 + 0.02f)
         mirrors(b, hw + 0.1f, 2.4f, -l / 2 + 0.2f)
-        archesAndUnder(b, w, l, zs, r, 0.32f)
+        archesAndUnder(b, w, l, zs, r, 0.32f, decals = true)
         return VehicleModel(b.build(), l, w, hw - 0.22f, zs, r,
             floatArrayOf(-(hw - 0.3f), 0.85f, -l / 2, hw - 0.3f, 0.85f, -l / 2),
             floatArrayOf(-(hw - 0.15f), 1.0f, l / 2, hw - 0.15f, 1.0f, l / 2), floatArrayOf())

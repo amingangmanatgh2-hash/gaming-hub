@@ -401,8 +401,99 @@ class MeshBuilder {
         lastDeckZ = zs
     }
 
+    /**
+     * Lofted, smooth-shaded shell (car bodies). [zs] are n stations along Z; [prof] holds for each
+     * station the +X half profile as (x, y) pairs from the bottom centre round to the top centre
+     * (m points). It is mirrored to -X, closed into a ring and skinned station to station; ends
+     * are capped. [sharp] marks profile points that keep a hard crease. The two bottom segments
+     * use [bottomColor] (dark underside / wheel wells), everything else the current colour.
+     */
+    fun loft(zs: FloatArray, prof: Array<FloatArray>, sharp: BooleanArray, bottomColor: Int) {
+        val n = zs.size
+        val m = prof[0].size / 2
+        val rn = 2 * m - 2
+        fun px(k: Int, i0: Int): Float { val i = ((i0 % rn) + rn) % rn; return if (i < m) prof[k][i * 2] else -prof[k][(rn - i) * 2] }
+        fun py(k: Int, i0: Int): Float { val i = ((i0 % rn) + rn) % rn; return if (i < m) prof[k][i * 2 + 1] else prof[k][(rn - i) * 2 + 1] }
+        fun sh(i0: Int): Boolean { val i = ((i0 % rn) + rn) % rn; return if (i < m) sharp[i] else sharp[rn - i] }
+        val sr = cr; val sg = cg; val sb = cb; val sp = paint; val ss = spec; val se = emis
+        val nrm = FloatArray(3)
+        fun normalAt(k: Int, i: Int, segA: Int, out: FloatArray) {
+            val ka = minOf(k + 1, n - 1); val kb = maxOf(k - 1, 0)
+            val tzx = px(ka, i) - px(kb, i); val tzy = py(ka, i) - py(kb, i); val tzz = zs[ka] - zs[kb]
+            val tix: Float; val tiy: Float
+            if (sh(i)) {
+                // hard crease: tangent of the segment being emitted
+                tix = px(k, segA + 1) - px(k, segA); tiy = py(k, segA + 1) - py(k, segA)
+            } else {
+                tix = px(k, i + 1) - px(k, i - 1); tiy = py(k, i + 1) - py(k, i - 1)
+            }
+            // n = ti x tz (ti has no z component)
+            var nx = tiy * tzz
+            var ny = -tix * tzz
+            var nz = tix * tzy - tiy * tzx
+            // outward: away from the profile centre
+            var yc = 0f
+            for (q in 0 until m) yc += prof[k][q * 2 + 1]
+            yc /= m
+            if (nx * px(k, i) + ny * (py(k, i) - yc) < 0f) { nx = -nx; ny = -ny; nz = -nz }
+            val len = sqrt(nx * nx + ny * ny + nz * nz).coerceAtLeast(1e-6f)
+            out[0] = nx / len; out[1] = ny / len; out[2] = nz / len
+        }
+        for (s in 0 until rn) {
+            if (s == 0 || s == rn - 1) {
+                cr = ((bottomColor shr 16) and 0xFF) / 255f; cg = ((bottomColor shr 8) and 0xFF) / 255f; cb = (bottomColor and 0xFF) / 255f
+                paint = 0f; spec = 0.05f; emis = 0f
+            } else { cr = sr; cg = sg; cb = sb; paint = sp; spec = ss; emis = se }
+            val base = vCount
+            for (k in 0 until n) {
+                normalAt(k, s, s, nrm)
+                vertex(px(k, s), py(k, s), zs[k], nrm[0], nrm[1], nrm[2], 0f, 0f)
+                normalAt(k, s + 1, s, nrm)
+                vertex(px(k, s + 1), py(k, s + 1), zs[k], nrm[0], nrm[1], nrm[2], 0f, 0f)
+            }
+            for (k in 0 until n - 1) {
+                val a = base + k * 2; val b2 = a + 1; val c = a + 3; val d = a + 2
+                orientedTri(a, b2, c); orientedTri(a, c, d)
+            }
+        }
+        cr = sr; cg = sg; cb = sb; paint = sp; spec = ss; emis = se
+        // end caps (flat fan)
+        for (end in 0..1) {
+            val k = if (end == 0) 0 else n - 1
+            val nz = if (end == 0) -1f else 1f
+            var cxm = 0f; var cym = 0f
+            for (i in 0 until rn) { cxm += px(k, i); cym += py(k, i) }
+            cxm /= rn; cym /= rn
+            val c = vertex(cxm, cym, zs[k], 0f, 0f, nz, 0f, 0f)
+            val first = vCount
+            for (i in 0 until rn) vertex(px(k, i), py(k, i), zs[k], 0f, 0f, nz, 0f, 0f)
+            for (i in 0 until rn) orientedTri(c, first + i, first + (i + 1) % rn)
+        }
+    }
+
+    /** Triangle wound so its face normal agrees with the (averaged) vertex normals: CCW front faces. */
+    private fun orientedTri(a: Int, b: Int, c: Int) {
+        val F = Mesh.FLOATS_PER_VERTEX
+        val ax = verts[a * F]; val ay = verts[a * F + 1]; val az = verts[a * F + 2]
+        val e1x = verts[b * F] - ax; val e1y = verts[b * F + 1] - ay; val e1z = verts[b * F + 2] - az
+        val e2x = verts[c * F] - ax; val e2y = verts[c * F + 1] - ay; val e2z = verts[c * F + 2] - az
+        val gx = e1y * e2z - e1z * e2y; val gy = e1z * e2x - e1x * e2z; val gz = e1x * e2y - e1y * e2x
+        if (gx * gx + gy * gy + gz * gz < 1e-14f) return
+        val vnx = verts[a * F + 3] + verts[b * F + 3] + verts[c * F + 3]
+        val vny = verts[a * F + 4] + verts[b * F + 4] + verts[c * F + 4]
+        val vnz = verts[a * F + 5] + verts[b * F + 5] + verts[c * F + 5]
+        if (gx * vnx + gy * vny + gz * vnz >= 0f) tri(a, b, c) else tri(a, c, b)
+    }
+
     fun build(): Mesh {
         measureDeck()
+        val cap = capture
+        if (cap != null) {
+            // headless (tools/model-preview): hand the geometry over instead of uploading it
+            cap(verts.copyOf(vCount * Mesh.FLOATS_PER_VERTEX), vCount, idx.copyOf(iCount), gIdx.copyOf(gCount))
+            lastGlass = if (gCount > 0) Mesh(0, 0, gCount, 0) else null
+            return Mesh(0, 0, iCount, 0)
+        }
         val ids = IntArray(1)
         GLES30.glGenBuffers(1, ids, 0)
         val vb = Gl.floatBuffer(vCount * Mesh.FLOATS_PER_VERTEX)
@@ -444,5 +535,8 @@ class MeshBuilder {
         var lastDeckZ = 0f
 
         fun takeGlass(): Mesh? { val g = lastGlass; lastGlass = null; return g }
+
+        /** Developer preview only (never set in the game): receives (vertices, vertexCount, indices, glassIndices). */
+        @JvmStatic var capture: ((FloatArray, Int, IntArray, IntArray) -> Unit)? = null
     }
 }
